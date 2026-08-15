@@ -1,4 +1,5 @@
 import { ThemeService } from '../service/theme/ThemeService';
+import { BackgroundAdapter } from '../service/theme/BackgroundAdapter';
 import { queueViewModel } from '../viewmodel/QueueViewModel';
 import { common } from '@kit.AbilityKit';
 import { MusicLibraryPage } from './MusicLibraryPage';
@@ -18,10 +19,16 @@ struct Index {
   @State current: number = 0;
   private tabs: string[] = ['音乐库', '正在播放', '队列', '歌单', '设置'];
 
+  private ctx(): common.UIAbilityContext {
+    return this.getUIContext().getHostContext() as common.UIAbilityContext;
+  }
+
   aboutToAppear(): void {
     // 断点续播恢复(issue-06):还原队列/当前曲/进度为暂停态
-    const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
+    const ctx = this.ctx();
     queueViewModel.restore(ctx);
+    // 背景图重启恢复 + 全局铺满(issue-00 AC,真机验证)
+    BackgroundAdapter.restoreIfPresent(ctx, this.theme);
   }
 
   @Builder
@@ -41,11 +48,24 @@ struct Index {
 
   build() {
     Stack({ alignContent: Alignment.Bottom }) {
-      // 背景:近黑底(有背景图后由 issue-00 叠图+蒙层)
+      // 背景:近黑底(有背景图后叠图+蒙层)
       Column()
         .width('100%')
         .height('100%')
         .backgroundColor(this.theme.bg)
+
+      // 用户背景图:全局铺满 + 蒙层保底(DESIGN.md 蒙层保底规则)
+      if (this.theme.hasBackground && this.theme.bgImagePath !== '') {
+        Image('file://' + this.ctx().filesDir + '/' + this.theme.bgImagePath)
+          .width('100%')
+          .height('100%')
+          .objectFit(ImageFit.Cover)
+        Column()
+          .width('100%')
+          .height('100%')
+          .backgroundColor(this.theme.isDark ? '#000000' : '#FFFFFF')
+          .opacity(this.theme.scrimList)
+      }
 
       Column() {
         this.PageContent()

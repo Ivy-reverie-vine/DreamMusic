@@ -25,6 +25,8 @@ export class PlayerViewModel {
   trackChangeHandler: ((t: Track) => void) | null = null;
   /** issue-08 歌词域钩子:位置滴答 */
   positionTickHandler: ((ms: number) => void) | null = null;
+  /** issue-00 封面取色钩子:切歌时从封面提取主题色(正在播放页注入) */
+  coverColorHandler: ((t: Track) => void) | null = null;
   private session: PlayerSession = new PlayerSession();
   private lastContext: common.Context | null = null;
 
@@ -47,6 +49,9 @@ export class PlayerViewModel {
     this.durationMs = track.durationMs > 0 ? track.durationMs : 0;
     if (this.trackChangeHandler !== null) {
       this.trackChangeHandler(track);
+    }
+    if (this.coverColorHandler !== null) {
+      this.coverColorHandler(track);
     }
     const abs = context.filesDir + '/' + track.path;
     const callbacks: PlaybackCallbacks = {
@@ -101,6 +106,9 @@ export class PlayerViewModel {
     this.state = PlayerState.PAUSED;
     if (this.trackChangeHandler !== null) {
       this.trackChangeHandler(track);
+    }
+    if (this.coverColorHandler !== null) {
+      this.coverColorHandler(track);
     }
     if (this.positionTickHandler !== null) {
       this.positionTickHandler(positionMs);

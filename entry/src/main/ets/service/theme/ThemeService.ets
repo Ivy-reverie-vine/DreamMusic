@@ -37,6 +37,8 @@ export class ThemeService {
   scrimList: number = 0.65;      // 列表页蒙层不透明度(0-1)
   scrimNowPlaying: number = 0.45;
   hasBackground: boolean = false;
+  /** 背景图相对路径(相对 filesDir),重启恢复用 */
+  bgImagePath: string = '';
 
   private static instance: ThemeService | null = null;
 

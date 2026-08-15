@@ -1,9 +1,11 @@
 import { ThemeService } from '../service/theme/ThemeService';
+import { BackgroundAdapter } from '../service/theme/BackgroundAdapter';
 import { BubblePauseButton } from '../components/BubblePauseButton';
 import { playerViewModel, PlayerViewModel } from '../viewmodel/PlayerViewModel';
 import { queueViewModel } from '../viewmodel/QueueViewModel';
 import { lyricsViewModel, LyricsViewModel } from '../viewmodel/LyricsViewModel';
 import { PlayerState } from '../model/Playback';
+import { Track } from '../model/Entities';
 import { common } from '@kit.AbilityKit';
 
 function fmt(ms: number): string {
@@ -22,6 +24,25 @@ export struct NowPlayingPage {
 
   aboutToAppear(): void {
     this.lrc.setContext(this.ctx());
+    // 封面取色(issue-00/PRD story46):切歌 → 从封面提取主题色,500ms 渐变(真机验证渐变观感)
+    playerViewModel.coverColorHandler = (t: Track): void => {
+      this.applyCoverColors(t);
+    };
+  }
+
+  private async applyCoverColors(t: Track): Promise<void> {
+    if (t.coverPath === '') {
+      return;
+    }
+    try {
+      const abs = this.ctx().filesDir + '/' + t.coverPath;
+      const colors = await BackgroundAdapter.extractFromFile(abs);
+      animateTo({ duration: 500, curve: Curve.EaseOut }, () => {
+        this.theme.applyExtracted(colors.primary, colors.secondary);
+      });
+    } catch (err) {
+      // 封面取色失败静默,保持当前主题
+    }
   }
 
   private ctx(): common.UIAbilityContext {

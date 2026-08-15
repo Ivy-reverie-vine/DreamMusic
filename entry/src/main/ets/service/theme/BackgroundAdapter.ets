@@ -37,6 +37,7 @@ export class BackgroundAdapter {
       const destPath: string = BackgroundAdapter.copyToSandbox(context, uri);
       const colors = await BackgroundAdapter.extractFromFile(destPath);
       theme.applyExtracted(colors.primary, colors.secondary);
+      theme.bgImagePath = BG_DIR + '/' + destPath.substring(destPath.lastIndexOf('/') + 1);
       theme.setHasBackground(true);
       return true;
     } catch (err) {
@@ -65,7 +66,31 @@ export class BackgroundAdapter {
     return dest;
   }
 
-  private static async extractFromFile(path: string): Promise<ExtractedPair> {
+  /** 重启恢复背景图与取色(issue-00 AC「重启后保持」;真机验证) */
+  static async restoreIfPresent(context: common.Context, theme: ThemeService): Promise<boolean> {
+    const dir = context.filesDir + '/' + BG_DIR;
+    try {
+      if (!fileIo.accessSync(dir)) {
+        return false;
+      }
+      const names = await fileIo.listFile(dir);
+      for (const n of names) {
+        if (n.startsWith(BG_FILE)) {
+          const path = dir + '/' + n;
+          const colors = await BackgroundAdapter.extractFromFile(path);
+          theme.applyExtracted(colors.primary, colors.secondary);
+          theme.bgImagePath = BG_DIR + '/' + n;
+          theme.setHasBackground(true);
+          return true;
+        }
+      }
+      return false;
+    } catch (err) {
+      return false;
+    }
+  }
+
+  static async extractFromFile(path: string): Promise<ExtractedPair> {
     const source: image.ImageSource = image.createImageSource(path);
     const pm: image.PixelMap = await source.createPixelMap({ desiredSize: { width: 64, height: 64 } });
     const info: image.ImageInfo = await pm.getImageInfo();
