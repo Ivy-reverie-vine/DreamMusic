@@ -1,7 +1,9 @@
 import { common } from '@kit.AbilityKit';
 import { QueueEngine, PlayMode } from '../service/playback/QueueEngine';
+import { BackgroundPlayback } from '../service/playback/BackgroundPlayback';
 import { LibraryStore } from '../service/library/LibraryStore';
 import { playerViewModel } from './PlayerViewModel';
+import { PlayerState } from '../model/Playback';
 import { Track } from '../model/Entities';
 
 /**
@@ -24,6 +26,27 @@ export class QueueViewModel {
     // 暂停时落盘进度
     playerViewModel.pausePositionHandler = (ms: number): void => {
       this.persist(ms);
+    };
+    // 系统播控命令(锁屏/控制中心/耳机键)→ 队列域(issue-07)
+    const bp = BackgroundPlayback.getInstance();
+    bp.onPlayCommand = (): void => {
+      if (playerViewModel.state === PlayerState.PAUSED || playerViewModel.state === PlayerState.COMPLETED) {
+        playerViewModel.togglePause();
+      }
+    };
+    bp.onPauseCommand = (): void => {
+      if (playerViewModel.state === PlayerState.PLAYING) {
+        playerViewModel.togglePause();
+      }
+    };
+    bp.onNextCommand = (): void => {
+      this.playNext();
+    };
+    bp.onPrevCommand = (): void => {
+      this.playPrev();
+    };
+    bp.onSeekCommand = (ms: number): void => {
+      playerViewModel.seekTo(ms);
     };
   }
 
@@ -116,6 +139,9 @@ export class QueueViewModel {
     const idx = order.indexOf(this.mode);
     this.mode = order[(idx + 1) % order.length];
     this.engine.setMode(this.mode);
+    playerViewModel.playMode = this.mode;
+    BackgroundPlayback.getInstance().sync(playerViewModel.currentTrack, playerViewModel.state,
+      playerViewModel.positionMs, playerViewModel.durationMs, this.mode, true);
     this.persist(playerViewModel.positionMs);
   }
 

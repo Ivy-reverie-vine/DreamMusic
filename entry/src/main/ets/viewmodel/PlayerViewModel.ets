@@ -1,5 +1,7 @@
 import { common } from '@kit.AbilityKit';
 import { PlayerSession, PlaybackCallbacks } from '../service/playback/PlayerSession';
+import { BackgroundPlayback } from '../service/playback/BackgroundPlayback';
+import { PlayMode } from '../service/playback/QueueEngine';
 import { PlayerState } from '../model/Playback';
 import { Track } from '../model/Entities';
 
@@ -12,12 +14,25 @@ export class PlayerViewModel {
   durationMs: number = 0;
   volume: number = 0.8;
   errorText: string = '';
+  /** 播放模式由队列域持有,此处镜像供后台会话同步 */
+  playMode: PlayMode = PlayMode.SEQUENTIAL;
   /** issue-06 队列域钩子:单曲自然播完 */
   endedHandler: (() => void) | null = null;
   /** issue-06 队列域钩子:暂停时落盘进度 */
   pausePositionHandler: ((ms: number) => void) | null = null;
   private session: PlayerSession = new PlayerSession();
   private lastContext: common.Context | null = null;
+
+  private syncBackground(force: boolean): void {
+    const bp = BackgroundPlayback.getInstance();
+    bp.sync(this.currentTrack, this.state, this.positionMs, this.durationMs, this.playMode, force);
+    if (this.state === PlayerState.PLAYING) {
+      bp.startLongTask();
+    } else if (this.state === PlayerState.PAUSED || this.state === PlayerState.COMPLETED ||
+      this.state === PlayerState.IDLE) {
+      bp.stopLongTask();
+    }
+  }
 
   async playTrack(track: Track, context: common.Context, startMs: number = 0): Promise<void> {
     this.lastContext = context;
@@ -29,12 +44,14 @@ export class PlayerViewModel {
     const callbacks: PlaybackCallbacks = {
       onStateChange: (s: PlayerState): void => {
         this.state = s;
+        this.syncBackground(true);
       },
       onPositionUpdate: (ms: number): void => {
         this.positionMs = ms;
         if (this.durationMs <= 0) {
           this.durationMs = this.session.getDuration();
         }
+        this.syncBackground(false);
       },
       onTrackEnded: (): void => {
         this.state = PlayerState.COMPLETED;
@@ -52,6 +69,7 @@ export class PlayerViewModel {
       if (startMs > 0) {
         this.session.seekTo(startMs);
       }
+      this.syncBackground(true);
     } catch (err) {
       const e = err as Error;
       this.errorText = e.message;

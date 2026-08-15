@@ -3,6 +3,7 @@ import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
 import { LibraryStore } from '../service/library/LibraryStore';
 import { LibraryScanService } from '../service/library/LibraryScanService';
+import { BackgroundPlayback } from '../service/playback/BackgroundPlayback';
 
 const DOMAIN = 0x0000;
 
@@ -14,6 +15,8 @@ export default class EntryAbility extends UIAbility {
       hilog.error(DOMAIN, 'testTag', 'Failed to set colorMode. Cause: %{public}s', JSON.stringify(err));
     }
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
+    // 后台播控会话初始化(issue-07,真机验证)
+    BackgroundPlayback.getInstance().init(this.context);
     // 音乐库存储初始化 + 启动增量扫描(issue-02/04,真机验证)
     LibraryStore.getInstance().init(this.context).then(() => {
       return LibraryScanService.scan(this.context);
