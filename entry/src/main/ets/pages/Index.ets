@@ -1,4 +1,6 @@
 import { ThemeService } from '../service/theme/ThemeService';
+import { queueViewModel } from '../viewmodel/QueueViewModel';
+import { common } from '@kit.AbilityKit';
 import { MusicLibraryPage } from './MusicLibraryPage';
 import { NowPlayingPage } from './NowPlayingPage';
 import { QueuePage } from './QueuePage';
@@ -15,6 +17,12 @@ struct Index {
   @State theme: ThemeService = ThemeService.getInstance();
   @State current: number = 0;
   private tabs: string[] = ['音乐库', '正在播放', '队列', '歌单', '设置'];
+
+  aboutToAppear(): void {
+    // 断点续播恢复(issue-06):还原队列/当前曲/进度为暂停态
+    const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
+    queueViewModel.restore(ctx);
+  }
 
   @Builder
   PageContent() {

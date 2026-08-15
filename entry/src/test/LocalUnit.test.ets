@@ -2,6 +2,7 @@ import { describe, beforeAll, beforeEach, afterEach, afterAll, it, expect } from
 import colorExtractTest from './ColorExtract.test';
 import importPlannerTest from './ImportPlanner.test';
 import scanDiffTest from './ScanDiff.test';
+import queueEngineTest from './QueueEngine.test';
 
 export default function localUnitTest() {
   describe('localUnitTest', () => {
@@ -37,5 +38,6 @@ export default function localUnitTest() {
     colorExtractTest();
     importPlannerTest();
     scanDiffTest();
+    queueEngineTest();
   });
 }

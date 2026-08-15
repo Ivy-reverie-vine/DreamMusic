@@ -1,7 +1,7 @@
 import { ThemeService } from '../service/theme/ThemeService';
 import { ImportService } from '../service/library/ImportService';
 import { LibraryViewModel } from '../viewmodel/LibraryViewModel';
-import { playerViewModel } from '../viewmodel/PlayerViewModel';
+import { queueViewModel } from '../viewmodel/QueueViewModel';
 import { Track, Album, Artist } from '../model/Entities';
 import { common } from '@kit.AbilityKit';
 
@@ -75,7 +75,7 @@ export struct MusicLibraryPage {
   @Builder
   TrackList() {
     List({ space: 8 }) {
-      ForEach(this.vm.tracks, (t: Track) => {
+      ForEach(this.vm.tracks, (t: Track, index: number) => {
         ListItem() {
           Row({ space: 12 }) {
             Column({ space: 2 }) {
@@ -106,7 +106,8 @@ export struct MusicLibraryPage {
           .backgroundColor(this.theme.bg)
           .onClick(() => {
             if (!t.missing) {
-              playerViewModel.playTrack(t, this.ctx());
+              // 点歌:来源列表成为播放队列,从点击处开始
+              queueViewModel.playFromList(this.vm.tracks, index, this.ctx());
             }
           })
         }

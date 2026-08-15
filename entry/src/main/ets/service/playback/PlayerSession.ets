@@ -109,6 +109,10 @@ export class PlayerSession {
     return this.player !== null && this.player.state === 'playing';
   }
 
+  get isLoaded(): boolean {
+    return this.player !== null;
+  }
+
   async release(): Promise<void> {
     const p = this.player;
     this.player = null;

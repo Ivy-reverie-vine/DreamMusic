@@ -10,6 +10,14 @@ const DOMAIN = 0x0000;
 const TAG = 'LibraryStore';
 const DB_NAME = 'ivy.db';
 
+/** 播放队列持久化记录(issue-06) */
+export interface PlayerStateRecord {
+  queue: number[];
+  currentIndex: number;
+  mode: string;
+  positionMs: number;
+}
+
 /**
  * 音乐库存储适配层(issue-02):relationalStore 8 张物理表。
  * 所有 schema 变更收在本文件;上层只见领域接口不见 SQL。
@@ -102,6 +110,13 @@ export class LibraryStore {
          url TEXT NOT NULL,
          is_current INTEGER NOT NULL DEFAULT 0,
          last_status INTEGER NOT NULL DEFAULT 0
+       )`,
+      `CREATE TABLE IF NOT EXISTS player_state (
+         id INTEGER PRIMARY KEY CHECK (id = 1),
+         queue TEXT NOT NULL DEFAULT '[]',
+         current_index INTEGER NOT NULL DEFAULT -1,
+         mode TEXT NOT NULL DEFAULT 'SEQUENTIAL',
+         position_ms INTEGER NOT NULL DEFAULT 0
        )`
     ];
     for (const sql of ddl) {
@@ -448,6 +463,38 @@ export class LibraryStore {
     const pred = new relationalStore.RdbPredicates('server_profiles');
     pred.equalTo('id', id);
     await this.db().delete(pred);
+  }
+
+  // ---------- 播放队列持久化(issue-06) ----------
+
+  async savePlayerState(queueIds: number[], currentIndex: number, mode: string, positionMs: number): Promise<void> {
+    const queueJson = JSON.stringify(queueIds);
+    await this.db().executeSql('DELETE FROM player_state WHERE id = 1');
+    const values: relationalStore.ValuesBucket = {
+      'id': 1,
+      'queue': queueJson,
+      'current_index': currentIndex,
+      'mode': mode,
+      'position_ms': positionMs
+    };
+    await this.db().insert('player_state', values);
+  }
+
+  async loadPlayerState(): Promise<PlayerStateRecord | null> {
+    const rs = await this.db().querySql('SELECT * FROM player_state WHERE id = 1');
+    if (!rs.goToFirstRow()) {
+      rs.close();
+      return null;
+    }
+    const queueJson = rs.getString(rs.getColumnIndex('queue'));
+    const out: PlayerStateRecord = {
+      queue: JSON.parse(queueJson) as number[],
+      currentIndex: rs.getLong(rs.getColumnIndex('current_index')),
+      mode: rs.getString(rs.getColumnIndex('mode')),
+      positionMs: rs.getLong(rs.getColumnIndex('position_ms'))
+    };
+    rs.close();
+    return out;
   }
 
   // ---------- util ----------

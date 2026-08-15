@@ -1,6 +1,7 @@
 import { ThemeService } from '../service/theme/ThemeService';
 import { BubblePauseButton } from '../components/BubblePauseButton';
 import { playerViewModel, PlayerViewModel } from '../viewmodel/PlayerViewModel';
+import { queueViewModel } from '../viewmodel/QueueViewModel';
 import { PlayerState } from '../model/Playback';
 import { common } from '@kit.AbilityKit';
 
@@ -116,6 +117,9 @@ export struct NowPlayingPage {
           Text('⏮')
             .fontSize(26)
             .fontColor(this.theme.muted)
+            .onClick(() => {
+              queueViewModel.playPrev();
+            })
           BubblePauseButton({
             theme: this.theme,
             isPlaying: this.vm.state === PlayerState.PLAYING,
@@ -126,6 +130,9 @@ export struct NowPlayingPage {
           Text('⏭')
             .fontSize(26)
             .fontColor(this.theme.muted)
+            .onClick(() => {
+              queueViewModel.playNext();
+            })
         }
         .justifyContent(FlexAlign.Center)
         .width('100%')
