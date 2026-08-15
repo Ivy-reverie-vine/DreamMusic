@@ -2,13 +2,40 @@ import { ThemeService } from '../service/theme/ThemeService';
 import { BackgroundAdapter } from '../service/theme/BackgroundAdapter';
 import { LibraryScanService } from '../service/library/LibraryScanService';
 import { playlistsViewModel } from '../viewmodel/PlaylistsViewModel';
+import { networkViewModel, NetworkViewModel } from '../viewmodel/NetworkViewModel';
+import { ServerProfile } from '../model/Entities';
+import { ConnectionStatus } from '../service/network/HealthStateMachine';
 import { common } from '@kit.AbilityKit';
 
-/** 设置页(导入/背景图/服务器配置入口在对应 issue 填充) */
+/** 设置页(导入/背景图/服务器配置/扫描/主题) */
 @Component
 export struct SettingsPage {
   @Prop theme: ThemeService;
   @State scanStatus: string = '';
+  @State net: NetworkViewModel = networkViewModel;
+  @State newAlias: string = '';
+  @State newUrl: string = '';
+
+  aboutToAppear(): void {
+    this.net.load().then(() => {
+      this.net.startPolling();
+    });
+  }
+
+  aboutToDisappear(): void {
+    this.net.stopPolling();
+  }
+
+  statusColor(): string {
+    switch (this.net.status) {
+      case ConnectionStatus.ONLINE:
+        return this.theme.primary;
+      case ConnectionStatus.CHECKING:
+        return this.theme.secondary;
+      default:
+        return this.theme.muted;
+    }
+  }
 
   async pickBackground(): Promise<void> {
     const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
@@ -81,6 +108,108 @@ export struct SettingsPage {
         .padding(14)
         .borderRadius(16)
         .backgroundColor(this.theme.bg)
+
+        Row() {
+          Column({ space: 2 }) {
+            Text('api-enhanced 连接(预留)')
+              .fontSize(16)
+              .fontColor(this.theme.ink)
+            Text(this.net.statusText)
+              .fontSize(12)
+              .fontColor(this.statusColor())
+          }
+          .alignItems(HorizontalAlign.Start)
+          .layoutWeight(1)
+          Text('刷新')
+            .fontSize(14)
+            .fontColor(this.theme.primary)
+            .onClick(() => {
+              this.net.probe();
+            })
+        }
+        .width('100%')
+        .padding(14)
+        .borderRadius(16)
+        .backgroundColor(this.theme.bg)
+
+        Row({ space: 8 }) {
+          TextInput({ placeholder: '别名(可选)', text: this.newAlias })
+            .fontSize(13)
+            .fontColor(this.theme.ink)
+            .placeholderColor(this.theme.muted)
+            .backgroundColor(this.theme.bg)
+            .borderRadius(12)
+            .height(38)
+            .width(110)
+            .onChange((v: string) => {
+              this.newAlias = v;
+            })
+          TextInput({ placeholder: 'https://你的域名', text: this.newUrl })
+            .fontSize(13)
+            .fontColor(this.theme.ink)
+            .placeholderColor(this.theme.muted)
+            .backgroundColor(this.theme.bg)
+            .borderRadius(12)
+            .height(38)
+            .layoutWeight(1)
+            .onChange((v: string) => {
+              this.newUrl = v;
+            })
+          Button('添加')
+            .fontSize(13)
+            .fontColor(this.theme.ink)
+            .backgroundColor(this.theme.primary)
+            .borderRadius(16)
+            .onClick(() => {
+              this.net.addProfile(this.newAlias, this.newUrl).then(() => {
+                this.newAlias = '';
+                this.newUrl = '';
+              });
+            })
+        }
+        .width('100%')
+
+        ForEach(this.net.profiles, (p: ServerProfile) => {
+          Row({ space: 8 }) {
+            Column({ space: 2 }) {
+              Text(p.alias)
+                .fontSize(14)
+                .fontColor(this.theme.ink)
+                .maxLines(1)
+                .textOverflow({ overflow: TextOverflow.Ellipsis })
+              Text(p.url)
+                .fontSize(11)
+                .fontColor(this.theme.muted)
+                .maxLines(1)
+                .textOverflow({ overflow: TextOverflow.Ellipsis })
+            }
+            .alignItems(HorizontalAlign.Start)
+            .layoutWeight(1)
+            if (!p.isCurrent) {
+              Text('设为当前')
+                .fontSize(12)
+                .fontColor(this.theme.primary)
+                .onClick(() => {
+                  this.net.setCurrent(p.id);
+                })
+            } else {
+              Text('✓ 当前')
+                .fontSize(12)
+                .fontColor(this.theme.primary)
+            }
+            Text('✕')
+              .fontSize(13)
+              .fontColor(this.theme.muted)
+              .padding(4)
+              .onClick(() => {
+                this.net.removeProfile(p.id);
+              })
+          }
+          .width('100%')
+          .padding(10)
+          .borderRadius(12)
+          .backgroundColor(this.theme.bg)
+        })
 
         Row() {
           Column({ space: 2 }) {

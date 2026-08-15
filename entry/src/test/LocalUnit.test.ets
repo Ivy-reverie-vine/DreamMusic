@@ -4,6 +4,7 @@ import importPlannerTest from './ImportPlanner.test';
 import scanDiffTest from './ScanDiff.test';
 import queueEngineTest from './QueueEngine.test';
 import lrcParserTest from './LrcParser.test';
+import healthStateMachineTest from './HealthStateMachine.test';
 
 export default function localUnitTest() {
   describe('localUnitTest', () => {
@@ -41,5 +42,6 @@ export default function localUnitTest() {
     scanDiffTest();
     queueEngineTest();
     lrcParserTest();
+    healthStateMachineTest();
   });
 }
