@@ -1,6 +1,7 @@
 import { ThemeService } from '../service/theme/ThemeService';
 import { ImportService } from '../service/library/ImportService';
 import { LibraryViewModel } from '../viewmodel/LibraryViewModel';
+import { playerViewModel } from '../viewmodel/PlayerViewModel';
 import { Track, Album, Artist } from '../model/Entities';
 import { common } from '@kit.AbilityKit';
 
@@ -103,6 +104,11 @@ export struct MusicLibraryPage {
           .padding({ left: 14, right: 14, top: 10, bottom: 10 })
           .borderRadius(14)
           .backgroundColor(this.theme.bg)
+          .onClick(() => {
+            if (!t.missing) {
+              playerViewModel.playTrack(t, this.ctx());
+            }
+          })
         }
       })
     }

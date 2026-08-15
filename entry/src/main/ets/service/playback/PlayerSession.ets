@@ -1,0 +1,134 @@
+import { media } from '@kit.MediaKit';
+import { fileIo } from '@kit.CoreFileKit';
+import { hilog } from '@kit.PerformanceAnalysisKit';
+import { PlayerState } from '../../model/Playback';
+
+const DOMAIN = 0x0000;
+const TAG = 'PlayerSession';
+
+export interface PlaybackCallbacks {
+  onStateChange: (s: PlayerState) => void;
+  onPositionUpdate: (ms: number) => void;
+  /** 领域事件:单曲自然播放结束(issue-06 队列域消费) */
+  onTrackEnded: () => void;
+  onError: (msg: string) => void;
+}
+
+/**
+ * AVPlayer 会话适配层(issue-05,真机验证项):
+ * 沙箱文件经 fdSrc 播放;AVPlayer 状态字符串收敛为领域 PlayerState。
+ * API 对照 SDK d.ts 核实:createAVPlayer/fdSrc/prepare/play/pause/seek/setVolume/
+ * on('stateChange'|'timeUpdate')、AVPlayerState 字符串联合类型。
+ */
+export class PlayerSession {
+  private player: media.AVPlayer | null = null;
+  private fd: number = -1;
+  private cb: PlaybackCallbacks | null = null;
+
+  async playFile(absPath: string, callbacks: PlaybackCallbacks): Promise<void> {
+    await this.release();
+    this.cb = callbacks;
+    const file = fileIo.openSync(absPath, fileIo.OpenMode.READ_ONLY);
+    this.fd = file.fd;
+    const stat = fileIo.statSync(absPath);
+    const avp = await media.createAVPlayer();
+    this.player = avp;
+    avp.fdSrc = { fd: this.fd, offset: 0, length: stat.size };
+    avp.on('stateChange', (state: string) => {
+      this.handleState(state);
+    });
+    avp.on('timeUpdate', (ms: number) => {
+      if (this.cb !== null) {
+        this.cb.onPositionUpdate(ms);
+      }
+    });
+    callbacks.onStateChange(PlayerState.PREPARING);
+    await avp.prepare();
+    await avp.play();
+  }
+
+  private handleState(state: string): void {
+    if (this.cb === null) {
+      return;
+    }
+    switch (state) {
+      case 'playing':
+        this.cb.onStateChange(PlayerState.PLAYING);
+        break;
+      case 'paused':
+        this.cb.onStateChange(PlayerState.PAUSED);
+        break;
+      case 'completed':
+        this.cb.onStateChange(PlayerState.COMPLETED);
+        this.cb.onTrackEnded();
+        break;
+      case 'error':
+        this.cb.onStateChange(PlayerState.ERROR);
+        this.cb.onError('AVPlayer 进入 error 状态');
+        break;
+      default:
+        break;
+    }
+  }
+
+  async togglePause(): Promise<void> {
+    const p = this.player;
+    if (p === null) {
+      return;
+    }
+    if (p.state === 'playing') {
+      await p.pause();
+    } else if (p.state === 'paused') {
+      await p.play();
+    }
+  }
+
+  seekTo(ms: number): void {
+    const p = this.player;
+    if (p !== null && p.state !== 'idle' && p.state !== 'released') {
+      p.seek(Math.max(0, ms));
+    }
+  }
+
+  setVolume(v: number): void {
+    const p = this.player;
+    if (p !== null) {
+      p.setVolume(Math.max(0.0, Math.min(1.0, v)));
+    }
+  }
+
+  getCurrentTime(): number {
+    return this.player !== null ? this.player.currentTime : 0;
+  }
+
+  getDuration(): number {
+    return this.player !== null ? this.player.duration : 0;
+  }
+
+  get isPlaying(): boolean {
+    return this.player !== null && this.player.state === 'playing';
+  }
+
+  async release(): Promise<void> {
+    const p = this.player;
+    this.player = null;
+    if (p !== null) {
+      try {
+        await p.release();
+      } catch (err) {
+        const e = err as Error;
+        hilog.warn(DOMAIN, TAG, 'release failed: %{public}s', e.message);
+      }
+    }
+    if (this.fd >= 0) {
+      try {
+        fileIo.closeSync(this.fd);
+      } catch (err) {
+        const e = err as Error;
+        hilog.warn(DOMAIN, TAG, 'close fd failed: %{public}s', e.message);
+      }
+      this.fd = -1;
+    }
+    this.cb = null;
+  }
+}
