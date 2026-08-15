@@ -97,19 +97,23 @@ v1 功能层已全部落地(编译 ✅、Hypium 单测 ✅、MVVM 分层 ✅),�
 
 ## Implementation Decisions
 
-1. **图标体系**: 全部 emoji → `SymbolGlyph`(官方系统符号,API 11+;着色随 ThemeService;播放/暂停/心形/加号/删除/更多均有对应符号;符号名以官方 [SymbolGlyph 文档](https://developer.huawei.com/consumer/cn/doc/doccenter-capabilities/api/ts-basic-components-symbolglyph) 为准,实现时逐一核对)
-2. **沉浸光感**: 自绘触点光晕(Stack + 径向渐变圆,记录触点坐标,animateTo 扩散淡出);官方 HDS 组件(HdsTabs 等)为实现期备选,仅当 API 23 上可直接替换且真机验证通过才采用
-3. **黑胶盘芯**: 封面(圆形)为盘芯标签,外圈深色盘体(同心圆 + 内圈高光描边),中央轴孔;不常驻旋转
+1. **图标体系**: 全部 emoji → `SymbolGlyph`(官方系统符号,API 11+;着色随 ThemeService;播放/暂停/心形/加号/删除/更多均有对应符号;符号名以 SDK `id_defined.json` 逐一核实为准)
+2. **沉浸光感**: 自绘触点光晕(按下亮起白光大圆 → 随指移动 → 松手 260ms 扩散淡出;浅色主题自动切黑色柔光;系统"减弱动效"时降级为无);官方 HDS 组件为实现期备选
+3. **黑胶盘芯**: 封面(圆形)为盘芯标签,外圈深色盘体(同心圆 + 内圈高光描边),中央轴孔;不常驻旋转;切歌/进入页 550ms"翻开"(scale+rotateY 微倾+淡入)
 4. **专辑/艺术家详情**: tab 内子视图(与歌单页 selected 同模式),不加路由栈,保持五页框架(PRD-v1 约束)
-5. **功能缺口修复**(批1/批2 内顺手完成,全部为小 diff):
+5. **主题**: 默认深色;设置页三态切换(深色/浅色/跟随系统),preferences 持久化;仅"跟随系统"响应系统深浅(真机反馈:跟随系统导致白底观感差,故默认深色)
+6. **导入入口**: 仅"导入文件";文件夹选择移除(`DocumentSelectMode.FOLDER` 仅 2-in-1 设备支持,手机不可用)
+7. **播放历史清空**: 入口仅在歌单页"最近播放";设置页不放置
+8. **功能缺口修复**(批1/批2 内顺手完成):
    - 启动闪黑:`start_window_background` → '#0D0F10'
    - 启动恢复取色/歌词:Index 启动时先注入 handler 并 setContext,再 restore
    - 封面文件名冲突:提取时重名则追加序号(与导入规划器同策略)
+   - 复制兼容:copyFileRobust(copyFileSync 失败回退 openSync 流式复制),导入/背景图失败原因上屏
    - 轮询全局化:轮询归 EntryAbility 生命周期,设置页只做手动刷新与状态展示
-   - 随机洗牌序持久化:player_state 增加 shuffleOrder/shufflePos/shuffleSteps 字段(旧数据默认回退重建)
+   - 随机洗牌序持久化:player_state 增加 shuffle_order/shuffle_pos/shuffle_steps 字段(旧数据自动迁移回退重建)
    - 断点定时落盘:播放中每 15s + 切后台/销毁时落盘(现有"暂停时落盘"保留)
    - "恢复默认主题" = 删除背景图文件 + applyDefault(持久生效)
-6. **验收**: 每批结束 `hvigorw assembleHap` + Hypium 全绿 + 真机评审;全批完成回填 DESIGN.md(token 实值)与 CONTEXT.md
+9. **验收**: 每批结束 `hvigorw assembleHap` + Hypium 全绿 + 真机评审;全批完成回填 DESIGN.md(token 实值)与 CONTEXT.md
 
 ## Out of Scope(保持 v1 边界)
 

@@ -123,4 +123,22 @@ export class BackgroundAdapter {
       // 封面取色失败静默,保持当前主题
     }
   }
+
+  /** 删除背景图文件(设置页"恢复默认主题",issue-13 修复:持久生效) */
+  static removeBackgroundFile(context: common.Context): void {
+    try {
+      const dir = context.filesDir + '/' + BG_DIR;
+      if (!fileIo.accessSync(dir)) {
+        return;
+      }
+      const names = fileIo.listFileSync(dir);
+      for (const n of names) {
+        if (n.startsWith(BG_FILE)) {
+          fileIo.unlinkSync(dir + '/' + n);
+        }
+      }
+    } catch (err) {
+      // 删除失败静默(下次启动会重新取色,用户可再次恢复)
+    }
+  }
 }

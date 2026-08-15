@@ -1,14 +1,26 @@
 import { oklchToRgb } from '../color/ColorExtract';
+import { preferences } from '@kit.ArkData';
+import { common } from '@kit.AbilityKit';
 
 /**
  * 动态主题服务 —— DESIGN.md「取色于景」的唯一 token 落地(issue-00)。
  * 页面一律从这里取色,禁止硬编码颜色。
- * 真机能力(背景图选择、ImageKit 读像素)由 ThemeAdapter 注入提取结果。
+ * issue-12 修复:默认深色(用户真机反馈浅色白底观感差);三态切换(深/浅/跟随系统)持久化。
  */
 
 const SEED_L = 0.550;
 const SEED_C = 0.095;
 const SEED_H = 180.0;
+
+const PREF_NAME = 'ivy_prefs';
+const KEY_THEME_MODE = 'theme_mode';
+
+/** 主题模式:深色 / 浅色 / 跟随系统 */
+export enum ThemeMode {
+  DARK = 'DARK',
+  LIGHT = 'LIGHT',
+  SYSTEM = 'SYSTEM'
+}
 
 function toHex(rgb: number[]): string {
   const hx = (v: number): string => {
@@ -26,6 +38,8 @@ export const SEED_SECONDARY_HEX: string = toHex(oklchToRgb(SEED_L, SEED_C, (SEED
 export class ThemeService {
   // DESIGN.md Roles(深浅两套,跟随系统)
   isDark: boolean = true;
+  /** 当前主题模式(issue-12:默认深色) */
+  mode: ThemeMode = ThemeMode.DARK;
   bg: string = '#0D0F10';        // 近黑底(oklch L≈0.06, C=0)
   ink: string = '#F2F5F6';       // 正文白
   muted: string = '#A8B0B3';     // 弱文字
@@ -68,6 +82,37 @@ export class ThemeService {
       this.trackColor = '#33000000';
       this.card = '#0A000000';
       this.barBg = '#59FFFFFF';
+    }
+  }
+
+  /** 应用主题模式(深/浅/跟随系统);SYSTEM 时按系统深浅实时跟随 */
+  applyMode(mode: ThemeMode, systemDark: boolean): void {
+    this.mode = mode;
+    const dark = mode === ThemeMode.DARK ? true : mode === ThemeMode.LIGHT ? false : systemDark;
+    this.setDarkMode(dark);
+  }
+
+  /** 持久化主题模式(默认深色) */
+  static loadMode(context: common.Context): ThemeMode {
+    try {
+      const prefs = preferences.getPreferencesSync(context, { name: PREF_NAME });
+      const v = prefs.getSync(KEY_THEME_MODE, ThemeMode.DARK) as string;
+      if (v === ThemeMode.LIGHT || v === ThemeMode.SYSTEM || v === ThemeMode.DARK) {
+        return v as ThemeMode;
+      }
+      return ThemeMode.DARK;
+    } catch (err) {
+      return ThemeMode.DARK;
+    }
+  }
+
+  static saveMode(context: common.Context, mode: ThemeMode): void {
+    try {
+      const prefs = preferences.getPreferencesSync(context, { name: PREF_NAME });
+      prefs.putSync(KEY_THEME_MODE, mode);
+      prefs.flush();
+    } catch (err) {
+      // 持久化失败静默,仅本次会话生效
     }
   }
 

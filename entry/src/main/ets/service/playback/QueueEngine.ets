@@ -17,6 +17,10 @@ export interface QueueSnapshot {
   tracks: number[];
   currentIndex: number;
   mode: PlayMode;
+  /** 洗牌序持久化(issue-13):重启后延续上次洗牌周期 */
+  shuffleOrder: number[];
+  shufflePos: number;
+  shuffleSteps: number;
 }
 
 export class QueueEngine {
@@ -200,13 +204,27 @@ export class QueueEngine {
   }
 
   toSnapshot(): QueueSnapshot {
-    return { tracks: this.tracks.slice(), currentIndex: this.currentIndex, mode: this.mode };
+    return {
+      tracks: this.tracks.slice(),
+      currentIndex: this.currentIndex,
+      mode: this.mode,
+      shuffleOrder: this.shuffleOrder.slice(),
+      shufflePos: this.shufflePos,
+      shuffleSteps: this.shuffleSteps
+    };
   }
 
   fromSnapshot(snap: QueueSnapshot): void {
     this.tracks = snap.tracks.slice();
     this.currentIndex = snap.currentIndex;
     this.mode = snap.mode;
-    this.buildShuffle();
+    if (snap.shuffleOrder !== undefined && snap.shuffleOrder.length === this.tracks.length) {
+      this.shuffleOrder = snap.shuffleOrder.slice();
+      this.shufflePos = snap.shufflePos;
+      this.shuffleSteps = snap.shuffleSteps;
+    } else {
+      // 旧数据无洗牌序:重建
+      this.buildShuffle();
+    }
   }
 }

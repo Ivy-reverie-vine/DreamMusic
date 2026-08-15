@@ -1,13 +1,24 @@
-import { ThemeService } from '../service/theme/ThemeService';
+import { ThemeService, ThemeMode } from '../service/theme/ThemeService';
 import { BackgroundAdapter } from '../service/theme/BackgroundAdapter';
 import { LibraryScanService } from '../service/library/LibraryScanService';
-import { playlistsViewModel } from '../viewmodel/PlaylistsViewModel';
 import { networkViewModel, NetworkViewModel } from '../viewmodel/NetworkViewModel';
 import { ServerProfile } from '../model/Entities';
-import { ConnectionStatus } from '../service/network/HealthStateMachine';
-import { common } from '@kit.AbilityKit';
+import { common, ConfigurationConstant } from '@kit.AbilityKit';
+import { OutlineButton } from '../components/OutlineButton';
+import { RADIUS_CARD, FONT_LABEL, FONT_TITLE } from '../common/DesignTokens';
 
-/** 设置页(导入/背景图/服务器配置/扫描/主题) */
+interface ThemeOption {
+  mode: ThemeMode;
+  label: string;
+  icon: Resource;
+}
+
+/**
+ * 设置页(issue-11 + issue-13 重排):
+ * 分组卡片、小字号;主题三态切换(深/浅/跟随系统,持久化);
+ * 播放历史清空入口移除(归歌单页);背景图应用/失败状态可见;
+ * 恢复默认主题 = 删除背景图文件(持久生效)。
+ */
 @Component
 export struct SettingsPage {
   @Prop theme: ThemeService;
@@ -16,133 +27,219 @@ export struct SettingsPage {
   @State net: NetworkViewModel = networkViewModel;
   @State newAlias: string = '';
   @State newUrl: string = '';
+  @State showThemeSheet: boolean = false;
 
   aboutToAppear(): void {
-    this.net.load().then(() => {
-      this.net.startPolling();
-    });
+    this.net.load();
   }
 
-  aboutToDisappear(): void {
-    this.net.stopPolling();
-  }
-
-  statusColor(): string {
-    switch (this.net.status) {
-      case ConnectionStatus.ONLINE:
-        return this.theme.primary;
-      case ConnectionStatus.CHECKING:
-        return this.theme.secondary;
-      default:
-        return this.theme.muted;
-    }
+  private ctx(): common.UIAbilityContext {
+    return this.getUIContext().getHostContext() as common.UIAbilityContext;
   }
 
   async pickBackground(): Promise<void> {
-    const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
     this.bgStatus = '应用背景图中…';
-    const err = await BackgroundAdapter.pickAndApply(ctx, this.theme);
-    this.bgStatus = err === '' ? '背景图已应用,界面随图而变' : err;
+    const err = await BackgroundAdapter.pickAndApply(this.ctx(), this.theme);
+    this.bgStatus = err === '' ? '已应用,界面随图而变' : err;
+  }
+
+  async restoreDefaultTheme(): Promise<void> {
+    BackgroundAdapter.removeBackgroundFile(this.ctx());
+    this.theme.clearBackground();
+    this.bgStatus = '已恢复默认主题';
   }
 
   async rescan(): Promise<void> {
-    const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
     this.scanStatus = '扫描中…';
-    const report = await LibraryScanService.scan(ctx);
-    this.scanStatus = `扫描完成:新增 ${report.added},缺失 ${report.missing}`;
+    const report = await LibraryScanService.scan(this.ctx());
+    this.scanStatus = `新增 ${report.added},缺失 ${report.missing}`;
+  }
+
+  applyThemeMode(mode: ThemeMode): void {
+    const systemDark = this.ctx().config.colorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK;
+    this.theme.applyMode(mode, systemDark);
+    ThemeService.saveMode(this.ctx(), mode);
+    this.showThemeSheet = false;
+  }
+
+  private modeLabel(): string {
+    switch (this.theme.mode) {
+      case ThemeMode.LIGHT:
+        return '浅色';
+      case ThemeMode.SYSTEM:
+        return '跟随系统';
+      default:
+        return '深色';
+    }
+  }
+
+  @Builder
+  GroupTitle(text: string) {
+    Text(text)
+      .fontSize(FONT_LABEL)
+      .fontColor(this.theme.muted)
+      .width('100%')
+      .padding({ left: 6, top: 8 })
+  }
+
+  @Builder
+  ThemeSheet() {
+    Column({ space: 4 }) {
+      ForEach([
+        { mode: ThemeMode.DARK as ThemeMode, label: '深色', icon: $r('sys.symbol.moon') } as ThemeOption,
+        { mode: ThemeMode.LIGHT as ThemeMode, label: '浅色', icon: $r('sys.symbol.sun_max') } as ThemeOption,
+        { mode: ThemeMode.SYSTEM as ThemeMode, label: '跟随系统', icon: $r('sys.symbol.arrow_clockwise') } as ThemeOption
+      ], (item: ThemeOption) => {
+        Row({ space: 12 }) {
+          SymbolGlyph(item.icon)
+            .fontSize(18)
+            .fontColor([this.theme.muted])
+          Text(item.label)
+            .fontSize(15)
+            .fontColor(this.theme.ink)
+            .layoutWeight(1)
+          if (this.theme.mode === item.mode) {
+            SymbolGlyph($r('sys.symbol.checkmark'))
+              .fontSize(17)
+              .fontColor([this.theme.primary])
+          }
+        }
+        .width('100%')
+        .padding(12)
+        .borderRadius(12)
+        .backgroundColor(this.theme.mode === item.mode ? ThemeService.alpha(this.theme.primary, 0.1) : this.theme.transparent)
+        .onClick(() => {
+          this.applyThemeMode(item.mode);
+        })
+      })
+    }
+    .width('100%')
+    .padding(16)
+  }
+
+  @Builder
+  SettingRow(icon: Resource, title: string, subtitle: string) {
+    Row({ space: 12 }) {
+      SymbolGlyph(icon)
+        .fontSize(18)
+        .fontColor([this.theme.muted])
+      Column({ space: 3 }) {
+        Text(title)
+          .fontSize(15)
+          .fontColor(this.theme.ink)
+        if (subtitle !== '') {
+          Text(subtitle)
+            .fontSize(11)
+            .fontColor(this.theme.muted)
+            .maxLines(2)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+        }
+      }
+      .alignItems(HorizontalAlign.Start)
+      .layoutWeight(1)
+    }
+    .width('100%')
+    .padding(12)
+    .borderRadius(RADIUS_CARD)
+    .backgroundColor(this.theme.card)
   }
 
   build() {
-    Column({ space: 16 }) {
-      Text('设置')
-        .fontSize(28)
-        .fontWeight(FontWeight.Bold)
-        .fontColor(this.theme.ink)
-        .width('100%')
+    Scroll() {
+      Column({ space: 10 }) {
+        Text('设置')
+          .fontSize(FONT_TITLE)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(this.theme.ink)
+          .width('100%')
 
-      Column({ space: 12 }) {
-        // 背景图与取色(issue-00,真机验证;issue-12 修复:失败原因可见)
+        // ---- 外观 ----
+        this.GroupTitle('外观')
+
+        this.SettingRow($r('sys.symbol.paintpalette'), '自定义背景图',
+          this.bgStatus !== '' ? this.bgStatus : '从图取色,界面随图而变')
         Row() {
-          Column({ space: 2 }) {
-            Text('自定义背景图')
-              .fontSize(16)
-              .fontColor(this.theme.ink)
-            Text(this.bgStatus !== '' ? this.bgStatus : '从图取色,界面随图而变')
-              .fontSize(12)
-              .fontColor(this.bgStatus.startsWith('应用') ? this.theme.muted : this.theme.secondary)
-              .maxLines(2)
-              .textOverflow({ overflow: TextOverflow.Ellipsis })
-          }
-          .alignItems(HorizontalAlign.Start)
-          .layoutWeight(1)
-          Button('选择图片')
-            .fontSize(14)
-            .fontColor(this.theme.ink)
-            .backgroundColor(this.theme.primary)
-            .borderRadius(18)
-            .onClick(() => {
+          OutlineButton({
+            theme: this.theme,
+            text: '选择图片',
+            onTap: (): void => {
               this.pickBackground();
-            })
+            }
+          })
         }
         .width('100%')
-        .padding(14)
-        .borderRadius(16)
-        .backgroundColor(this.theme.bg)
+        .justifyContent(FlexAlign.End)
+        .padding({ right: 12, bottom: 10 })
 
+        this.SettingRow(this.theme.mode === ThemeMode.LIGHT ? $r('sys.symbol.sun_max') :
+          (this.theme.mode === ThemeMode.SYSTEM ? $r('sys.symbol.arrow_clockwise') : $r('sys.symbol.moon')),
+          '主题', `当前:${this.modeLabel()} · 点按切换`)
         Row() {
-          Column({ space: 2 }) {
-            Text('重新扫描音乐库')
-              .fontSize(16)
-              .fontColor(this.theme.ink)
-            Text(this.scanStatus !== '' ? this.scanStatus : '比对沙箱目录与数据库')
-              .fontSize(12)
-              .fontColor(this.theme.muted)
-          }
-          .alignItems(HorizontalAlign.Start)
-          .layoutWeight(1)
-          Button('扫描')
-            .fontSize(14)
-            .fontColor(this.theme.ink)
-            .backgroundColor(this.theme.secondary)
-            .borderRadius(18)
-            .onClick(() => {
+          OutlineButton({
+            theme: this.theme,
+            text: this.modeLabel(),
+            onTap: (): void => {
+              this.showThemeSheet = true;
+            }
+          })
+        }
+        .width('100%')
+        .justifyContent(FlexAlign.End)
+        .padding({ right: 12, bottom: 10 })
+
+        this.SettingRow($r('sys.symbol.arrow_counterclockwise'), '恢复默认主题', '删除背景图并回到种子色')
+        Row() {
+          OutlineButton({
+            theme: this.theme,
+            text: '恢复',
+            onTap: (): void => {
+              this.restoreDefaultTheme();
+            }
+          })
+        }
+        .width('100%')
+        .justifyContent(FlexAlign.End)
+        .padding({ right: 12, bottom: 10 })
+
+        // ---- 音乐库 ----
+        this.GroupTitle('音乐库')
+        this.SettingRow($r('sys.symbol.arrow_clockwise'), '重新扫描',
+          this.scanStatus !== '' ? this.scanStatus : '比对沙箱目录与数据库')
+        Row() {
+          OutlineButton({
+            theme: this.theme,
+            text: '扫描',
+            onTap: (): void => {
               this.rescan();
-            })
+            }
+          })
         }
         .width('100%')
-        .padding(14)
-        .borderRadius(16)
-        .backgroundColor(this.theme.bg)
+        .justifyContent(FlexAlign.End)
+        .padding({ right: 12, bottom: 10 })
 
+        // ---- 连接(预留) ----
+        this.GroupTitle('连接(预留)')
+        this.SettingRow($r('sys.symbol.wifi'), 'api-enhanced', this.net.statusText)
         Row() {
-          Column({ space: 2 }) {
-            Text('api-enhanced 连接(预留)')
-              .fontSize(16)
-              .fontColor(this.theme.ink)
-            Text(this.net.statusText)
-              .fontSize(12)
-              .fontColor(this.statusColor())
-          }
-          .alignItems(HorizontalAlign.Start)
-          .layoutWeight(1)
-          Text('刷新')
-            .fontSize(14)
-            .fontColor(this.theme.primary)
-            .onClick(() => {
+          OutlineButton({
+            theme: this.theme,
+            text: '刷新',
+            onTap: (): void => {
               this.net.probe();
-            })
+            }
+          })
         }
         .width('100%')
-        .padding(14)
-        .borderRadius(16)
-        .backgroundColor(this.theme.bg)
+        .justifyContent(FlexAlign.End)
+        .padding({ right: 12, bottom: 10 })
 
         Row({ space: 8 }) {
           TextInput({ placeholder: '别名(可选)', text: this.newAlias })
             .fontSize(13)
             .fontColor(this.theme.ink)
             .placeholderColor(this.theme.muted)
-            .backgroundColor(this.theme.bg)
+            .backgroundColor(this.theme.card)
             .borderRadius(12)
             .height(38)
             .width(110)
@@ -153,26 +250,26 @@ export struct SettingsPage {
             .fontSize(13)
             .fontColor(this.theme.ink)
             .placeholderColor(this.theme.muted)
-            .backgroundColor(this.theme.bg)
+            .backgroundColor(this.theme.card)
             .borderRadius(12)
             .height(38)
             .layoutWeight(1)
             .onChange((v: string) => {
               this.newUrl = v;
             })
-          Button('添加')
-            .fontSize(13)
-            .fontColor(this.theme.ink)
-            .backgroundColor(this.theme.primary)
-            .borderRadius(16)
-            .onClick(() => {
+          OutlineButton({
+            theme: this.theme,
+            text: '添加',
+            onTap: (): void => {
               this.net.addProfile(this.newAlias, this.newUrl).then(() => {
                 this.newAlias = '';
                 this.newUrl = '';
               });
-            })
+            }
+          })
         }
         .width('100%')
+        .padding({ left: 12, right: 12, top: 6 })
 
         ForEach(this.net.profiles, (p: ServerProfile) => {
           Row({ space: 8 }) {
@@ -198,13 +295,18 @@ export struct SettingsPage {
                   this.net.setCurrent(p.id);
                 })
             } else {
-              Text('✓ 当前')
-                .fontSize(12)
-                .fontColor(this.theme.primary)
+              Row({ space: 4 }) {
+                SymbolGlyph($r('sys.symbol.checkmark'))
+                  .fontSize(13)
+                  .fontColor([this.theme.primary])
+                Text('当前')
+                  .fontSize(12)
+                  .fontColor(this.theme.primary)
+              }
             }
-            Text('✕')
-              .fontSize(13)
-              .fontColor(this.theme.muted)
+            SymbolGlyph($r('sys.symbol.trash'))
+              .fontSize(15)
+              .fontColor([this.theme.muted])
               .padding(4)
               .onClick(() => {
                 this.net.removeProfile(p.id);
@@ -213,88 +315,18 @@ export struct SettingsPage {
           .width('100%')
           .padding(10)
           .borderRadius(12)
-          .backgroundColor(this.theme.bg)
+          .backgroundColor(this.theme.card)
         })
-
-        Row() {
-          Column({ space: 2 }) {
-            Text('播放历史')
-              .fontSize(16)
-              .fontColor(this.theme.ink)
-            Text('自动记录最近播放,上限 500 条')
-              .fontSize(12)
-              .fontColor(this.theme.muted)
-          }
-          .alignItems(HorizontalAlign.Start)
-          .layoutWeight(1)
-          Button('清空')
-            .fontSize(14)
-            .fontColor(this.theme.ink)
-            .backgroundColor(this.theme.secondary)
-            .borderRadius(18)
-            .onClick(() => {
-              playlistsViewModel.clearHistory();
-            })
-        }
-        .width('100%')
-        .padding(14)
-        .borderRadius(16)
-        .backgroundColor(this.theme.bg)
-
-        Row() {
-          Column({ space: 2 }) {
-            Text('主题')
-              .fontSize(16)
-              .fontColor(this.theme.ink)
-            Text(this.theme.isDark ? '深色 · 跟随系统' : '浅色 · 跟随系统')
-              .fontSize(12)
-              .fontColor(this.theme.muted)
-          }
-          .alignItems(HorizontalAlign.Start)
-          .layoutWeight(1)
-          Text(this.theme.isDark ? '🌙' : '☀️')
-            .fontSize(16)
-            .fontColor(this.theme.muted)
-        }
-        .width('100%')
-        .padding(14)
-        .borderRadius(16)
-        .backgroundColor(this.theme.bg)
-
-        Row() {
-          Text('恢复默认主题')
-            .fontSize(16)
-            .fontColor(this.theme.ink)
-            .layoutWeight(1)
-          Button('恢复')
-            .fontSize(14)
-            .fontColor(this.theme.ink)
-            .backgroundColor(this.theme.secondary)
-            .borderRadius(18)
-            .onClick(() => {
-              this.theme.applyDefault();
-            })
-        }
-        .width('100%')
-        .padding(14)
-        .borderRadius(16)
-        .backgroundColor(this.theme.bg)
-
-        Column({ space: 8 }) {
-          Text('设置项陆续到位')
-            .fontSize(14)
-            .fontColor(this.theme.muted)
-          Text('导入管理、服务器配置、扫描、主题')
-            .fontSize(12)
-            .fontColor(this.theme.muted)
-        }
-        .width('100%')
-        .alignItems(HorizontalAlign.Start)
       }
+      .padding(20)
       .width('100%')
     }
-    .padding(20)
     .width('100%')
     .height('100%')
+    .scrollBar(BarState.Auto)
+    .bindSheet(this.showThemeSheet, this.ThemeSheet(), {
+      height: 280,
+      title: { title: '选择主题' }
+    })
   }
 }

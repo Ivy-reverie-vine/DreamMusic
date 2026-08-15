@@ -1,14 +1,17 @@
 import { common } from '@kit.AbilityKit';
-import { QueueEngine, PlayMode } from '../service/playback/QueueEngine';
+import { QueueEngine, PlayMode, QueueSnapshot } from '../service/playback/QueueEngine';
 import { BackgroundPlayback } from '../service/playback/BackgroundPlayback';
 import { LibraryStore } from '../service/library/LibraryStore';
 import { playerViewModel } from './PlayerViewModel';
 import { PlayerState } from '../model/Playback';
 import { Track } from '../model/Entities';
 
+const PERSIST_INTERVAL_MS = 15000;
+
 /**
  * 播放队列状态容器(issue-06):引擎(纯逻辑)与播放会话/持久化的粘合层。
  * 断点续播语义:重启后恢复队列/当前曲/进度(暂停态),按播放从断点继续。
+ * issue-13:随机洗牌序随队列持久化;播放中每 15s 落盘,切后台/销毁时落盘。
  */
 @Observed
 export class QueueViewModel {
@@ -27,6 +30,12 @@ export class QueueViewModel {
     playerViewModel.pausePositionHandler = (ms: number): void => {
       this.persist(ms);
     };
+    // 播放中每 15s 落盘(issue-13:强杀应用也能断点续播)
+    setInterval(() => {
+      if (playerViewModel.state === PlayerState.PLAYING) {
+        this.persist(playerViewModel.positionMs);
+      }
+    }, PERSIST_INTERVAL_MS);
     // 系统播控命令(锁屏/控制中心/耳机键)→ 队列域(issue-07)
     const bp = BackgroundPlayback.getInstance();
     bp.onPlayCommand = (): void => {
@@ -159,12 +168,19 @@ export class QueueViewModel {
 
   private persist(positionMs: number): void {
     const store = LibraryStore.getInstance();
-    store.savePlayerState(this.engine.queueIds, this.engine.currentIndexValue,
-      this.engine.currentMode, positionMs).catch(() => {
+    store.savePlayerState(this.engine.toSnapshot(), positionMs).catch(() => {
     });
   }
 
-  /** 启动恢复:还原队列/当前曲/进度(暂停态,按播放续播) */
+  /** 立即落盘(切后台/销毁时由 EntryAbility 调用,issue-13) */
+  persistNow(positionMs: number): void {
+    if (this.context === null) {
+      return;
+    }
+    this.persist(positionMs);
+  }
+
+  /** 启动恢复:还原队列/当前曲/进度(暂停态,按播放续播);洗牌序随队列恢复 */
   async restore(context: common.Context): Promise<void> {
     this.context = context;
     const store = LibraryStore.getInstance();
@@ -187,8 +203,6 @@ export class QueueViewModel {
     if (validIds.length === 0) {
       return;
     }
-    this.engine.setQueue(validIds, 0);
-    this.engine.setMode(state.mode as PlayMode);
     // 恢复 current:按原 current id 定位(找不到则回到队首)
     const originalCurrentId = state.currentIndex >= 0 && state.currentIndex < state.queue.length
       ? state.queue[state.currentIndex] : -1;
@@ -196,8 +210,14 @@ export class QueueViewModel {
     if (currentIdx < 0) {
       currentIdx = 0;
     }
-    const snap = this.engine.toSnapshot();
-    snap.currentIndex = currentIdx;
+    const snap: QueueSnapshot = {
+      tracks: validIds,
+      currentIndex: currentIdx,
+      mode: state.mode as PlayMode,
+      shuffleOrder: state.shuffleOrder,
+      shufflePos: state.shufflePos,
+      shuffleSteps: state.shuffleSteps
+    };
     this.engine.fromSnapshot(snap);
     this.syncDisplay();
     const t = this.trackById(this.engine.current());

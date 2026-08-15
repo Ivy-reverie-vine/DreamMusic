@@ -1,6 +1,7 @@
 import { relationalStore } from '@kit.ArkData';
 import { common } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
+import { QueueSnapshot } from '../playback/QueueEngine';
 import {
   Track, Album, Artist, Playlist, PlayHistoryEntry, ServerProfile,
   PLAY_HISTORY_LIMIT, FAVORITES_PLAYLIST_NAME
@@ -10,12 +11,15 @@ const DOMAIN = 0x0000;
 const TAG = 'LibraryStore';
 const DB_NAME = 'ivy.db';
 
-/** 播放队列持久化记录(issue-06) */
+/** 播放队列持久化记录(issue-06/13:含洗牌序,重启延续随机周期) */
 export interface PlayerStateRecord {
   queue: number[];
   currentIndex: number;
   mode: string;
   positionMs: number;
+  shuffleOrder: number[];
+  shufflePos: number;
+  shuffleSteps: number;
 }
 
 /**
@@ -121,6 +125,23 @@ export class LibraryStore {
     ];
     for (const sql of ddl) {
       await this.db().executeSql(sql);
+    }
+    await this.migratePlayerState();
+  }
+
+  /** 旧库补列(issue-13:洗牌序持久化;列已存在时忽略) */
+  private async migratePlayerState(): Promise<void> {
+    const cols: string[] = [
+      "shuffle_order TEXT NOT NULL DEFAULT '[]'",
+      'shuffle_pos INTEGER NOT NULL DEFAULT -1',
+      'shuffle_steps INTEGER NOT NULL DEFAULT 0'
+    ];
+    for (const c of cols) {
+      try {
+        await this.db().executeSql('ALTER TABLE player_state ADD COLUMN ' + c);
+      } catch (err) {
+        // 列已存在(重复启动幂等)
+      }
     }
   }
 
@@ -501,17 +522,20 @@ export class LibraryStore {
     await this.db().delete(pred);
   }
 
-  // ---------- 播放队列持久化(issue-06) ----------
+  // ---------- 播放队列持久化(issue-06/13) ----------
 
-  async savePlayerState(queueIds: number[], currentIndex: number, mode: string, positionMs: number): Promise<void> {
-    const queueJson = JSON.stringify(queueIds);
+  async savePlayerState(snap: QueueSnapshot, positionMs: number): Promise<void> {
+    const queueJson = JSON.stringify(snap.tracks);
     await this.db().executeSql('DELETE FROM player_state WHERE id = 1');
     const values: relationalStore.ValuesBucket = {
       'id': 1,
       'queue': queueJson,
-      'current_index': currentIndex,
-      'mode': mode,
-      'position_ms': positionMs
+      'current_index': snap.currentIndex,
+      'mode': snap.mode,
+      'position_ms': positionMs,
+      'shuffle_order': JSON.stringify(snap.shuffleOrder),
+      'shuffle_pos': snap.shufflePos,
+      'shuffle_steps': snap.shuffleSteps
     };
     await this.db().insert('player_state', values);
   }
@@ -523,11 +547,23 @@ export class LibraryStore {
       return null;
     }
     const queueJson = rs.getString(rs.getColumnIndex('queue'));
+    let shuffleOrder: number[] = [];
+    try {
+      const raw = rs.getString(rs.getColumnIndex('shuffle_order'));
+      if (raw !== '') {
+        shuffleOrder = JSON.parse(raw) as number[];
+      }
+    } catch (err) {
+      shuffleOrder = [];
+    }
     const out: PlayerStateRecord = {
       queue: JSON.parse(queueJson) as number[],
       currentIndex: rs.getLong(rs.getColumnIndex('current_index')),
       mode: rs.getString(rs.getColumnIndex('mode')),
-      positionMs: rs.getLong(rs.getColumnIndex('position_ms'))
+      positionMs: rs.getLong(rs.getColumnIndex('position_ms')),
+      shuffleOrder: shuffleOrder,
+      shufflePos: rs.getLong(rs.getColumnIndex('shuffle_pos')),
+      shuffleSteps: rs.getLong(rs.getColumnIndex('shuffle_steps'))
     };
     rs.close();
     return out;

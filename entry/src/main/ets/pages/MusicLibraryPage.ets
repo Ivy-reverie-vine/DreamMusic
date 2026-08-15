@@ -2,6 +2,7 @@ import { ThemeService } from '../service/theme/ThemeService';
 import { ImportService } from '../service/library/ImportService';
 import { LibraryViewModel } from '../viewmodel/LibraryViewModel';
 import { QueueViewModel, queueViewModel } from '../viewmodel/QueueViewModel';
+import { PlayerViewModel, playerViewModel } from '../viewmodel/PlayerViewModel';
 import { playlistsViewModel } from '../viewmodel/PlaylistsViewModel';
 import { Track, Album, Artist, Playlist } from '../model/Entities';
 import { common } from '@kit.AbilityKit';
@@ -13,18 +14,25 @@ import {
 } from '../common/DesignTokens';
 
 /**
- * 音乐库页(issue-03/04 + issue-12 视觉):
- * 歌曲/专辑/艺术家三视图,行带封面缩略图 + 柔和阴影卡片,图标全部 SymbolGlyph。
+ * 音乐库页(issue-03/04 + issue-12/13):
+ * 歌曲/专辑/艺术家三视图;专辑/艺术家可点开详情子视图(issue-13 闭环 PRD story 14/15);
+ * 顶部无实色块(tab 用圆点指示,按钮用浅色 tint);文件夹导入移除(手机不支持);
+ * 点歌/播放失败有状态反馈。
  */
 @Component
 export struct MusicLibraryPage {
   @Prop theme: ThemeService;
   @State vm: LibraryViewModel = new LibraryViewModel();
   @State qvm: QueueViewModel = queueViewModel;
+  @State pvm: PlayerViewModel = playerViewModel;
   @State tab: number = 0;
   @State importStatus: string = '';
   @State addTrack: Track | null = null;
   @State showAdd: boolean = false;
+  // 专辑/艺术家详情子视图(issue-13)
+  @State detailAlbum: Album | null = null;
+  @State detailArtist: Artist | null = null;
+  @State detailTracks: Track[] = [];
 
   @Builder
   addPanel() {
@@ -71,6 +79,37 @@ export struct MusicLibraryPage {
     return t.coverPath !== '' ? 'file://' + this.ctx().filesDir + '/' + t.coverPath : '';
   }
 
+  /** 播放反馈:状态栏显示正在播放/错误(issue-12 修复:播放失败不再静默) */
+  private async playTracks(tracks: Track[], index: number): Promise<void> {
+    const t = tracks[index];
+    if (t === undefined) {
+      return;
+    }
+    this.importStatus = `播放中:${t.title !== '' ? t.title : t.path}`;
+    await queueViewModel.playFromList(tracks, index, this.ctx());
+    if (this.pvm.errorText !== '') {
+      this.importStatus = `播放失败:${this.pvm.errorText}`;
+    }
+  }
+
+  private openAlbum(a: Album): void {
+    this.detailArtist = null;
+    this.detailAlbum = a;
+    this.detailTracks = this.vm.tracks.filter((t: Track) => (a.name === '' ? t.album === '' : t.album === a.name));
+  }
+
+  private openArtist(a: Artist): void {
+    this.detailAlbum = null;
+    this.detailArtist = a;
+    this.detailTracks = this.vm.tracks.filter((t: Track) => (a.name === '' ? t.artist === '' : t.artist === a.name));
+  }
+
+  private closeDetail(): void {
+    this.detailAlbum = null;
+    this.detailArtist = null;
+    this.detailTracks = [];
+  }
+
   async importFiles(): Promise<void> {
     const context = this.ctx();
     this.importStatus = '选择文件中…';
@@ -86,29 +125,6 @@ export struct MusicLibraryPage {
       return;
     }
     this.importStatus = `导入 0/${sources.length}`;
-    const result = await ImportService.importSources(context, sources, (done: number, total: number): void => {
-      this.importStatus = `导入 ${done}/${total}`;
-    });
-    this.importStatus = `完成:导入 ${result.imported},跳过 ${result.skipped},重复 ${result.duplicates}` +
-      (result.failed > 0 ? `,失败 ${result.failed}:${result.lastError}` : '');
-    await this.vm.load();
-  }
-
-  async importFolder(): Promise<void> {
-    const context = this.ctx();
-    this.importStatus = '选择文件夹中…';
-    let sources: string[] = [];
-    try {
-      sources = await ImportService.pickAudioFolder(context);
-    } catch (err) {
-      // 手机等设备可能不支持文件夹选择模式(DocumentSelectMode.FOLDER 仅 2-in-1)
-      this.importStatus = '文件夹选择失败: ' + (err as Error).message;
-      return;
-    }
-    if (sources.length === 0) {
-      this.importStatus = '文件夹中没有支持的音频';
-      return;
-    }
     const result = await ImportService.importSources(context, sources, (done: number, total: number): void => {
       this.importStatus = `导入 ${done}/${total}`;
     });
@@ -138,66 +154,73 @@ export struct MusicLibraryPage {
   }
 
   @Builder
+  TrackRowItem(t: Track, index: number, source: Track[]) {
+    Row({ space: 12 }) {
+      CoverThumb({ theme: this.theme, uri: this.coverUri(t), thumbSize: 44 })
+      Column({ space: 3 }) {
+        Text(t.title !== '' ? t.title : t.path)
+          .fontSize(FONT_BODY)
+          .fontWeight(this.qvm.currentId === t.id ? FontWeight.Medium : FontWeight.Normal)
+          .fontColor(this.theme.ink)
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+        Text(`${t.artist}${t.album !== '' ? ' · ' + t.album : ''}${t.missing ? ' · 文件缺失' : ''}`)
+          .fontSize(FONT_LABEL)
+          .fontColor(t.missing ? this.theme.secondary : this.theme.muted)
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+      }
+      .alignItems(HorizontalAlign.Start)
+      .layoutWeight(1)
+
+      SymbolGlyph(this.vm.favoriteIds.has(t.id) ? $r('sys.symbol.heart_fill') : $r('sys.symbol.heart'))
+        .fontSize(20)
+        .fontColor([this.vm.favoriteIds.has(t.id) ? this.theme.primary : this.theme.muted])
+        .padding(4)
+        .onClick(() => {
+          this.vm.toggleFavorite(t.id);
+        })
+      SymbolGlyph($r('sys.symbol.plus'))
+        .fontSize(19)
+        .fontColor([this.theme.muted])
+        .padding(4)
+        .onClick(() => {
+          this.addTrack = t;
+          this.showAdd = true;
+        })
+      SymbolGlyph($r('sys.symbol.trash'))
+        .fontSize(17)
+        .fontColor([this.theme.muted])
+        .padding(5)
+        .onClick(() => {
+          this.confirmRemove(t);
+        })
+    }
+    .width('100%')
+    .padding({ left: 12, right: 12, top: 10, bottom: 10 })
+    .borderRadius(RADIUS_CARD)
+    .backgroundColor(this.theme.card)
+    .border({
+      width: this.qvm.currentId === t.id && !t.missing ? 1 : 0,
+      color: ThemeService.alpha(this.theme.primary, 0.5)
+    })
+    .shadow({ radius: SHADOW_CARD_RADIUS, color: SHADOW_CARD_COLOR, offsetX: 0, offsetY: SHADOW_CARD_OFFSET_Y })
+    .stateStyles({
+      pressed: { .backgroundColor(ThemeService.alpha(this.theme.primary, 0.1)) }
+    })
+    .onClick(() => {
+      if (!t.missing) {
+        this.playTracks(source, index);
+      }
+    })
+  }
+
+  @Builder
   TrackList() {
     List({ space: 10 }) {
       ForEach(this.vm.tracks, (t: Track, index: number) => {
         ListItem() {
-          Row({ space: 12 }) {
-            CoverThumb({ theme: this.theme, uri: this.coverUri(t), thumbSize: 44 })
-            Column({ space: 3 }) {
-              Text(t.title !== '' ? t.title : t.path)
-                .fontSize(FONT_BODY)
-                .fontWeight(queueViewModel.currentId === t.id ? FontWeight.Medium : FontWeight.Normal)
-                .fontColor(this.theme.ink)
-                .maxLines(1)
-                .textOverflow({ overflow: TextOverflow.Ellipsis })
-              Text(`${t.artist}${t.album !== '' ? ' · ' + t.album : ''}${t.missing ? ' · 文件缺失' : ''}`)
-                .fontSize(FONT_LABEL)
-                .fontColor(t.missing ? this.theme.secondary : this.theme.muted)
-                .maxLines(1)
-                .textOverflow({ overflow: TextOverflow.Ellipsis })
-            }
-            .alignItems(HorizontalAlign.Start)
-            .layoutWeight(1)
-
-            SymbolGlyph(this.vm.favoriteIds.has(t.id) ? $r('sys.symbol.heart_fill') : $r('sys.symbol.heart'))
-              .fontSize(21)
-              .fontColor([this.vm.favoriteIds.has(t.id) ? this.theme.primary : this.theme.muted])
-              .padding(4)
-              .onClick(() => {
-                this.vm.toggleFavorite(t.id);
-              })
-            SymbolGlyph($r('sys.symbol.plus'))
-              .fontSize(20)
-              .fontColor([this.theme.muted])
-              .padding(4)
-              .onClick(() => {
-                this.addTrack = t;
-                this.showAdd = true;
-              })
-            SymbolGlyph($r('sys.symbol.trash'))
-              .fontSize(18)
-              .fontColor([this.theme.muted])
-              .padding(5)
-              .onClick(() => {
-                this.confirmRemove(t);
-              })
-          }
-          .width('100%')
-          .padding({ left: 12, right: 12, top: 10, bottom: 10 })
-          .borderRadius(RADIUS_CARD)
-          .backgroundColor(this.theme.card)
-          .border({
-            width: queueViewModel.currentId === t.id && !t.missing ? 1 : 0,
-            color: ThemeService.alpha(this.theme.primary, 0.5)
-          })
-          .shadow({ radius: SHADOW_CARD_RADIUS, color: SHADOW_CARD_COLOR, offsetX: 0, offsetY: SHADOW_CARD_OFFSET_Y })
-          .onClick(() => {
-            if (!t.missing) {
-              // 点歌:来源列表成为播放队列,从点击处开始
-              queueViewModel.playFromList(this.vm.tracks, index, this.ctx());
-            }
-          })
+          this.TrackRowItem(t, index, this.vm.tracks)
         }
       })
     }
@@ -235,12 +258,21 @@ export struct MusicLibraryPage {
             }
             .alignItems(HorizontalAlign.Start)
             .layoutWeight(1)
+            SymbolGlyph($r('sys.symbol.chevron_right'))
+              .fontSize(15)
+              .fontColor([this.theme.muted])
           }
           .width('100%')
           .padding(12)
           .borderRadius(RADIUS_CARD)
           .backgroundColor(this.theme.card)
           .shadow({ radius: SHADOW_CARD_RADIUS, color: SHADOW_CARD_COLOR, offsetX: 0, offsetY: SHADOW_CARD_OFFSET_Y })
+          .stateStyles({
+            pressed: { .backgroundColor(ThemeService.alpha(this.theme.primary, 0.1)) }
+          })
+          .onClick(() => {
+            this.openAlbum(a);
+          })
         }
       })
     }
@@ -270,7 +302,6 @@ export struct MusicLibraryPage {
               Text(a.name !== '' ? a.name : '未知艺术家')
                 .fontSize(FONT_BODY)
                 .fontColor(this.theme.ink)
-                .layoutWeight(1)
                 .maxLines(1)
                 .textOverflow({ overflow: TextOverflow.Ellipsis })
               Text(`${a.trackCount} 首`)
@@ -279,12 +310,21 @@ export struct MusicLibraryPage {
             }
             .alignItems(HorizontalAlign.Start)
             .layoutWeight(1)
+            SymbolGlyph($r('sys.symbol.chevron_right'))
+              .fontSize(15)
+              .fontColor([this.theme.muted])
           }
           .width('100%')
           .padding(12)
           .borderRadius(RADIUS_CARD)
           .backgroundColor(this.theme.card)
           .shadow({ radius: SHADOW_CARD_RADIUS, color: SHADOW_CARD_COLOR, offsetX: 0, offsetY: SHADOW_CARD_OFFSET_Y })
+          .stateStyles({
+            pressed: { .backgroundColor(ThemeService.alpha(this.theme.primary, 0.1)) }
+          })
+          .onClick(() => {
+            this.openArtist(a);
+          })
         }
       })
     }
@@ -293,28 +333,70 @@ export struct MusicLibraryPage {
     .scrollBar(BarState.Auto)
   }
 
-  build() {
-    Column({ space: 16 }) {
-      Text('音乐库')
-        .fontSize(FONT_TITLE)
-        .fontWeight(FontWeight.Medium)
-        .fontColor(this.theme.ink)
-        .width('100%')
-
-      Row({ space: 8 }) {
-        ForEach(['歌曲', '专辑', '艺术家'], (item: string, index: number) => {
-          Text(item)
+  @Builder
+  DetailView() {
+    Column({ space: 12 }) {
+      Row({ space: 12 }) {
+        Row({ space: 4 }) {
+          SymbolGlyph($r('sys.symbol.chevron_left'))
+            .fontSize(16)
+            .fontColor([this.theme.primary])
+          Text('返回')
             .fontSize(14)
-            .fontWeight(index === this.tab ? FontWeight.Medium : FontWeight.Normal)
-            .fontColor(index === this.tab ? this.theme.primary : this.theme.muted)
-            .padding({ left: 16, right: 16, top: 6, bottom: 6 })
-            .borderRadius(RADIUS_CAPSULE)
-            .backgroundColor(index === this.tab ? ThemeService.alpha(this.theme.primary, 0.16) : this.theme.transparent)
-            .onClick(() => {
-              this.tab = index;
-            })
+            .fontColor(this.theme.primary)
+        }
+        .padding(6)
+        .onClick(() => {
+          this.closeDetail();
         })
-        Blank()
+        Text(this.detailAlbum !== null
+          ? (this.detailAlbum.name !== '' ? this.detailAlbum.name : '未知专辑')
+          : (this.detailArtist !== null ? (this.detailArtist.name !== '' ? this.detailArtist.name : '未知艺术家') : ''))
+          .fontSize(FONT_TITLE)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(this.theme.ink)
+          .layoutWeight(1)
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+        Text(`${this.detailTracks.length} 首`)
+          .fontSize(FONT_LABEL)
+          .fontColor(this.theme.muted)
+      }
+      .width('100%')
+
+      if (this.detailTracks.length === 0) {
+        EmptyState({
+          theme: this.theme,
+          symbol: $r('sys.symbol.music_note_list'),
+          title: '这里没有音轨',
+          hint: '该聚合下暂无歌曲'
+        })
+      } else {
+        List({ space: 10 }) {
+          ForEach(this.detailTracks, (t: Track, index: number) => {
+            ListItem() {
+              this.TrackRowItem(t, index, this.detailTracks)
+            }
+          })
+        }
+        .width('100%')
+        .layoutWeight(1)
+        .scrollBar(BarState.Auto)
+      }
+    }
+    .width('100%')
+    .height('100%')
+  }
+
+  build() {
+    Column({ space: 14 }) {
+      // 页头:标题 + 扫描(无底色)
+      Row() {
+        Text('音乐库')
+          .fontSize(FONT_TITLE)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(this.theme.ink)
+          .layoutWeight(1)
         Row({ space: 4 }) {
           SymbolGlyph($r('sys.symbol.arrow_clockwise'))
             .fontSize(14)
@@ -323,7 +405,7 @@ export struct MusicLibraryPage {
             .fontSize(13)
             .fontColor(this.theme.primary)
         }
-        .padding(6)
+        .padding(8)
         .borderRadius(RADIUS_CAPSULE)
         .onClick(() => {
           this.vm.rescan(this.ctx());
@@ -331,76 +413,95 @@ export struct MusicLibraryPage {
       }
       .width('100%')
 
-      Row({ space: 10 }) {
-        Row({ space: 6 }) {
-          SymbolGlyph($r('sys.symbol.plus'))
-            .fontSize(15)
-            .fontColor([this.theme.ink])
-          Text('导入文件')
-            .fontSize(13)
-            .fontColor(this.theme.ink)
-        }
-        .padding({ left: 16, right: 16, top: 9, bottom: 9 })
-        .borderRadius(RADIUS_CAPSULE)
-        .backgroundColor(this.theme.primary)
-        .onClick(() => {
-          this.importFiles();
+      // 视图切换:文字 + 圆点指示(无实色块)
+      Row({ space: 20 }) {
+        ForEach(['歌曲', '专辑', '艺术家'], (item: string, index: number) => {
+          Column({ space: 3 }) {
+            Text(item)
+              .fontSize(14)
+              .fontWeight(index === this.tab ? FontWeight.Medium : FontWeight.Normal)
+              .fontColor(index === this.tab ? this.theme.primary : this.theme.muted)
+            Circle()
+              .width(4)
+              .height(4)
+              .fill(index === this.tab ? this.theme.primary : this.theme.transparent)
+          }
+          .padding({ top: 4, bottom: 2 })
+          .onClick(() => {
+            this.tab = index;
+            this.closeDetail();
+          })
         })
-        Row({ space: 6 }) {
-          SymbolGlyph($r('sys.symbol.folder'))
-            .fontSize(15)
-            .fontColor([this.theme.ink])
-          Text('导入文件夹')
-            .fontSize(13)
-            .fontColor(this.theme.ink)
-        }
-        .padding({ left: 16, right: 16, top: 9, bottom: 9 })
-        .borderRadius(RADIUS_CAPSULE)
-        .backgroundColor(this.theme.secondary)
-        .onClick(() => {
-          this.importFolder();
-        })
-        Text(this.importStatus !== '' ? this.importStatus : this.vm.statusText)
-          .fontSize(FONT_LABEL)
-          .fontColor(this.theme.muted)
-          .layoutWeight(1)
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
+        Blank()
       }
       .width('100%')
 
-      if (this.tab === 0) {
-        if (this.vm.tracks.length === 0) {
-          EmptyState({
-            theme: this.theme,
-            symbol: $r('sys.symbol.music_note_list'),
-            title: '这里还是空的',
-            hint: '用上方按钮导入 MP3/AAC(M4A)/FLAC/WAV'
-          })
-        } else {
-          this.TrackList()
-        }
-      } else if (this.tab === 1) {
-        if (this.vm.albums.length === 0) {
-          EmptyState({
-            theme: this.theme,
-            symbol: $r('sys.symbol.rectangle_stack'),
-            title: '还没有专辑',
-            hint: '导入带专辑信息的音乐后会按专辑聚合'
-          })
-        } else {
-          this.AlbumList()
-        }
+      if (this.detailAlbum !== null || this.detailArtist !== null) {
+        this.DetailView()
       } else {
-        if (this.vm.artists.length === 0) {
-          EmptyState({
-            theme: this.theme,
-            symbol: $r('sys.symbol.person'),
-            title: '还没有艺术家',
-            hint: '导入带艺术家信息的音乐后会按艺术家聚合'
+        // 导入入口(仅文件;文件夹选择手机不支持,已移除)
+        Row({ space: 8 }) {
+          Row({ space: 6 }) {
+            SymbolGlyph($r('sys.symbol.plus'))
+              .fontSize(15)
+              .fontColor([this.theme.primary])
+            Text('导入文件')
+              .fontSize(13)
+              .fontColor(this.theme.primary)
+          }
+          .padding({ left: 18, right: 18, top: 9, bottom: 9 })
+          .borderRadius(RADIUS_CAPSULE)
+          .backgroundColor(ThemeService.alpha(this.theme.primary, 0.12))
+          .stateStyles({
+            pressed: { .opacity(0.6) }
           })
+          .onClick(() => {
+            this.importFiles();
+          })
+          Blank()
+        }
+        .width('100%')
+
+        Text(this.importStatus !== '' ? this.importStatus : this.vm.statusText)
+          .fontSize(FONT_LABEL)
+          .fontColor(this.theme.muted)
+          .width('100%')
+          .maxLines(2)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+
+        if (this.tab === 0) {
+          if (this.vm.tracks.length === 0) {
+            EmptyState({
+              theme: this.theme,
+              symbol: $r('sys.symbol.music_note_list'),
+              title: '这里还是空的',
+              hint: '点击上方「导入文件」添加 MP3/AAC(M4A)/FLAC/WAV'
+            })
+          } else {
+            this.TrackList()
+          }
+        } else if (this.tab === 1) {
+          if (this.vm.albums.length === 0) {
+            EmptyState({
+              theme: this.theme,
+              symbol: $r('sys.symbol.rectangle_stack'),
+              title: '还没有专辑',
+              hint: '导入带专辑信息的音乐后会按专辑聚合'
+            })
+          } else {
+            this.AlbumList()
+          }
         } else {
-          this.ArtistList()
+          if (this.vm.artists.length === 0) {
+            EmptyState({
+              theme: this.theme,
+              symbol: $r('sys.symbol.person'),
+              title: '还没有艺术家',
+              hint: '导入带艺术家信息的音乐后会按艺术家聚合'
+            })
+          } else {
+            this.ArtistList()
+          }
         }
       }
     }

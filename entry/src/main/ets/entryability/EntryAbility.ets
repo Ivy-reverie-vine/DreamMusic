@@ -6,6 +6,8 @@ import { LibraryScanService } from '../service/library/LibraryScanService';
 import { BackgroundPlayback } from '../service/playback/BackgroundPlayback';
 import { ThemeService } from '../service/theme/ThemeService';
 import { networkViewModel } from '../viewmodel/NetworkViewModel';
+import { queueViewModel } from '../viewmodel/QueueViewModel';
+import { playerViewModel } from '../viewmodel/PlayerViewModel';
 
 const DOMAIN = 0x0000;
 
@@ -17,8 +19,9 @@ export default class EntryAbility extends UIAbility {
       hilog.error(DOMAIN, 'testTag', 'Failed to set colorMode. Cause: %{public}s', JSON.stringify(err));
     }
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
-    // 深浅色初始读取(issue-11,跟随系统)
-    ThemeService.getInstance().setDarkMode(
+    // 主题:应用持久化模式(issue-12:默认深色,可手动切浅色/跟随系统)
+    const saved = ThemeService.loadMode(this.context);
+    ThemeService.getInstance().applyMode(saved,
       this.context.config.colorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK);
     // 后台播控会话初始化(issue-07,真机验证)
     BackgroundPlayback.getInstance().init(this.context);
@@ -28,19 +31,25 @@ export default class EntryAbility extends UIAbility {
     }).catch((err: Error) => {
       hilog.error(DOMAIN, 'LibraryStore', 'init/scan failed: %{public}s', err.message);
     });
-    // 启动健康检查(ADR-0002:启动时探活;code-review 修复)
+    // 启动健康检查(ADR-0002:启动时探活 + 每 15s 轮询,应用级生命周期)
     networkViewModel.load().then(() => {
       networkViewModel.startPolling();
     });
   }
 
   onConfigurationUpdate(newConfig: Configuration): void {
-    // 系统深浅色切换即时生效(issue-11)
-    ThemeService.getInstance().setDarkMode(
+    // 系统深浅色切换即时生效(仅"跟随系统"模式响应)
+    ThemeService.getInstance().applyMode(ThemeService.getInstance().mode,
       newConfig.colorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK);
   }
 
+  onBackground(): void {
+    // 切后台落盘队列进度(issue-13 修复:断点续播不再依赖暂停)
+    queueViewModel.persistNow(playerViewModel.positionMs);
+  }
+
   onDestroy(): void {
+    queueViewModel.persistNow(playerViewModel.positionMs);
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onDestroy');
   }
 
@@ -65,10 +74,5 @@ export default class EntryAbility extends UIAbility {
   onForeground(): void {
     // Ability has brought to foreground
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onForeground');
-  }
-
-  onBackground(): void {
-    // Ability has back to background
-    hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onBackground');
   }
 }
