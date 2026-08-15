@@ -24,6 +24,10 @@ export class PlayerSession {
   private player: media.AVPlayer | null = null;
   private fd: number = -1;
   private cb: PlaybackCallbacks | null = null;
+  /** 等待 initialized 状态(issue-14 修复:fdSrc 后需等 initialized 才能 prepare) */
+  private initResolve: (() => void) | null = null;
+  private initReject: ((e: Error) => void) | null = null;
+  private initTimer: number = -1;
 
   async playFile(absPath: string, callbacks: PlaybackCallbacks): Promise<void> {
     await this.release();
@@ -33,7 +37,6 @@ export class PlayerSession {
     const stat = fileIo.statSync(absPath);
     const avp = await media.createAVPlayer();
     this.player = avp;
-    avp.fdSrc = { fd: this.fd, offset: 0, length: stat.size };
     avp.on('stateChange', (state: string) => {
       this.handleState(state);
     });
@@ -43,11 +46,51 @@ export class PlayerSession {
       }
     });
     callbacks.onStateChange(PlayerState.PREPARING);
+    avp.fdSrc = { fd: this.fd, offset: 0, length: stat.size };
+    // 必须等状态到 initialized 才能 prepare,否则报 unsupported prepare operation
+    await this.waitInitialized();
     await avp.prepare();
     await avp.play();
   }
 
+  private waitInitialized(): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      this.initResolve = resolve;
+      this.initReject = reject;
+      this.initTimer = setTimeout(() => {
+        this.initResolve = null;
+        this.initReject = null;
+        reject(new Error('AVPlayer 初始化超时'));
+      }, 8000);
+    });
+  }
+
   private handleState(state: string): void {
+    if (state === 'initialized') {
+      if (this.initTimer >= 0) {
+        clearTimeout(this.initTimer);
+        this.initTimer = -1;
+      }
+      const r = this.initResolve;
+      this.initResolve = null;
+      this.initReject = null;
+      if (r !== null) {
+        r();
+      }
+      return;
+    }
+    if (state === 'error') {
+      if (this.initTimer >= 0) {
+        clearTimeout(this.initTimer);
+        this.initTimer = -1;
+      }
+      const rj = this.initReject;
+      this.initResolve = null;
+      this.initReject = null;
+      if (rj !== null) {
+        rj(new Error('AVPlayer 初始化失败'));
+      }
+    }
     if (this.cb === null) {
       return;
     }
@@ -114,6 +157,12 @@ export class PlayerSession {
   }
 
   async release(): Promise<void> {
+    if (this.initTimer >= 0) {
+      clearTimeout(this.initTimer);
+      this.initTimer = -1;
+    }
+    this.initResolve = null;
+    this.initReject = null;
     const p = this.player;
     this.player = null;
     if (p !== null) {

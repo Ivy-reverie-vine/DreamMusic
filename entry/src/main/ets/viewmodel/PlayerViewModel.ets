@@ -1,4 +1,5 @@
 import { common } from '@kit.AbilityKit';
+import { fileIo } from '@kit.CoreFileKit';
 import { PlayerSession, PlaybackCallbacks } from '../service/playback/PlayerSession';
 import { BackgroundPlayback } from '../service/playback/BackgroundPlayback';
 import { LibraryStore } from '../service/library/LibraryStore';
@@ -54,6 +55,18 @@ export class PlayerViewModel {
       this.coverColorHandler(track);
     }
     const abs = context.filesDir + '/' + track.path;
+    // 播放前检查文件存在(issue-14:旧数据文件缺失时给出友好提示,不裸报 no such file)
+    try {
+      if (!fileIo.accessSync(abs)) {
+        this.errorText = '文件缺失,请重新导入这首歌';
+        this.state = PlayerState.ERROR;
+        return;
+      }
+    } catch (err) {
+      this.errorText = '文件缺失,请重新导入这首歌';
+      this.state = PlayerState.ERROR;
+      return;
+    }
     const callbacks: PlaybackCallbacks = {
       onStateChange: (s: PlayerState): void => {
         this.state = s;

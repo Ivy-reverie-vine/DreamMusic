@@ -85,6 +85,8 @@ export class ImportService {
     for (const item of plan.items) {
       try {
         const absPath = ImportService.copyToSandbox(context, item.source, item.destRelative);
+        // 歌词:同目录同名 .lrc 一并复制进沙箱(issue-14 修复:此前 lrc 从未进入沙箱,歌词永远读不到)
+        ImportService.copySiblingLrc(context, item.source, item.destRelative);
         const meta = await ImportService.readMetadata(absPath);
         const coverRelative = await ImportService.extractCover(context, absPath);
         const track: Track = {
@@ -122,6 +124,28 @@ export class ImportService {
     }
     copyFileRobust(source, abs);
     return abs;
+  }
+
+  /** 复制同目录同名 .lrc 到沙箱(歌词非必需,失败静默) */
+  private static copySiblingLrc(context: common.Context, source: string, destRelative: string): void {
+    try {
+      const dot = source.lastIndexOf('.');
+      if (dot <= 0) {
+        return;
+      }
+      const lrcSrc = source.substring(0, dot) + '.lrc';
+      if (!fileIo.accessSync(lrcSrc)) {
+        return;
+      }
+      const destDot = destRelative.lastIndexOf('.');
+      if (destDot <= 0) {
+        return;
+      }
+      const lrcDest = context.filesDir + '/' + destRelative.substring(0, destDot) + '.lrc';
+      copyFileRobust(lrcSrc, lrcDest);
+    } catch (err) {
+      // 歌词非必需,失败静默
+    }
   }
 
   /** 读取音轨元数据(扫描与导入共用) */

@@ -1,9 +1,9 @@
 import { ThemeService } from '../service/theme/ThemeService';
 
 /**
- * 不规则椭圆泡泡暂停/播放按钮(IDEA.md、DESIGN.md Shapes,issue-12 视觉升级):
- * 形状保持有机泡泡(两轴半径不同 + 微倾斜),填充主色 + 弥散光晕;
- * 符号用官方 SymbolGlyph(play_fill/pause_fill),不再用文本字形。
+ * 不规则椭圆泡泡暂停/播放按钮(IDEA.md、DESIGN.md Shapes,issue-14 重做):
+ * 椭圆 = borderRadius(高一半)实现,绕开 Path 坐标系渲染问题;
+ * 渐变填充 + 顶部高光(液体玻璃感)+ primary 弥散光晕;符号用 SymbolGlyph。
  */
 @Component
 export struct BubblePauseButton {
@@ -14,17 +14,26 @@ export struct BubblePauseButton {
 
   build() {
     Stack() {
-      // 泡泡本体:不规则椭圆(Path 曲线,微倾斜营造"泡泡"感)
-      Shape() {
-        Path()
-          .commands('M0 30 Q0 8 26 4 Q58 0 74 14 Q92 30 76 46 Q58 62 30 58 Q6 54 0 30 Z')
-          .fill(this.theme.primary)
-          .stroke(ThemeService.alpha(this.theme.ink, 0.85))
-          .strokeWidth(2)
-      }
-      .width(96)
-      .height(64)
-      .rotate({ angle: -6 })
+      // 泡泡本体:水平略长的椭圆(有机感)
+      Column()
+        .width(92)
+        .height(60)
+        .borderRadius(30)
+        .linearGradient({
+          angle: 160,
+          colors: [
+            [ThemeService.alpha(this.theme.primary, 1.0), 0.0],
+            [ThemeService.alpha(this.theme.primary, 0.72), 1.0]
+          ]
+        })
+
+      // 顶部高光:液体/玻璃质感
+      Column()
+        .width(38)
+        .height(8)
+        .borderRadius(4)
+        .backgroundColor(ThemeService.alpha('#FFFFFF', 0.3))
+        .offset({ x: -18, y: -17 })
 
       SymbolGlyph(this.isPlaying ? $r('sys.symbol.pause_fill') : $r('sys.symbol.play_fill'))
         .fontSize(26)
@@ -33,6 +42,7 @@ export struct BubblePauseButton {
     }
     .width(96)
     .height(64)
+    .rotate({ angle: -5 })
     .shadow({ radius: 28, color: ThemeService.alpha(this.theme.primary, 0.55), offsetX: 0, offsetY: 0 })
     .onClick(() => {
       this.onToggle();
