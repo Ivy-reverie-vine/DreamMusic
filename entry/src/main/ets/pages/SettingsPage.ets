@@ -101,7 +101,7 @@ export struct SettingsPage {
           if (this.theme.mode === item.mode) {
             SymbolGlyph($r('sys.symbol.checkmark'))
               .fontSize(17)
-              .fontColor([this.theme.primary])
+              .fontColor([this.theme.primaryText])
           }
         }
         .width('100%')
@@ -290,7 +290,7 @@ export struct SettingsPage {
             if (!p.isCurrent) {
               Text('设为当前')
                 .fontSize(12)
-                .fontColor(this.theme.primary)
+                .fontColor(this.theme.primaryText)
                 .onClick(() => {
                   this.net.setCurrent(p.id);
                 })
@@ -298,10 +298,10 @@ export struct SettingsPage {
               Row({ space: 4 }) {
                 SymbolGlyph($r('sys.symbol.checkmark'))
                   .fontSize(13)
-                  .fontColor([this.theme.primary])
+                  .fontColor([this.theme.primaryText])
                 Text('当前')
                   .fontSize(12)
-                  .fontColor(this.theme.primary)
+                  .fontColor(this.theme.primaryText)
               }
             }
             SymbolGlyph($r('sys.symbol.trash'))

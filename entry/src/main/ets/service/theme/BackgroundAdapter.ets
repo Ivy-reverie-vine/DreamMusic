@@ -46,6 +46,9 @@ export class BackgroundAdapter {
       BackgroundAdapter.removeBackgroundFile(context);
       const destPath: string = BackgroundAdapter.copyToSandbox(context, uri);
       const colors = await BackgroundAdapter.extractFromFile(destPath);
+      // PixelMap 显示(issue-14:同文件名覆盖时 src 不变不重载,改用引用变化即时重绘)
+      const pm = await BackgroundAdapter.loadBgImage(destPath);
+      theme.setBgImage(pm);
       theme.applyExtracted(colors.primary, colors.secondary);
       theme.bgImagePath = BG_DIR + '/' + destPath.substring(destPath.lastIndexOf('/') + 1);
       theme.setHasBackground(true);
@@ -91,6 +94,8 @@ export class BackgroundAdapter {
         if (n.startsWith(BG_FILE)) {
           const path = dir + '/' + n;
           const colors = await BackgroundAdapter.extractFromFile(path);
+          const pm = await BackgroundAdapter.loadBgImage(path);
+          theme.setBgImage(pm);
           theme.applyExtracted(colors.primary, colors.secondary);
           theme.bgImagePath = BG_DIR + '/' + n;
           theme.setHasBackground(true);
@@ -101,6 +106,14 @@ export class BackgroundAdapter {
     } catch (err) {
       return false;
     }
+  }
+
+  /** 解码背景图为 PixelMap(屏幕级尺寸,供全屏显示) */
+  static async loadBgImage(path: string): Promise<image.PixelMap> {
+    const source: image.ImageSource = image.createImageSource(path);
+    const pm = await source.createPixelMap({ desiredSize: { width: 1080, height: 2340 } });
+    source.release();
+    return pm;
   }
 
   static async extractFromFile(path: string): Promise<ExtractedPair> {

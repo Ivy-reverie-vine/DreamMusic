@@ -172,7 +172,7 @@ export struct NowPlayingPage {
         Text(this.lrc.activeIndex >= 0 ? this.lrc.lines[this.lrc.activeIndex].text : '')
           .fontSize(17)
           .fontWeight(FontWeight.Medium)
-          .fontColor(this.theme.primary)
+          .fontColor(this.theme.primaryText)
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
         Text(this.lrc.activeIndex >= 0 && this.lrc.activeIndex + 1 < this.lrc.lines.length

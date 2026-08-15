@@ -58,10 +58,10 @@ export struct QueuePage {
         Row({ space: 6 }) {
           SymbolGlyph(modeIcon(this.vm.mode))
             .fontSize(14)
-            .fontColor([this.theme.primary])
+            .fontColor([this.theme.primaryText])
           Text(modeLabel(this.vm.mode))
             .fontSize(13)
-            .fontColor(this.theme.primary)
+            .fontColor(this.theme.primaryText)
         }
         .padding({ left: 12, right: 12, top: 6, bottom: 6 })
         .borderRadius(RADIUS_CAPSULE)

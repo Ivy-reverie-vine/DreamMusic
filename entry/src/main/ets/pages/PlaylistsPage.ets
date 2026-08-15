@@ -91,7 +91,7 @@ export struct PlaylistsPage {
           })
         Text('新建')
           .fontSize(13)
-          .fontColor(this.theme.primary)
+          .fontColor(this.theme.primaryText)
           .padding({ left: 16, right: 16, top: 9, bottom: 9 })
           .borderRadius(RADIUS_CAPSULE)
           .border({ width: 1, color: ThemeService.alpha(this.theme.primary, 0.4) })
@@ -170,7 +170,7 @@ export struct PlaylistsPage {
             .margin({ left: 6 })
           Text('清空')
             .fontSize(12)
-            .fontColor(this.theme.primary)
+            .fontColor(this.theme.primaryText)
             .onClick(() => {
               this.vm.clearHistory();
             })
@@ -215,10 +215,10 @@ export struct PlaylistsPage {
         Row({ space: 4 }) {
           SymbolGlyph($r('sys.symbol.chevron_left'))
             .fontSize(16)
-            .fontColor([this.theme.primary])
+            .fontColor([this.theme.primaryText])
           Text('返回')
             .fontSize(14)
-            .fontColor(this.theme.primary)
+            .fontColor(this.theme.primaryText)
         }
         .padding(6)
         .onClick(() => {
@@ -304,7 +304,7 @@ export struct PlaylistsPage {
               })
             Text('确定')
               .fontSize(13)
-              .fontColor(this.theme.primary)
+              .fontColor(this.theme.primaryText)
               .padding({ left: 20, right: 20, top: 9, bottom: 9 })
               .borderRadius(RADIUS_CAPSULE)
               .border({ width: 1, color: ThemeService.alpha(this.theme.primary, 0.4) })

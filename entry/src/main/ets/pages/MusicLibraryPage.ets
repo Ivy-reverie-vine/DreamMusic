@@ -344,10 +344,10 @@ export struct MusicLibraryPage {
         Row({ space: 4 }) {
           SymbolGlyph($r('sys.symbol.chevron_left'))
             .fontSize(16)
-            .fontColor([this.theme.primary])
+            .fontColor([this.theme.primaryText])
           Text('返回')
             .fontSize(14)
-            .fontColor(this.theme.primary)
+            .fontColor(this.theme.primaryText)
         }
         .padding(6)
         .onClick(() => {
@@ -404,10 +404,10 @@ export struct MusicLibraryPage {
         Row({ space: 4 }) {
           SymbolGlyph($r('sys.symbol.arrow_clockwise'))
             .fontSize(14)
-            .fontColor([this.theme.primary])
+            .fontColor([this.theme.primaryText])
           Text('扫描')
             .fontSize(13)
-            .fontColor(this.theme.primary)
+            .fontColor(this.theme.primaryText)
         }
         .padding(8)
         .borderRadius(RADIUS_CAPSULE)
@@ -448,10 +448,10 @@ export struct MusicLibraryPage {
           Row({ space: 6 }) {
             SymbolGlyph($r('sys.symbol.plus'))
               .fontSize(15)
-              .fontColor([this.theme.primary])
+              .fontColor([this.theme.primaryText])
             Text('导入文件')
               .fontSize(13)
-              .fontColor(this.theme.primary)
+              .fontColor(this.theme.primaryText)
           }
           .padding({ left: 18, right: 18, top: 9, bottom: 9 })
           .borderRadius(RADIUS_CAPSULE)

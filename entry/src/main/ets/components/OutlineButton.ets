@@ -12,7 +12,7 @@ export struct OutlineButton {
   build() {
     Text(this.text)
       .fontSize(13)
-      .fontColor(this.theme.primary)
+      .fontColor(this.theme.primaryText)
       .padding({ left: 16, right: 16, top: 8, bottom: 8 })
       .borderRadius(RADIUS_CAPSULE)
       .border({ width: 1, color: ThemeService.alpha(this.theme.primary, 0.4) })

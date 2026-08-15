@@ -125,9 +125,10 @@ struct Index {
         .height('100%')
         .backgroundColor(this.theme.bg)
 
-      // 用户背景图:全局铺满 + 蒙层保底(DESIGN.md 蒙层保底规则)
-      if (this.theme.hasBackground && this.theme.bgImagePath !== '') {
-        Image('file://' + this.ctx().filesDir + '/' + this.theme.bgImagePath)
+      // 用户背景图:全局铺满 + 蒙层保底(DESIGN.md 蒙层保底规则);
+      // PixelMap 显示(issue-14:换图即时重绘,不依赖文件路径变化)
+      if (this.theme.hasBackground && this.theme.bgImage !== null) {
+        Image(this.theme.bgImage)
           .width('100%')
           .height('100%')
           .objectFit(ImageFit.Cover)
@@ -172,10 +173,10 @@ struct Index {
           Column({ space: 2 }) {
             SymbolGlyph(item.icon)
               .fontSize(20)
-              .fontColor([index === this.current ? this.theme.primary : this.theme.muted])
+              .fontColor([index === this.current ? this.theme.primaryText : this.theme.muted])
             Text(item.label)
               .fontSize(11)
-              .fontColor(index === this.current ? this.theme.primary : this.theme.muted)
+              .fontColor(index === this.current ? this.theme.primaryText : this.theme.muted)
               .fontWeight(index === this.current ? FontWeight.Medium : FontWeight.Normal)
           }
           .layoutWeight(1)

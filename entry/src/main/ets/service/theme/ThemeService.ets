@@ -1,5 +1,6 @@
 import { oklchToRgb } from '../color/ColorExtract';
 import { preferences } from '@kit.ArkData';
+import { image } from '@kit.ImageKit';
 import { common } from '@kit.AbilityKit';
 
 /**
@@ -34,6 +35,22 @@ function toHex(rgb: number[]): string {
 export const SEED_PRIMARY_HEX: string = toHex(oklchToRgb(SEED_L, SEED_C, SEED_H));
 export const SEED_SECONDARY_HEX: string = toHex(oklchToRgb(SEED_L, SEED_C, (SEED_H + 120.0) % 360.0));
 
+/** '#RRGGBB' 与另一色线性混合,t∈[0,1] */
+function mixHex(hex: string, other: string, t: number): string {
+  const p = (h: string): number[] => [
+    parseInt(h.substring(1, 3), 16),
+    parseInt(h.substring(3, 5), 16),
+    parseInt(h.substring(5, 7), 16)
+  ];
+  const a = p(hex);
+  const b = p(other);
+  const c: number[] = [];
+  for (let i = 0; i < 3; i++) {
+    c.push(Math.round(a[i] + (b[i] - a[i]) * t));
+  }
+  return '#' + c.map((v: number) => v.toString(16).toUpperCase().padStart(2, '0')).join('');
+}
+
 @Observed
 export class ThemeService {
   // DESIGN.md Roles(深浅两套,跟随系统)
@@ -48,6 +65,11 @@ export class ThemeService {
   transparent: string = '#00000000';
   primary: string = SEED_PRIMARY_HEX;
   secondary: string = SEED_SECONDARY_HEX;
+  /**
+   * 用于文字/图标的强调色(issue-14 修复:取色后部分字体看不清)。
+   * 深色主题自动向白提亮,浅色主题自动向 ink 加深,保证文字对比度。
+   */
+  primaryText: string = mixHex(SEED_PRIMARY_HEX, '#FFFFFF', 0.38);
   scrimList: number = 0.65;      // 列表页蒙层不透明度(0-1)
   scrimNowPlaying: number = 0.45; // 正在播放页蒙层不透明度(issue-12 起真正启用)
   card: string = '#12FFFFFF';    // 卡片底色(半透明白,叠于蒙层之上,PRD-v1.1)
@@ -55,6 +77,8 @@ export class ThemeService {
   hasBackground: boolean = false;
   /** 背景图相对路径(相对 filesDir),重启恢复用 */
   bgImagePath: string = '';
+  /** 背景图 PixelMap(issue-14:引用变化即时重绘,解决同文件名切换不生效) */
+  bgImage: image.PixelMap | null = null;
 
   private static instance: ThemeService | null = null;
 
@@ -75,6 +99,7 @@ export class ThemeService {
       this.trackColor = '#33FFFFFF';
       this.card = '#12FFFFFF';
       this.barBg = '#59000000';
+      this.primaryText = mixHex(this.primary, '#FFFFFF', 0.38);
     } else {
       this.bg = '#F5F7F8';
       this.ink = '#1B2226';
@@ -82,6 +107,7 @@ export class ThemeService {
       this.trackColor = '#33000000';
       this.card = '#0A000000';
       this.barBg = '#59FFFFFF';
+      this.primaryText = mixHex(this.primary, '#1B2226', 0.22);
     }
   }
 
@@ -120,12 +146,14 @@ export class ThemeService {
   applyExtracted(primary: string, secondary: string): void {
     this.primary = primary;
     this.secondary = secondary;
+    this.primaryText = this.isDark ? mixHex(primary, '#FFFFFF', 0.38) : mixHex(primary, '#1B2226', 0.22);
   }
 
   /** 回退品牌种子主题(无背景图/无封面) */
   applyDefault(): void {
     this.primary = SEED_PRIMARY_HEX;
     this.secondary = SEED_SECONDARY_HEX;
+    this.primaryText = mixHex(SEED_PRIMARY_HEX, '#FFFFFF', 0.38);
     this.hasBackground = false;
   }
 
@@ -134,10 +162,21 @@ export class ThemeService {
     this.hasBackground = has;
   }
 
+  /** 设置背景图 PixelMap;换图时释放旧图(issue-14:引用变化即时重绘) */
+  setBgImage(pm: image.PixelMap): void {
+    const old = this.bgImage;
+    this.bgImage = pm;
+    if (old !== null) {
+      old.release().catch(() => {
+      });
+    }
+  }
+
   /** 彻底清除背景图状态(设置页"恢复默认主题"= 删除文件后调用,issue-12/13) */
   clearBackground(): void {
     this.bgImagePath = '';
     this.hasBackground = false;
+    this.bgImage = null;
     this.applyDefault();
   }
 
