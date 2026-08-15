@@ -126,9 +126,9 @@ struct Index {
         .backgroundColor(this.theme.bg)
 
       // 用户背景图:全局铺满 + 蒙层保底(DESIGN.md 蒙层保底规则);
-      // PixelMap 显示(issue-14:换图即时重绘,不依赖文件路径变化)
-      if (this.theme.hasBackground && this.theme.bgImage !== null) {
-        Image(this.theme.bgImage)
+      // file:// 显示(中心裁剪 Cover);文件名带时间戳,URI 每次唯一 → 切换即时生效
+      if (this.theme.hasBackground && this.theme.bgImagePath !== '') {
+        Image('file://' + this.ctx().filesDir + '/' + this.theme.bgImagePath)
           .width('100%')
           .height('100%')
           .objectFit(ImageFit.Cover)

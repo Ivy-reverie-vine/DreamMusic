@@ -1,6 +1,5 @@
 import { oklchToRgb } from '../color/ColorExtract';
 import { preferences } from '@kit.ArkData';
-import { image } from '@kit.ImageKit';
 import { common } from '@kit.AbilityKit';
 
 /**
@@ -75,10 +74,8 @@ export class ThemeService {
   card: string = '#12FFFFFF';    // 卡片底色(半透明白,叠于蒙层之上,PRD-v1.1)
   barBg: string = '#59000000';   // 玻璃底栏底色(半透明黑)
   hasBackground: boolean = false;
-  /** 背景图相对路径(相对 filesDir),重启恢复用 */
+  /** 背景图相对路径(相对 filesDir);文件名带时间戳,每次切换 URI 唯一(issue-14) */
   bgImagePath: string = '';
-  /** 背景图 PixelMap(issue-14:引用变化即时重绘,解决同文件名切换不生效) */
-  bgImage: image.PixelMap | null = null;
 
   private static instance: ThemeService | null = null;
 
@@ -162,21 +159,10 @@ export class ThemeService {
     this.hasBackground = has;
   }
 
-  /** 设置背景图 PixelMap;换图时释放旧图(issue-14:引用变化即时重绘) */
-  setBgImage(pm: image.PixelMap): void {
-    const old = this.bgImage;
-    this.bgImage = pm;
-    if (old !== null) {
-      old.release().catch(() => {
-      });
-    }
-  }
-
   /** 彻底清除背景图状态(设置页"恢复默认主题"= 删除文件后调用,issue-12/13) */
   clearBackground(): void {
     this.bgImagePath = '';
     this.hasBackground = false;
-    this.bgImage = null;
     this.applyDefault();
   }
 

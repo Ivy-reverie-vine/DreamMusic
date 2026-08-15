@@ -1,23 +1,16 @@
-import { ThemeService, ThemeMode } from '../service/theme/ThemeService';
+import { ThemeService } from '../service/theme/ThemeService';
 import { BackgroundAdapter } from '../service/theme/BackgroundAdapter';
 import { LibraryScanService } from '../service/library/LibraryScanService';
 import { networkViewModel, NetworkViewModel } from '../viewmodel/NetworkViewModel';
 import { ServerProfile } from '../model/Entities';
-import { common, ConfigurationConstant } from '@kit.AbilityKit';
+import { common } from '@kit.AbilityKit';
 import { OutlineButton } from '../components/OutlineButton';
 import { RADIUS_CARD, FONT_LABEL, FONT_TITLE } from '../common/DesignTokens';
 
-interface ThemeOption {
-  mode: ThemeMode;
-  label: string;
-  icon: Resource;
-}
-
 /**
- * 设置页(issue-11 + issue-13 重排):
- * 分组卡片、小字号;主题三态切换(深/浅/跟随系统,持久化);
- * 播放历史清空入口移除(归歌单页);背景图应用/失败状态可见;
- * 恢复默认主题 = 删除背景图文件(持久生效)。
+ * 设置页(issue-11 + issue-13 重排 + issue-14 定稿):
+ * 分组卡片、小字号;背景图应用/失败状态可见;
+ * 主题切换与"恢复默认主题"入口已按用户要求移除(默认深色)。
  */
 @Component
 export struct SettingsPage {
@@ -27,7 +20,6 @@ export struct SettingsPage {
   @State net: NetworkViewModel = networkViewModel;
   @State newAlias: string = '';
   @State newUrl: string = '';
-  @State showThemeSheet: boolean = false;
 
   aboutToAppear(): void {
     this.net.load();
@@ -43,34 +35,10 @@ export struct SettingsPage {
     this.bgStatus = err === '' ? '已应用,界面随图而变' : err;
   }
 
-  async restoreDefaultTheme(): Promise<void> {
-    BackgroundAdapter.removeBackgroundFile(this.ctx());
-    this.theme.clearBackground();
-    this.bgStatus = '已恢复默认主题';
-  }
-
   async rescan(): Promise<void> {
     this.scanStatus = '扫描中…';
     const report = await LibraryScanService.scan(this.ctx());
     this.scanStatus = `新增 ${report.added},缺失 ${report.missing}`;
-  }
-
-  applyThemeMode(mode: ThemeMode): void {
-    const systemDark = this.ctx().config.colorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK;
-    this.theme.applyMode(mode, systemDark);
-    ThemeService.saveMode(this.ctx(), mode);
-    this.showThemeSheet = false;
-  }
-
-  private modeLabel(): string {
-    switch (this.theme.mode) {
-      case ThemeMode.LIGHT:
-        return '浅色';
-      case ThemeMode.SYSTEM:
-        return '跟随系统';
-      default:
-        return '深色';
-    }
   }
 
   @Builder
@@ -80,41 +48,6 @@ export struct SettingsPage {
       .fontColor(this.theme.muted)
       .width('100%')
       .padding({ left: 6, top: 8 })
-  }
-
-  @Builder
-  ThemeSheet() {
-    Column({ space: 4 }) {
-      ForEach([
-        { mode: ThemeMode.DARK as ThemeMode, label: '深色', icon: $r('sys.symbol.moon') } as ThemeOption,
-        { mode: ThemeMode.LIGHT as ThemeMode, label: '浅色', icon: $r('sys.symbol.sun_max') } as ThemeOption,
-        { mode: ThemeMode.SYSTEM as ThemeMode, label: '跟随系统', icon: $r('sys.symbol.arrow_clockwise') } as ThemeOption
-      ], (item: ThemeOption) => {
-        Row({ space: 12 }) {
-          SymbolGlyph(item.icon)
-            .fontSize(18)
-            .fontColor([this.theme.muted])
-          Text(item.label)
-            .fontSize(15)
-            .fontColor(this.theme.ink)
-            .layoutWeight(1)
-          if (this.theme.mode === item.mode) {
-            SymbolGlyph($r('sys.symbol.checkmark'))
-              .fontSize(17)
-              .fontColor([this.theme.primaryText])
-          }
-        }
-        .width('100%')
-        .padding(12)
-        .borderRadius(12)
-        .backgroundColor(this.theme.mode === item.mode ? ThemeService.alpha(this.theme.primary, 0.1) : this.theme.transparent)
-        .onClick(() => {
-          this.applyThemeMode(item.mode);
-        })
-      })
-    }
-    .width('100%')
-    .padding(16)
   }
 
   @Builder
@@ -171,38 +104,6 @@ export struct SettingsPage {
         .justifyContent(FlexAlign.End)
         .padding({ right: 12, bottom: 10 })
 
-        this.SettingRow(this.theme.mode === ThemeMode.LIGHT ? $r('sys.symbol.sun_max') :
-          (this.theme.mode === ThemeMode.SYSTEM ? $r('sys.symbol.arrow_clockwise') : $r('sys.symbol.moon')),
-          '主题', `当前:${this.modeLabel()} · 点按切换`)
-        Row() {
-          OutlineButton({
-            theme: this.theme,
-            text: this.modeLabel(),
-            onTap: (): void => {
-              this.showThemeSheet = true;
-            }
-          })
-        }
-        .width('100%')
-        .justifyContent(FlexAlign.End)
-        .padding({ right: 12, bottom: 10 })
-
-        this.SettingRow($r('sys.symbol.arrow_counterclockwise'), '恢复默认主题', '删除背景图并回到种子色')
-        Row() {
-          OutlineButton({
-            theme: this.theme,
-            text: '恢复',
-            onTap: (): void => {
-              this.restoreDefaultTheme();
-            }
-          })
-        }
-        .width('100%')
-        .justifyContent(FlexAlign.End)
-        .padding({ right: 12, bottom: 10 })
-
-        // ---- 音乐库 ----
-        this.GroupTitle('音乐库')
         this.SettingRow($r('sys.symbol.arrow_clockwise'), '重新扫描',
           this.scanStatus !== '' ? this.scanStatus : '比对沙箱目录与数据库')
         Row() {
@@ -324,9 +225,5 @@ export struct SettingsPage {
     .width('100%')
     .height('100%')
     .scrollBar(BarState.Auto)
-    .bindSheet(this.showThemeSheet, this.ThemeSheet(), {
-      height: 280,
-      title: { title: '选择主题' }
-    })
   }
 }
