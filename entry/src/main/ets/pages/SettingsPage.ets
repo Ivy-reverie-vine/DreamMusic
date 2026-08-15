@@ -12,6 +12,7 @@ import { common } from '@kit.AbilityKit';
 export struct SettingsPage {
   @Prop theme: ThemeService;
   @State scanStatus: string = '';
+  @State bgStatus: string = '';
   @State net: NetworkViewModel = networkViewModel;
   @State newAlias: string = '';
   @State newUrl: string = '';
@@ -39,7 +40,9 @@ export struct SettingsPage {
 
   async pickBackground(): Promise<void> {
     const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
-    await BackgroundAdapter.pickAndApply(ctx, this.theme);
+    this.bgStatus = '应用背景图中…';
+    const err = await BackgroundAdapter.pickAndApply(ctx, this.theme);
+    this.bgStatus = err === '' ? '背景图已应用,界面随图而变' : err;
   }
 
   async rescan(): Promise<void> {
@@ -58,15 +61,17 @@ export struct SettingsPage {
         .width('100%')
 
       Column({ space: 12 }) {
-        // 背景图与取色(issue-00,真机验证)
+        // 背景图与取色(issue-00,真机验证;issue-12 修复:失败原因可见)
         Row() {
           Column({ space: 2 }) {
             Text('自定义背景图')
               .fontSize(16)
               .fontColor(this.theme.ink)
-            Text('从图取色,界面随图而变')
+            Text(this.bgStatus !== '' ? this.bgStatus : '从图取色,界面随图而变')
               .fontSize(12)
-              .fontColor(this.theme.muted)
+              .fontColor(this.bgStatus.startsWith('应用') ? this.theme.muted : this.theme.secondary)
+              .maxLines(2)
+              .textOverflow({ overflow: TextOverflow.Ellipsis })
           }
           .alignItems(HorizontalAlign.Start)
           .layoutWeight(1)

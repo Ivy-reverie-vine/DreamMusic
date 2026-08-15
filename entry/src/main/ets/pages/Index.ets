@@ -5,14 +5,13 @@ import { playerViewModel } from '../viewmodel/PlayerViewModel';
 import { lyricsViewModel } from '../viewmodel/LyricsViewModel';
 import { common } from '@kit.AbilityKit';
 import { accessibility } from '@kit.AccessibilityKit';
-import { MOTION_RIPPLE_MS } from '../common/DesignTokens';
 import { MusicLibraryPage } from './MusicLibraryPage';
 import { NowPlayingPage } from './NowPlayingPage';
 import { QueuePage } from './QueuePage';
 import { PlaylistsPage } from './PlaylistsPage';
 import { SettingsPage } from './SettingsPage';
 
-const RIPPLE_RADIUS = 26;
+const RIPPLE_DIAMETER = 64;
 
 interface NavTab {
   label: string;
@@ -29,12 +28,12 @@ interface NavTab {
 struct Index {
   @State theme: ThemeService = ThemeService.getInstance();
   @State current: number = 0;
-  // 触点光晕状态
+  // 触点光晕状态(issue-12 重做:按下常亮 → 随指移动 → 松手扩散淡出)
+  @State rippleVisible: boolean = false;
   @State rippleX: number = 0;
   @State rippleY: number = 0;
-  @State rippleDead: boolean = true;
-  @State rippleShow: boolean = false;
-  private rippleKey: number = 0;
+  @State rippleRelease: boolean = false;
+  private rippleHideTimer: number = -1;
   private barY: number = 0;
   private barHeight: number = 64;
   private tabs: NavTab[] = [
@@ -62,30 +61,46 @@ struct Index {
     BackgroundAdapter.restoreIfPresent(ctx, this.theme);
   }
 
-  /** 触点光晕:Down 时在触点生成径向渐变圆,300ms 扩散淡出(自绘沉浸光感;减弱动效时降级为无) */
-  private startRipple(x: number, y: number): void {
-    try {
-      if (accessibility.isAnimationReduceEnabledSync()) {
-        return;
-      }
-    } catch (err) {
-      // 查询失败按默认处理(照常显示光晕)
+  /** 底栏触摸:按下亮起白光圆(跟随手指),松手 260ms 扩散淡出(QQ音乐式沉浸光感) */
+  private handleNavTouch(e: TouchEvent): void {
+    if (e.touches.length === 0) {
+      return;
     }
-    const key = Date.now();
-    this.rippleKey = key;
-    this.rippleX = x;
-    this.rippleY = y;
-    this.rippleShow = true;
-    this.rippleDead = false;
-    // 先以初始形态渲染一帧,再动画扩散淡出
-    setTimeout(() => {
-      if (this.rippleKey !== key) {
+    const t = e.touches[0];
+    // windowX/windowY 相对窗口左上;底栏横贯窗口,barX=0
+    const x = t.windowX;
+    const y = Math.min(Math.max(t.windowY - this.barY, 0), this.barHeight);
+    if (e.type === TouchType.Down) {
+      try {
+        if (accessibility.isAnimationReduceEnabledSync()) {
+          return;
+        }
+      } catch (err) {
+        // 查询失败按默认处理(照常显示光晕)
+      }
+      this.rippleX = x;
+      this.rippleY = y;
+      this.rippleRelease = false;
+      this.rippleVisible = true;
+    } else if (e.type === TouchType.Move) {
+      if (this.rippleVisible) {
+        this.rippleX = x;
+        this.rippleY = y;
+      }
+    } else if (e.type === TouchType.Up || e.type === TouchType.Cancel) {
+      if (!this.rippleVisible) {
         return;
       }
-      animateTo({ duration: MOTION_RIPPLE_MS, curve: Curve.EaseOut }, () => {
-        this.rippleDead = true;
+      animateTo({ duration: 260, curve: Curve.EaseOut }, () => {
+        this.rippleRelease = true;
       });
-    }, 16);
+      if (this.rippleHideTimer >= 0) {
+        clearTimeout(this.rippleHideTimer);
+      }
+      this.rippleHideTimer = setTimeout(() => {
+        this.rippleVisible = false;
+      }, 320);
+    }
   }
 
   @Builder
@@ -130,18 +145,25 @@ struct Index {
       .width('100%')
       .height('100%')
 
-      // 触点光晕层(自绘沉浸光感;减弱动效时由调用方降级)
-      if (this.rippleShow) {
-        Circle()
-          .width(RIPPLE_RADIUS * 2)
-          .height(RIPPLE_RADIUS * 2)
-          .position({ x: this.rippleX - RIPPLE_RADIUS, y: this.rippleY - RIPPLE_RADIUS })
-          .scale({ x: this.rippleDead ? 1.6 : 0.3, y: this.rippleDead ? 1.6 : 0.3 })
-          .opacity(this.rippleDead ? 0 : 0.5)
+      // 触点光晕层(自绘沉浸光感:白色径向渐变圆,按着亮、松手扩散淡出;
+      // 不用 Circle,避免默认黑色填充盖住渐变——issue-12 修复)
+      if (this.rippleVisible) {
+        Column()
+          .width(RIPPLE_DIAMETER)
+          .height(RIPPLE_DIAMETER)
+          .borderRadius(RIPPLE_DIAMETER / 2)
+          .position({
+            x: this.rippleX - RIPPLE_DIAMETER / 2,
+            y: this.rippleY - RIPPLE_DIAMETER / 2
+          })
+          .scale({ x: this.rippleRelease ? 1.7 : 1.0, y: this.rippleRelease ? 1.7 : 1.0 })
+          .opacity(this.rippleRelease ? 0 : 1)
           .radialGradient({
             center: [0.5, 0.5],
             radius: 0.5,
-            colors: [[this.theme.ink, 0.35], [this.theme.ink, 0.0]]
+            colors: this.theme.isDark
+              ? [['#80FFFFFF', 0.0], ['#00FFFFFF', 1.0]]
+              : [['#26000000', 0.0], ['#00000000', 1.0]]
           })
       }
 
@@ -176,13 +198,7 @@ struct Index {
         this.barHeight = newArea.height as number;
       })
       .onTouch((e: TouchEvent) => {
-        if (e.type === TouchType.Down && e.touches.length > 0) {
-          const t = e.touches[0];
-          // windowX/windowY 相对窗口左上;底栏横贯窗口,barX=0
-          const x = t.windowX;
-          const y = Math.min(Math.max(t.windowY - this.barY, 0), this.barHeight);
-          this.startRipple(x, y);
-        }
+        this.handleNavTouch(e);
       })
     }
     .width('100%')

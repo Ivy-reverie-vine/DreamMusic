@@ -6,6 +6,7 @@ import { hilog } from '@kit.PerformanceAnalysisKit';
 import { extractColors } from '../color/ColorExtract';
 import { ThemeService } from './ThemeService';
 import { Track } from '../../model/Entities';
+import { copyFileRobust } from '../../common/FsUtil';
 
 const DOMAIN = 0x0000;
 const TAG = 'BackgroundAdapter';
@@ -20,31 +21,37 @@ interface ExtractedPair {
 /**
  * 背景图适配层(issue-00,真机验证项):
  * PhotoViewPicker 选图 → 复制进沙箱 → ImageKit 缩小读像素 → 取色引擎 → 主题服务。
- * API 均已对照 SDK d.ts 核实(@ohos.file.picker / @ohos.multimedia.image / @ohos.file.fs)。
- * 真机验证点:选择器弹出、URI 复制、readPixelsToBuffer 的像素格式(RGBA_8888)。
+ * issue-12 修复:复制改 copyFileRobust(选择器 URI 兼容),失败原因返回给 UI,不再静默。
  */
 export class BackgroundAdapter {
-  static async pickAndApply(context: common.Context, theme: ThemeService): Promise<boolean> {
+  /** 成功返回 '';失败返回用户可读原因(设置页展示,issue-12 修复) */
+  static async pickAndApply(context: common.Context, theme: ThemeService): Promise<string> {
     const photoPicker = new picker.PhotoViewPicker();
     const options = new picker.PhotoSelectOptions();
     options.MIMEType = picker.PhotoViewMIMETypes.IMAGE_TYPE;
     options.maxSelectNumber = 1;
+    let uri = '';
     try {
       const result = await photoPicker.select(options);
       if (result.photoUris.length === 0) {
-        return false;
+        return '未选择图片';
       }
-      const uri: string = result.photoUris[0];
+      uri = result.photoUris[0];
+    } catch (err) {
+      const e = err as Error;
+      return '选择失败: ' + e.message;
+    }
+    try {
       const destPath: string = BackgroundAdapter.copyToSandbox(context, uri);
       const colors = await BackgroundAdapter.extractFromFile(destPath);
       theme.applyExtracted(colors.primary, colors.secondary);
       theme.bgImagePath = BG_DIR + '/' + destPath.substring(destPath.lastIndexOf('/') + 1);
       theme.setHasBackground(true);
-      return true;
+      return '';
     } catch (err) {
       const e = err as Error;
       hilog.error(DOMAIN, TAG, 'pickAndApply failed: %{public}s', e.message);
-      return false;
+      return '应用失败: ' + e.message;
     }
   }
 
@@ -63,7 +70,7 @@ export class BackgroundAdapter {
       }
     }
     const dest = dir + '/' + BG_FILE + ext;
-    fileIo.copyFileSync(uri, dest);
+    copyFileRobust(uri, dest);
     return dest;
   }
 

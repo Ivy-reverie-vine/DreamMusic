@@ -7,6 +7,7 @@ import { hilog } from '@kit.PerformanceAnalysisKit';
 import { planImport, ImportPlan, AUDIO_EXT_WHITELIST } from '../library/ImportPlanner';
 import { LibraryStore } from '../library/LibraryStore';
 import { Track } from '../../model/Entities';
+import { copyFileRobust } from '../../common/FsUtil';
 
 const DOMAIN = 0x0000;
 const TAG = 'ImportService';
@@ -18,6 +19,9 @@ export interface ImportResult {
   imported: number;
   duplicates: number;
   skipped: number;
+  /** 失败条数与首个失败原因(issue-12 修复:错误透出,不再静默) */
+  failed: number;
+  lastError: string;
 }
 
 /**
@@ -69,7 +73,13 @@ export class ImportService {
       existing.push(t.path);
     });
     const plan: ImportPlan = planImport(sources, existing);
-    const result: ImportResult = { imported: 0, duplicates: plan.duplicates.length, skipped: plan.skipped.length };
+    const result: ImportResult = {
+      imported: 0,
+      duplicates: plan.duplicates.length,
+      skipped: plan.skipped.length,
+      failed: 0,
+      lastError: ''
+    };
     const total = plan.items.length;
     let done = 0;
     for (const item of plan.items) {
@@ -94,6 +104,8 @@ export class ImportService {
         result.imported++;
       } catch (err) {
         const e = err as Error;
+        result.failed++;
+        result.lastError = e.message;
         hilog.error(DOMAIN, TAG, 'import %{public}s failed: %{public}s', item.source, e.message);
       }
       done++;
@@ -108,7 +120,7 @@ export class ImportService {
     if (!fileIo.accessSync(dir)) {
       fileIo.mkdirSync(dir, true);
     }
-    fileIo.copyFileSync(source, abs);
+    copyFileRobust(source, abs);
     return abs;
   }
 

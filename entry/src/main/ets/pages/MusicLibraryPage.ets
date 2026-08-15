@@ -74,7 +74,13 @@ export struct MusicLibraryPage {
   async importFiles(): Promise<void> {
     const context = this.ctx();
     this.importStatus = '选择文件中…';
-    const sources = await ImportService.pickAudioFiles(context);
+    let sources: string[] = [];
+    try {
+      sources = await ImportService.pickAudioFiles(context);
+    } catch (err) {
+      this.importStatus = '文件选择失败: ' + (err as Error).message;
+      return;
+    }
     if (sources.length === 0) {
       this.importStatus = '未选择文件';
       return;
@@ -83,14 +89,22 @@ export struct MusicLibraryPage {
     const result = await ImportService.importSources(context, sources, (done: number, total: number): void => {
       this.importStatus = `导入 ${done}/${total}`;
     });
-    this.importStatus = `完成:导入 ${result.imported},跳过 ${result.skipped},重复 ${result.duplicates}`;
+    this.importStatus = `完成:导入 ${result.imported},跳过 ${result.skipped},重复 ${result.duplicates}` +
+      (result.failed > 0 ? `,失败 ${result.failed}:${result.lastError}` : '');
     await this.vm.load();
   }
 
   async importFolder(): Promise<void> {
     const context = this.ctx();
     this.importStatus = '选择文件夹中…';
-    const sources = await ImportService.pickAudioFolder(context);
+    let sources: string[] = [];
+    try {
+      sources = await ImportService.pickAudioFolder(context);
+    } catch (err) {
+      // 手机等设备可能不支持文件夹选择模式(DocumentSelectMode.FOLDER 仅 2-in-1)
+      this.importStatus = '文件夹选择失败: ' + (err as Error).message;
+      return;
+    }
     if (sources.length === 0) {
       this.importStatus = '文件夹中没有支持的音频';
       return;
@@ -98,7 +112,8 @@ export struct MusicLibraryPage {
     const result = await ImportService.importSources(context, sources, (done: number, total: number): void => {
       this.importStatus = `导入 ${done}/${total}`;
     });
-    this.importStatus = `完成:导入 ${result.imported},跳过 ${result.skipped},重复 ${result.duplicates}`;
+    this.importStatus = `完成:导入 ${result.imported},跳过 ${result.skipped},重复 ${result.duplicates}` +
+      (result.failed > 0 ? `,失败 ${result.failed}:${result.lastError}` : '');
     await this.vm.load();
   }
 
