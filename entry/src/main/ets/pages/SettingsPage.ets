@@ -1,15 +1,24 @@
 import { ThemeService } from '../service/theme/ThemeService';
 import { BackgroundAdapter } from '../service/theme/BackgroundAdapter';
+import { LibraryScanService } from '../service/library/LibraryScanService';
 import { common } from '@kit.AbilityKit';
 
 /** 设置页(导入/背景图/服务器配置入口在对应 issue 填充) */
 @Component
 export struct SettingsPage {
   @Prop theme: ThemeService;
+  @State scanStatus: string = '';
 
   async pickBackground(): Promise<void> {
     const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
     await BackgroundAdapter.pickAndApply(ctx, this.theme);
+  }
+
+  async rescan(): Promise<void> {
+    const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
+    this.scanStatus = '扫描中…';
+    const report = await LibraryScanService.scan(ctx);
+    this.scanStatus = `扫描完成:新增 ${report.added},缺失 ${report.missing}`;
   }
 
   build() {
@@ -40,6 +49,31 @@ export struct SettingsPage {
             .borderRadius(18)
             .onClick(() => {
               this.pickBackground();
+            })
+        }
+        .width('100%')
+        .padding(14)
+        .borderRadius(16)
+        .backgroundColor(this.theme.bg)
+
+        Row() {
+          Column({ space: 2 }) {
+            Text('重新扫描音乐库')
+              .fontSize(16)
+              .fontColor(this.theme.ink)
+            Text(this.scanStatus !== '' ? this.scanStatus : '比对沙箱目录与数据库')
+              .fontSize(12)
+              .fontColor(this.theme.muted)
+          }
+          .alignItems(HorizontalAlign.Start)
+          .layoutWeight(1)
+          Button('扫描')
+            .fontSize(14)
+            .fontColor(this.theme.ink)
+            .backgroundColor(this.theme.secondary)
+            .borderRadius(18)
+            .onClick(() => {
+              this.rescan();
             })
         }
         .width('100%')

@@ -61,7 +61,8 @@ export class LibraryStore {
          album TEXT NOT NULL DEFAULT '',
          duration_ms INTEGER NOT NULL DEFAULT 0,
          cover_path TEXT NOT NULL DEFAULT '',
-         imported_at INTEGER NOT NULL DEFAULT 0
+         imported_at INTEGER NOT NULL DEFAULT 0,
+         missing INTEGER NOT NULL DEFAULT 0
        )`,
       `CREATE TABLE IF NOT EXISTS albums (
          id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -180,8 +181,35 @@ export class LibraryStore {
       album: rs.getString(rs.getColumnIndex('album')),
       durationMs: rs.getLong(rs.getColumnIndex('duration_ms')),
       coverPath: rs.getString(rs.getColumnIndex('cover_path')),
-      importedAt: rs.getLong(rs.getColumnIndex('imported_at'))
+      importedAt: rs.getLong(rs.getColumnIndex('imported_at')),
+      missing: rs.getLong(rs.getColumnIndex('missing')) === 1
     };
+  }
+
+  // ---------- 扫描状态(issue-04) ----------
+
+  async markMissing(path: string): Promise<void> {
+    const values: relationalStore.ValuesBucket = { 'missing': 1 };
+    const pred = new relationalStore.RdbPredicates('tracks');
+    pred.equalTo('path', path);
+    await this.db().update(values, pred);
+  }
+
+  async markPresent(path: string): Promise<void> {
+    const values: relationalStore.ValuesBucket = { 'missing': 0 };
+    const pred = new relationalStore.RdbPredicates('tracks');
+    pred.equalTo('path', path);
+    await this.db().update(values, pred);
+  }
+
+  async decrementAlbumCount(name: string): Promise<void> {
+    await this.db().executeSql(
+      'UPDATE albums SET track_count = track_count - 1 WHERE name = ? AND track_count > 0', [name]);
+  }
+
+  async decrementArtistCount(name: string): Promise<void> {
+    await this.db().executeSql(
+      'UPDATE artists SET track_count = track_count - 1 WHERE name = ? AND track_count > 0', [name]);
   }
 
   // ---------- albums / artists ----------

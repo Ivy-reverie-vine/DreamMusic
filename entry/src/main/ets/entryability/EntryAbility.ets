@@ -2,6 +2,7 @@ import { AbilityConstant, ConfigurationConstant, UIAbility, Want } from '@kit.Ab
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
 import { LibraryStore } from '../service/library/LibraryStore';
+import { LibraryScanService } from '../service/library/LibraryScanService';
 
 const DOMAIN = 0x0000;
 
@@ -13,9 +14,11 @@ export default class EntryAbility extends UIAbility {
       hilog.error(DOMAIN, 'testTag', 'Failed to set colorMode. Cause: %{public}s', JSON.stringify(err));
     }
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
-    // 音乐库存储初始化(issue-02,幂等;真机验证建表)
-    LibraryStore.getInstance().init(this.context).catch((err: Error) => {
-      hilog.error(DOMAIN, 'LibraryStore', 'init failed: %{public}s', err.message);
+    // 音乐库存储初始化 + 启动增量扫描(issue-02/04,真机验证)
+    LibraryStore.getInstance().init(this.context).then(() => {
+      return LibraryScanService.scan(this.context);
+    }).catch((err: Error) => {
+      hilog.error(DOMAIN, 'LibraryStore', 'init/scan failed: %{public}s', err.message);
     });
   }
 

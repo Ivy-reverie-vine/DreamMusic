@@ -86,7 +86,8 @@ export class ImportService {
           album: meta.album,
           durationMs: meta.durationMs,
           coverPath: coverRelative,
-          importedAt: Date.now()
+          importedAt: Date.now(),
+          missing: false
         };
         await store.insertTrack(track);
         if (meta.title !== '' && meta.artist !== '') {
@@ -114,7 +115,8 @@ export class ImportService {
     return abs;
   }
 
-  private static async readMetadata(absPath: string): Promise<Track> {
+  /** 读取音轨元数据(扫描与导入共用) */
+  static async readMetadata(absPath: string): Promise<Track> {
     const stat = fileIo.statSync(absPath);
     const file = fileIo.openSync(absPath, fileIo.OpenMode.READ_ONLY);
     try {
@@ -129,7 +131,8 @@ export class ImportService {
         album: md.album !== undefined && md.album !== '' ? md.album : '',
         durationMs: typeof md.duration === 'number' ? md.duration : 0,
         coverPath: '',
-        importedAt: 0
+        importedAt: 0,
+        missing: false
       };
       extractor.release().catch(() => {
       });

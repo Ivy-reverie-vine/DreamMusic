@@ -13,6 +13,8 @@ export interface Track {
   durationMs: number;
   coverPath: string;
   importedAt: number;
+  /** 扫描判定:文件已从沙箱消失(保留记录,不自动删) */
+  missing: boolean;
 }
 
 export interface Album {

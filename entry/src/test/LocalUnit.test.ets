@@ -1,6 +1,7 @@
 import { describe, beforeAll, beforeEach, afterEach, afterAll, it, expect } from '@ohos/hypium';
 import colorExtractTest from './ColorExtract.test';
 import importPlannerTest from './ImportPlanner.test';
+import scanDiffTest from './ScanDiff.test';
 
 export default function localUnitTest() {
   describe('localUnitTest', () => {
@@ -35,5 +36,6 @@ export default function localUnitTest() {
     // 统一在此 import 并调用其默认导出(IDE 环境同样兼容)。见 docs/research/build-environment.md
     colorExtractTest();
     importPlannerTest();
+    scanDiffTest();
   });
 }
