@@ -1,6 +1,7 @@
 import { ThemeService } from '../service/theme/ThemeService';
 import { BackgroundAdapter } from '../service/theme/BackgroundAdapter';
 import { LibraryScanService } from '../service/library/LibraryScanService';
+import { playlistsViewModel } from '../viewmodel/PlaylistsViewModel';
 import { common } from '@kit.AbilityKit';
 
 /** 设置页(导入/背景图/服务器配置入口在对应 issue 填充) */
@@ -74,6 +75,31 @@ export struct SettingsPage {
             .borderRadius(18)
             .onClick(() => {
               this.rescan();
+            })
+        }
+        .width('100%')
+        .padding(14)
+        .borderRadius(16)
+        .backgroundColor(this.theme.bg)
+
+        Row() {
+          Column({ space: 2 }) {
+            Text('播放历史')
+              .fontSize(16)
+              .fontColor(this.theme.ink)
+            Text('自动记录最近播放,上限 500 条')
+              .fontSize(12)
+              .fontColor(this.theme.muted)
+          }
+          .alignItems(HorizontalAlign.Start)
+          .layoutWeight(1)
+          Button('清空')
+            .fontSize(14)
+            .fontColor(this.theme.ink)
+            .backgroundColor(this.theme.secondary)
+            .borderRadius(18)
+            .onClick(() => {
+              playlistsViewModel.clearHistory();
             })
         }
         .width('100%')

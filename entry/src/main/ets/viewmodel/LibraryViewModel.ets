@@ -2,14 +2,16 @@ import { common } from '@kit.AbilityKit';
 import { fileIo } from '@kit.CoreFileKit';
 import { LibraryStore } from '../service/library/LibraryStore';
 import { LibraryScanService } from '../service/library/LibraryScanService';
+import { playlistsViewModel } from './PlaylistsViewModel';
 import { Track, Album, Artist } from '../model/Entities';
 
-/** 音乐库页状态容器(MVVM,issue-04) */
+/** 音乐库页状态容器(MVVM,issue-04/09) */
 @Observed
 export class LibraryViewModel {
   tracks: Track[] = [];
   albums: Album[] = [];
   artists: Artist[] = [];
+  favoriteIds: Set<number> = new Set<number>();
   loading: boolean = false;
   statusText: string = '';
 
@@ -19,7 +21,21 @@ export class LibraryViewModel {
     this.tracks = await store.listTracks();
     this.albums = await store.listAlbums();
     this.artists = await store.listArtists();
+    const favIds = await store.listFavoritesTrackIds();
+    this.favoriteIds.clear();
+    favIds.forEach((id: number) => {
+      this.favoriteIds.add(id);
+    });
     this.loading = false;
+  }
+
+  async toggleFavorite(trackId: number): Promise<void> {
+    await playlistsViewModel.toggleFavorite(trackId);
+    const favIds = await LibraryStore.getInstance().listFavoritesTrackIds();
+    this.favoriteIds.clear();
+    favIds.forEach((id: number) => {
+      this.favoriteIds.add(id);
+    });
   }
 
   async rescan(context: common.Context): Promise<void> {

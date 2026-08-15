@@ -360,6 +360,32 @@ export class LibraryStore {
     await this.db().delete(pred);
   }
 
+  /** 收藏音轨 id(按收藏时间倒序)——"我喜欢的音乐"聚合来源 */
+  async listFavoritesTrackIds(): Promise<number[]> {
+    const rs = await this.db().querySql('SELECT track_id FROM favorites ORDER BY created_at DESC');
+    const out: number[] = [];
+    while (rs.goToNextRow()) {
+      out.push(rs.getLong(rs.getColumnIndex('track_id')));
+    }
+    rs.close();
+    return out;
+  }
+
+  /** 歌单曲目 id(按顺序):系统保留歌单实时聚合收藏 */
+  async listPlaylistTracks(playlist: Playlist): Promise<number[]> {
+    if (playlist.systemReserved) {
+      return await this.listFavoritesTrackIds();
+    }
+    const rs = await this.db().querySql(
+      'SELECT track_id FROM playlist_tracks WHERE playlist_id = ? ORDER BY position', [playlist.id]);
+    const out: number[] = [];
+    while (rs.goToNextRow()) {
+      out.push(rs.getLong(rs.getColumnIndex('track_id')));
+    }
+    rs.close();
+    return out;
+  }
+
   // ---------- favorites(收藏 = 单曲级标记,聚合进"我喜欢的音乐") ----------
 
   async toggleFavorite(trackId: number): Promise<boolean> {

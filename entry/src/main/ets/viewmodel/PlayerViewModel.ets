@@ -1,6 +1,7 @@
 import { common } from '@kit.AbilityKit';
 import { PlayerSession, PlaybackCallbacks } from '../service/playback/PlayerSession';
 import { BackgroundPlayback } from '../service/playback/BackgroundPlayback';
+import { LibraryStore } from '../service/library/LibraryStore';
 import { PlayMode } from '../service/playback/QueueEngine';
 import { PlayerState } from '../model/Playback';
 import { Track } from '../model/Entities';
@@ -80,6 +81,9 @@ export class PlayerViewModel {
         this.session.seekTo(startMs);
       }
       this.syncBackground(true);
+      // 播放历史自动记录(issue-09,500 条滚动淘汰)
+      LibraryStore.getInstance().insertHistory(track.id).catch(() => {
+      });
     } catch (err) {
       const e = err as Error;
       this.errorText = e.message;

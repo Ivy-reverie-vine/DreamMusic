@@ -2,7 +2,8 @@ import { ThemeService } from '../service/theme/ThemeService';
 import { ImportService } from '../service/library/ImportService';
 import { LibraryViewModel } from '../viewmodel/LibraryViewModel';
 import { queueViewModel } from '../viewmodel/QueueViewModel';
-import { Track, Album, Artist } from '../model/Entities';
+import { playlistsViewModel } from '../viewmodel/PlaylistsViewModel';
+import { Track, Album, Artist, Playlist } from '../model/Entities';
 import { common } from '@kit.AbilityKit';
 
 /** 音乐库页:歌曲/专辑/艺术家三视图 + 导入 + 扫描 + 移除(issue-03/04) */
@@ -12,6 +13,41 @@ export struct MusicLibraryPage {
   @State vm: LibraryViewModel = new LibraryViewModel();
   @State tab: number = 0;
   @State importStatus: string = '';
+  @State addTrack: Track | null = null;
+  @State showAdd: boolean = false;
+
+  @Builder
+  addPanel() {
+    Column({ space: 10 }) {
+      ForEach(playlistsViewModel.playlists, (p: Playlist) => {
+        if (!p.systemReserved) {
+          Row() {
+            Text(p.name)
+              .fontSize(15)
+              .fontColor(this.theme.ink)
+              .layoutWeight(1)
+          }
+          .width('100%')
+          .padding(12)
+          .borderRadius(12)
+          .backgroundColor(this.theme.bg)
+          .onClick(() => {
+            if (this.addTrack !== null) {
+              playlistsViewModel.addToPlaylist(p.id, this.addTrack.id);
+            }
+            this.showAdd = false;
+          })
+        }
+      })
+      if (playlistsViewModel.playlists.filter((p: Playlist) => !p.systemReserved).length === 0) {
+        Text('还没有自建歌单,先去歌单页新建')
+          .fontSize(13)
+          .fontColor(this.theme.muted)
+      }
+    }
+    .width('100%')
+    .padding(16)
+  }
 
   aboutToAppear(): void {
     this.vm.load();
@@ -92,6 +128,21 @@ export struct MusicLibraryPage {
             }
             .alignItems(HorizontalAlign.Start)
             .layoutWeight(1)
+            Text(this.vm.favoriteIds.has(t.id) ? '♥' : '♡')
+              .fontSize(18)
+              .fontColor(this.vm.favoriteIds.has(t.id) ? this.theme.primary : this.theme.muted)
+              .padding(4)
+              .onClick(() => {
+                this.vm.toggleFavorite(t.id);
+              })
+            Text('＋')
+              .fontSize(18)
+              .fontColor(this.theme.muted)
+              .padding(4)
+              .onClick(() => {
+                this.addTrack = t;
+                this.showAdd = true;
+              })
             Text('✕')
               .fontSize(16)
               .fontColor(this.theme.muted)
@@ -265,5 +316,9 @@ export struct MusicLibraryPage {
     .padding(20)
     .width('100%')
     .height('100%')
+    .bindSheet(this.showAdd, this.addPanel(), {
+      height: 420,
+      title: { title: '添加到歌单' }
+    })
   }
 }
