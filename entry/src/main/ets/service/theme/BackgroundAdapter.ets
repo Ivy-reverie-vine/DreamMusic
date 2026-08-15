@@ -42,6 +42,8 @@ export class BackgroundAdapter {
       return '选择失败: ' + e.message;
     }
     try {
+      // 切换背景图:先清旧文件,确保只有一份(issue-14 修复:旧文件残留导致切换不生效)
+      BackgroundAdapter.removeBackgroundFile(context);
       const destPath: string = BackgroundAdapter.copyToSandbox(context, uri);
       const colors = await BackgroundAdapter.extractFromFile(destPath);
       theme.applyExtracted(colors.primary, colors.secondary);
@@ -60,7 +62,7 @@ export class BackgroundAdapter {
     if (!fileIo.accessSync(dir)) {
       fileIo.mkdirSync(dir);
     }
-    // 保留原扩展名,便于 ImageSource 解码
+    // 保留原扩展名,便于 ImageSource 解码;无扩展名时兜底 .jpg(issue-14)
     let ext = '';
     const dot = uri.lastIndexOf('.');
     if (dot >= 0 && dot > uri.lastIndexOf('/')) {
@@ -68,6 +70,9 @@ export class BackgroundAdapter {
       if (ext.length > 8) {
         ext = '';
       }
+    }
+    if (ext === '') {
+      ext = '.jpg';
     }
     const dest = dir + '/' + BG_FILE + ext;
     copyFileRobust(uri, dest);

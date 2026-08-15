@@ -238,6 +238,14 @@ export class LibraryStore {
     await this.db().update(values, pred);
   }
 
+  /** 迁移旧路径数据(issue-14:兼容无 music/ 前缀的历史记录) */
+  async renameTrackPath(oldPath: string, newPath: string): Promise<void> {
+    const values: relationalStore.ValuesBucket = { 'path': newPath };
+    const pred = new relationalStore.RdbPredicates('tracks');
+    pred.equalTo('path', oldPath);
+    await this.db().update(values, pred);
+  }
+
   async decrementAlbumCount(name: string): Promise<void> {
     await this.db().executeSql(
       'UPDATE albums SET track_count = track_count - 1 WHERE name = ? AND track_count > 0', [name]);

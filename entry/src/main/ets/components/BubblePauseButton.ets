@@ -14,7 +14,7 @@ export struct BubblePauseButton {
 
   build() {
     Stack() {
-      // 泡泡本体:水平略长的椭圆(有机感)
+      // 泡泡本体:水平略长的椭圆(有机感),渐变填充
       Column()
         .width(92)
         .height(60)
@@ -26,14 +26,6 @@ export struct BubblePauseButton {
             [ThemeService.alpha(this.theme.primary, 0.72), 1.0]
           ]
         })
-
-      // 顶部高光:液体/玻璃质感
-      Column()
-        .width(38)
-        .height(8)
-        .borderRadius(4)
-        .backgroundColor(ThemeService.alpha('#FFFFFF', 0.3))
-        .offset({ x: -18, y: -17 })
 
       SymbolGlyph(this.isPlaying ? $r('sys.symbol.pause_fill') : $r('sys.symbol.play_fill'))
         .fontSize(26)

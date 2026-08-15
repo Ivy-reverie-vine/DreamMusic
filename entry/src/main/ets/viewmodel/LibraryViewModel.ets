@@ -3,6 +3,7 @@ import { fileIo } from '@kit.CoreFileKit';
 import { LibraryStore } from '../service/library/LibraryStore';
 import { LibraryScanService } from '../service/library/LibraryScanService';
 import { playlistsViewModel } from './PlaylistsViewModel';
+import { queueViewModel } from './QueueViewModel';
 import { Track, Album, Artist } from '../model/Entities';
 
 /** 音乐库页状态容器(MVVM,issue-04/09) */
@@ -44,6 +45,8 @@ export class LibraryViewModel {
   async removeTrack(context: common.Context, track: Track, deleteFile: boolean): Promise<void> {
     const store = LibraryStore.getInstance();
     await store.deleteTrack(track.id);
+    // issue-14:删歌后同步清理播放队列,避免残留
+    queueViewModel.purgeTrack(track.id);
     if (deleteFile) {
       try {
         fileIo.unlinkSync(context.filesDir + '/' + track.path);

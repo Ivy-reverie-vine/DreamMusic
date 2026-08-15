@@ -192,6 +192,29 @@ export class QueueViewModel {
     this.persist(positionMs);
   }
 
+  /** 音轨被删除时从队列中清除(issue-14:删歌后队列不再残留) */
+  purgeTrack(trackId: number): void {
+    const ids = this.engine.queueIds;
+    let changed = false;
+    for (let i = ids.length - 1; i >= 0; i--) {
+      if (ids[i] === trackId) {
+        this.engine.removeAt(i);
+        changed = true;
+      }
+    }
+    if (changed) {
+      const kept: Track[] = [];
+      this.trackCache.forEach((t: Track) => {
+        if (t.id !== trackId) {
+          kept.push(t);
+        }
+      });
+      this.trackCache = kept;
+      this.syncDisplay();
+      this.persist(playerViewModel.positionMs);
+    }
+  }
+
   /** 启动恢复:还原队列/当前曲/进度(暂停态,按播放续播);洗牌序随队列恢复 */
   async restore(context: common.Context): Promise<void> {
     this.context = context;

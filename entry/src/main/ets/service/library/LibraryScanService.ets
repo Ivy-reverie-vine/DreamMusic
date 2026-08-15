@@ -28,11 +28,25 @@ export class LibraryScanService {
     if (fileIo.accessSync(musicDir)) {
       const names = await fileIo.listFile(musicDir, { recursion: true });
       names.forEach((n: string) => {
-        // d.ts:recursion=true 时返回以 '/' 开头的相对路径,归一化
-        disk.push(n.startsWith('/') ? n.substring(1) : n);
+        // 归一化到"相对 filesDir"坐标系(issue-14 修复):
+        // listFile 返回相对 musicDir 的路径(可能带 '/' 前缀),DB 存的是 'music/xxx';
+        // 此前不匹配导致启动扫描把所有歌误标"文件缺失"。
+        let rel = n.startsWith('/') ? n.substring(1) : n;
+        rel = rel.replace(/\\/g, '/');
+        if (!rel.startsWith(MUSIC_DIR + '/')) {
+          rel = MUSIC_DIR + '/' + rel;
+        }
+        disk.push(rel);
       });
     }
-    const tracks = await store.listTracks();
+    let tracks = await store.listTracks();
+    // 兼容旧数据:DB path 无 music/ 前缀 → 磁盘上存在带前缀文件则迁移
+    for (const t of tracks) {
+      if (!t.path.startsWith(MUSIC_DIR + '/') && disk.indexOf(MUSIC_DIR + '/' + t.path) >= 0) {
+        await store.renameTrackPath(t.path, MUSIC_DIR + '/' + t.path);
+      }
+    }
+    tracks = await store.listTracks();
     const dbPaths: string[] = [];
     tracks.forEach((t: Track) => {
       dbPaths.push(t.path);

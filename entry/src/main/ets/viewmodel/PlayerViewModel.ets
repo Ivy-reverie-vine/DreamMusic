@@ -54,8 +54,18 @@ export class PlayerViewModel {
     if (this.coverColorHandler !== null) {
       this.coverColorHandler(track);
     }
-    const abs = context.filesDir + '/' + track.path;
-    // 播放前检查文件存在(issue-14:旧数据文件缺失时给出友好提示,不裸报 no such file)
+    // 播放前检查文件存在(issue-14:旧数据文件缺失时给出友好提示;兼容无 music/ 前缀的历史路径)
+    let abs = context.filesDir + '/' + track.path;
+    try {
+      if (!fileIo.accessSync(abs) && !track.path.startsWith('music/')) {
+        const alt = context.filesDir + '/' + 'music/' + track.path;
+        if (fileIo.accessSync(alt)) {
+          abs = alt;
+        }
+      }
+    } catch (err) {
+      // 走下方统一检查
+    }
     try {
       if (!fileIo.accessSync(abs)) {
         this.errorText = '文件缺失,请重新导入这首歌';

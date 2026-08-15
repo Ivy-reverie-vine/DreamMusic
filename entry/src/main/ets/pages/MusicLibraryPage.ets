@@ -85,6 +85,10 @@ export struct MusicLibraryPage {
     if (t === undefined) {
       return;
     }
+    if (t.missing) {
+      this.importStatus = '该文件缺失,请重新导入';
+      return;
+    }
     this.importStatus = `播放中:${t.title !== '' ? t.title : t.path}`;
     await queueViewModel.playFromList(tracks, index, this.ctx());
     if (this.pvm.errorText !== '') {
