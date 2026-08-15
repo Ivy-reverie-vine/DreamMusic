@@ -24,10 +24,12 @@ export const SEED_SECONDARY_HEX: string = toHex(oklchToRgb(SEED_L, SEED_C, (SEED
 
 @Observed
 export class ThemeService {
-  // DESIGN.md Roles
+  // DESIGN.md Roles(深浅两套,跟随系统)
+  isDark: boolean = true;
   bg: string = '#0D0F10';        // 近黑底(oklch L≈0.06, C=0)
   ink: string = '#F2F5F6';       // 正文白
   muted: string = '#A8B0B3';     // 弱文字
+  trackColor: string = '#33FFFFFF'; // Slider 轨道(深色=白 20%)
   primary: string = SEED_PRIMARY_HEX;
   secondary: string = SEED_SECONDARY_HEX;
   scrimList: number = 0.65;      // 列表页蒙层不透明度(0-1)
@@ -41,6 +43,22 @@ export class ThemeService {
       ThemeService.instance = new ThemeService();
     }
     return ThemeService.instance;
+  }
+
+  /** 深浅色切换(跟随系统;深色=默认品牌氛围,浅色=同构浅底) */
+  setDarkMode(dark: boolean): void {
+    this.isDark = dark;
+    if (dark) {
+      this.bg = '#0D0F10';
+      this.ink = '#F2F5F6';
+      this.muted = '#A8B0B3';
+      this.trackColor = '#33FFFFFF';
+    } else {
+      this.bg = '#F5F7F8';
+      this.ink = '#1B2226';
+      this.muted = '#5F6A6E';
+      this.trackColor = '#33000000';
+    }
   }
 
   /** 应用取色引擎结果(背景图/封面 → ExtractedColors) */

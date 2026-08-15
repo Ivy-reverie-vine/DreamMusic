@@ -237,6 +237,26 @@ export struct SettingsPage {
         .backgroundColor(this.theme.bg)
 
         Row() {
+          Column({ space: 2 }) {
+            Text('主题')
+              .fontSize(16)
+              .fontColor(this.theme.ink)
+            Text(this.theme.isDark ? '深色 · 跟随系统' : '浅色 · 跟随系统')
+              .fontSize(12)
+              .fontColor(this.theme.muted)
+          }
+          .alignItems(HorizontalAlign.Start)
+          .layoutWeight(1)
+          Text(this.theme.isDark ? '🌙' : '☀️')
+            .fontSize(16)
+            .fontColor(this.theme.muted)
+        }
+        .width('100%')
+        .padding(14)
+        .borderRadius(16)
+        .backgroundColor(this.theme.bg)
+
+        Row() {
           Text('恢复默认主题')
             .fontSize(16)
             .fontColor(this.theme.ink)

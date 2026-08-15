@@ -4,7 +4,6 @@ import { playerViewModel, PlayerViewModel } from '../viewmodel/PlayerViewModel';
 import { queueViewModel } from '../viewmodel/QueueViewModel';
 import { lyricsViewModel, LyricsViewModel } from '../viewmodel/LyricsViewModel';
 import { PlayerState } from '../model/Playback';
-import { LyricLine } from '../service/lyrics/LrcParser';
 import { common } from '@kit.AbilityKit';
 
 function fmt(ms: number): string {
@@ -127,7 +126,7 @@ export struct NowPlayingPage {
           })
             .layoutWeight(1)
             .selectedColor(this.theme.primary)
-            .trackColor('#33FFFFFF')
+            .trackColor(this.theme.trackColor)
             .onChange((value: number) => {
               this.vm.seekTo(value);
             })
@@ -145,7 +144,7 @@ export struct NowPlayingPage {
           Slider({ value: this.vm.volume, min: 0, max: 1, step: 0.01 })
             .layoutWeight(1)
             .selectedColor(this.theme.secondary)
-            .trackColor('#33FFFFFF')
+            .trackColor(this.theme.trackColor)
             .onChange((value: number) => {
               this.vm.setVolume(value);
             })

@@ -1,9 +1,10 @@
-import { AbilityConstant, ConfigurationConstant, UIAbility, Want } from '@kit.AbilityKit';
+import { AbilityConstant, Configuration, ConfigurationConstant, UIAbility, Want } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
 import { LibraryStore } from '../service/library/LibraryStore';
 import { LibraryScanService } from '../service/library/LibraryScanService';
 import { BackgroundPlayback } from '../service/playback/BackgroundPlayback';
+import { ThemeService } from '../service/theme/ThemeService';
 
 const DOMAIN = 0x0000;
 
@@ -15,6 +16,9 @@ export default class EntryAbility extends UIAbility {
       hilog.error(DOMAIN, 'testTag', 'Failed to set colorMode. Cause: %{public}s', JSON.stringify(err));
     }
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
+    // 深浅色初始读取(issue-11,跟随系统)
+    ThemeService.getInstance().setDarkMode(
+      this.context.config.colorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK);
     // 后台播控会话初始化(issue-07,真机验证)
     BackgroundPlayback.getInstance().init(this.context);
     // 音乐库存储初始化 + 启动增量扫描(issue-02/04,真机验证)
@@ -23,6 +27,12 @@ export default class EntryAbility extends UIAbility {
     }).catch((err: Error) => {
       hilog.error(DOMAIN, 'LibraryStore', 'init/scan failed: %{public}s', err.message);
     });
+  }
+
+  onConfigurationUpdate(newConfig: Configuration): void {
+    // 系统深浅色切换即时生效(issue-11)
+    ThemeService.getInstance().setDarkMode(
+      newConfig.colorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK);
   }
 
   onDestroy(): void {
