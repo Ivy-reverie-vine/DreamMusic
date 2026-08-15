@@ -5,6 +5,7 @@ import { common } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { extractColors } from '../color/ColorExtract';
 import { ThemeService } from './ThemeService';
+import { Track } from '../../model/Entities';
 
 const DOMAIN = 0x0000;
 const TAG = 'BackgroundAdapter';
@@ -100,5 +101,19 @@ export class BackgroundAdapter {
     const pixels = new Uint8Array(buf);
     pm.release();
     return extractColors(pixels, size.width, size.height);
+  }
+
+  /** 从当前音轨封面取色并应用到主题(无动画;启动恢复场景,issue-12 修复) */
+  static async applyCoverColors(context: common.Context, theme: ThemeService, track: Track): Promise<void> {
+    if (track.coverPath === '') {
+      return;
+    }
+    try {
+      const abs = context.filesDir + '/' + track.coverPath;
+      const colors = await BackgroundAdapter.extractFromFile(abs);
+      theme.applyExtracted(colors.primary, colors.secondary);
+    } catch (err) {
+      // 封面取色失败静默,保持当前主题
+    }
   }
 }

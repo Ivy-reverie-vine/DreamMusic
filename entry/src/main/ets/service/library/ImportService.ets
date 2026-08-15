@@ -157,7 +157,15 @@ export class ImportService {
           fileIo.mkdirSync(coverDir);
         }
         const base = absPath.substring(absPath.lastIndexOf('/') + 1);
-        const coverName = base.substring(0, base.lastIndexOf('.')) + '.jpg';
+        let stem = base.substring(0, base.lastIndexOf('.'));
+        // 同名封面不互相覆盖:重名追加序号(issue-12 修复,与导入规划器同策略)
+        stem = stem.replace(/[\\/:*?"<>|]/g, '_');
+        let coverName = stem + '.jpg';
+        let n = 1;
+        while (fileIo.accessSync(coverDir + '/' + coverName)) {
+          coverName = stem + ' (' + n + ').jpg';
+          n++;
+        }
         const coverFile = fileIo.openSync(coverDir + '/' + coverName, fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.CREATE);
         fileIo.writeSync(coverFile.fd, data);
         fileIo.closeSync(coverFile.fd);

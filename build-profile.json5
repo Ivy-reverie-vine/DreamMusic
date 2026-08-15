@@ -1,6 +1,20 @@
 {
   "app": {
-    "signingConfigs": [],
+    "signingConfigs": [
+      {
+        "name": "default",
+        "type": "HarmonyOS",
+        "material": {
+          "certpath": "C:\\Users\\77354\\.ohos\\config\\default_IvyReverieMusic_RVa17KrW41GyIYwrCQa1qUCrAJuZfLoc1aydDVpiBqc=.cer",
+          "keyAlias": "debugKey",
+          "keyPassword": "0000001AF8D1407DBF4B1FE71A821B88CDEAF3EDCE7523C2B75B776AB394C57042E8DF037822D5E33835",
+          "profile": "C:\\Users\\77354\\.ohos\\config\\default_IvyReverieMusic_RVa17KrW41GyIYwrCQa1qUCrAJuZfLoc1aydDVpiBqc=.p7b",
+          "signAlg": "SHA256withECDSA",
+          "storeFile": "C:\\Users\\77354\\.ohos\\config\\default_IvyReverieMusic_RVa17KrW41GyIYwrCQa1qUCrAJuZfLoc1aydDVpiBqc=.p12",
+          "storePassword": "0000001A017EE3D2EB39F4C7C8D9B2A0854AFD3B1572C04D93A3DDED03351C65F065028ABD1775CAE4D5"
+        }
+      }
+    ],
     "products": [
       {
         "name": "default",

@@ -35,7 +35,9 @@ export class ThemeService {
   primary: string = SEED_PRIMARY_HEX;
   secondary: string = SEED_SECONDARY_HEX;
   scrimList: number = 0.65;      // 列表页蒙层不透明度(0-1)
-  scrimNowPlaying: number = 0.45;
+  scrimNowPlaying: number = 0.45; // 正在播放页蒙层不透明度(issue-12 起真正启用)
+  card: string = '#12FFFFFF';    // 卡片底色(半透明白,叠于蒙层之上,PRD-v1.1)
+  barBg: string = '#59000000';   // 玻璃底栏底色(半透明黑)
   hasBackground: boolean = false;
   /** 背景图相对路径(相对 filesDir),重启恢复用 */
   bgImagePath: string = '';
@@ -57,11 +59,15 @@ export class ThemeService {
       this.ink = '#F2F5F6';
       this.muted = '#A8B0B3';
       this.trackColor = '#33FFFFFF';
+      this.card = '#12FFFFFF';
+      this.barBg = '#59000000';
     } else {
       this.bg = '#F5F7F8';
       this.ink = '#1B2226';
       this.muted = '#5F6A6E';
       this.trackColor = '#33000000';
+      this.card = '#0A000000';
+      this.barBg = '#59FFFFFF';
     }
   }
 
@@ -81,5 +87,19 @@ export class ThemeService {
   /** 标记存在用户背景图(实际选图与持久化由适配层负责) */
   setHasBackground(has: boolean): void {
     this.hasBackground = has;
+  }
+
+  /** 彻底清除背景图状态(设置页"恢复默认主题"= 删除文件后调用,issue-12/13) */
+  clearBackground(): void {
+    this.bgImagePath = '';
+    this.hasBackground = false;
+    this.applyDefault();
+  }
+
+  /** '#RRGGBB' → '#AARRGGBB'(opacity ∈ [0,1]) */
+  static alpha(hex: string, opacity: number): string {
+    const a = Math.max(0.0, Math.min(1.0, opacity));
+    const aa = Math.round(a * 255).toString(16).toUpperCase().padStart(2, '0');
+    return '#' + aa + hex.substring(1);
   }
 }
