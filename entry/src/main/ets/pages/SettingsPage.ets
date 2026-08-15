@@ -30,9 +30,18 @@ export struct SettingsPage {
   }
 
   applyBg(index: number): void {
+    // 先切图(即时生效),再异步取色应用主题色
     this.theme.applyPresetBg(index);
     ThemeService.saveBgIndex(this.ctx(), index);
-    this.bgStatus = `已应用背景 ${index + 1}`;
+    this.bgStatus = `已应用背景 ${index + 1} · 取色中…`;
+    BackgroundAdapter.extractPresetColors(this.ctx(), BG_PRESETS[index].res)
+      .then((colors) => {
+        this.theme.applyExtracted(colors.primary, colors.secondary);
+        this.bgStatus = `已应用背景 ${index + 1}`;
+      })
+      .catch(() => {
+        this.bgStatus = `已应用背景 ${index + 1}(取色失败,保持当前颜色)`;
+      });
   }
 
   async rescan(): Promise<void> {

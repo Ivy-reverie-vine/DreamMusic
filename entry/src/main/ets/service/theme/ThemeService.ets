@@ -1,4 +1,4 @@
-import { oklchToRgb } from '../color/ColorExtract';
+import { oklchToRgb, ExtractedColors } from '../color/ColorExtract';
 import { preferences } from '@kit.ArkData';
 import { common } from '@kit.AbilityKit';
 
@@ -23,18 +23,17 @@ export enum ThemeMode {
   SYSTEM = 'SYSTEM'
 }
 
-/** 内置背景图预设(issue-14 定稿:固定几张图,绕开 Image 文件缓存问题) */
+/** 内置背景图预设(issue-14 定稿:使用用户提供的图片,主题色运行时取色) */
 export interface BgPreset {
   res: Resource;
-  primary: string;
-  secondary: string;
 }
 
 export const BG_PRESETS: BgPreset[] = [
-  { res: $r('app.media.bg_01'), primary: '#5B8DEF', secondary: '#8F6FE8' },
-  { res: $r('app.media.bg_02'), primary: '#63B092', secondary: '#D9A05B' },
-  { res: $r('app.media.bg_03'), primary: '#E09A55', secondary: '#A8B8D9' },
-  { res: $r('app.media.bg_04'), primary: '#9678E8', secondary: '#5B8DEF' }
+  { res: $r('app.media.bg_01') },
+  { res: $r('app.media.bg_02') },
+  { res: $r('app.media.bg_03') },
+  { res: $r('app.media.bg_04') },
+  { res: $r('app.media.bg_05') }
 ];
 
 function toHex(rgb: number[]): string {
@@ -88,6 +87,8 @@ export class ThemeService {
   scrimNowPlaying: number = 0.45; // 正在播放页蒙层不透明度(issue-12 起真正启用)
   card: string = '#12FFFFFF';    // 卡片底色(半透明白,叠于蒙层之上,PRD-v1.1)
   barBg: string = '#59000000';   // 玻璃底栏底色(半透明黑)
+  /** 播放页按钮固定灰(issue-14 用户定稿:不随取色) */
+  controlGray: string = '#8A9096';
   hasBackground: boolean = false;
   /** 当前内置背景图资源(issue-14 定稿:固定预设图,不依赖沙箱文件) */
   bgRes: Resource | null = null;
@@ -115,6 +116,7 @@ export class ThemeService {
       this.trackColor = '#33FFFFFF';
       this.card = '#12FFFFFF';
       this.barBg = '#59000000';
+      this.controlGray = '#8A9096';
       this.primaryText = mixHex(this.primary, '#FFFFFF', 0.38);
     } else {
       this.bg = '#F5F7F8';
@@ -123,6 +125,7 @@ export class ThemeService {
       this.trackColor = '#33000000';
       this.card = '#0A000000';
       this.barBg = '#59FFFFFF';
+      this.controlGray = '#6B757A';
       this.primaryText = mixHex(this.primary, '#1B2226', 0.22);
     }
   }
@@ -178,8 +181,8 @@ export class ThemeService {
     this.hasBackground = has;
   }
 
-  /** 应用内置背景图预设(issue-14 定稿);index 越界 = 无背景回退种子色 */
-  applyPresetBg(index: number): void {
+  /** 应用内置背景图预设(issue-14 定稿);colors 由调用方取色后传入,缺省不改颜色 */
+  applyPresetBg(index: number, colors?: ExtractedColors): void {
     this.bgPresetIndex = index;
     if (index < 0 || index >= BG_PRESETS.length) {
       this.bgRes = null;
@@ -187,9 +190,10 @@ export class ThemeService {
       this.applyDefault();
       return;
     }
-    const p = BG_PRESETS[index];
-    this.bgRes = p.res;
-    this.applyExtracted(p.primary, p.secondary);
+    this.bgRes = BG_PRESETS[index].res;
+    if (colors !== undefined) {
+      this.applyExtracted(colors.primary, colors.secondary);
+    }
     this.bgStamp++;
   }
 

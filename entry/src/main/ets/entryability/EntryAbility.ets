@@ -4,7 +4,8 @@ import { window } from '@kit.ArkUI';
 import { LibraryStore } from '../service/library/LibraryStore';
 import { LibraryScanService } from '../service/library/LibraryScanService';
 import { BackgroundPlayback } from '../service/playback/BackgroundPlayback';
-import { ThemeService, ThemeMode } from '../service/theme/ThemeService';
+import { ThemeService, ThemeMode, BG_PRESETS } from '../service/theme/ThemeService';
+import { BackgroundAdapter } from '../service/theme/BackgroundAdapter';
 import { networkViewModel } from '../viewmodel/NetworkViewModel';
 import { queueViewModel } from '../viewmodel/QueueViewModel';
 import { playerViewModel } from '../viewmodel/PlayerViewModel';
@@ -21,8 +22,19 @@ export default class EntryAbility extends UIAbility {
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
     // 主题:默认深色(issue-12 定稿)
     ThemeService.getInstance().applyMode(ThemeMode.DARK, true);
-    // 内置背景图预设恢复(issue-14 定稿:固定图,持久化索引)
-    ThemeService.getInstance().applyPresetBg(ThemeService.loadBgIndex(this.context));
+    // 内置背景图预设恢复(issue-14 定稿:固定图,持久化索引;主题色异步取色)
+    const theme = ThemeService.getInstance();
+    const bgIndex = ThemeService.loadBgIndex(this.context);
+    theme.applyPresetBg(bgIndex);
+    if (bgIndex >= 0 && bgIndex < BG_PRESETS.length) {
+      BackgroundAdapter.extractPresetColors(this.context, BG_PRESETS[bgIndex].res)
+        .then((colors) => {
+          theme.applyExtracted(colors.primary, colors.secondary);
+        })
+        .catch(() => {
+          // 取色失败保持当前色
+        });
+    }
     // 后台播控会话初始化(issue-07,真机验证)
     BackgroundPlayback.getInstance().init(this.context);
     // 音乐库存储初始化 + 启动增量扫描(issue-02/04,真机验证)
