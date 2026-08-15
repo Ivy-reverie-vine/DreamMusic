@@ -10,7 +10,6 @@ import { Track } from '../../model/Entities';
 
 const DOMAIN = 0x0000;
 const TAG = 'ImportService';
-const MUSIC_DIR = 'music';
 const COVER_DIR = 'covers';
 
 export type ImportProgressFn = (done: number, total: number) => void;
@@ -90,10 +89,8 @@ export class ImportService {
           missing: false
         };
         await store.insertTrack(track);
-        if (meta.title !== '' && meta.artist !== '') {
-          await store.upsertAlbum(meta.album, meta.artist);
-          await store.upsertArtist(meta.artist);
-        }
+        // 专辑/艺术家聚合(条件统一由 store.indexTrackMeta 负责,code-review 修复)
+        await store.indexTrackMeta(track);
         result.imported++;
       } catch (err) {
         const e = err as Error;

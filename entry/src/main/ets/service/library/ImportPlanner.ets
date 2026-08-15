@@ -24,6 +24,9 @@ export interface ImportPlan {
 /** PRD 决策 #3:MP3 / AAC(M4A) / FLAC / WAV */
 export const AUDIO_EXT_WHITELIST: string[] = ['.mp3', '.m4a', '.aac', '.flac', '.wav'];
 
+/** 沙箱音乐根目录(相对 filesDir);导入与扫描必须一致(code-review 修复) */
+export const MUSIC_DIR = 'music';
+
 function basename(p: string): string {
   const slash = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'));
   return slash >= 0 ? p.substring(slash + 1) : p;
@@ -60,15 +63,16 @@ export function planImport(sources: string[], existingPaths: string[]): ImportPl
     }
     const base = sanitize(basename(src));
     const stem = base.substring(0, base.length - ext.length);
-    // 与现有库重复 → 跳过;与批内已分配重名 → 追加序号
-    if (existing.has(base)) {
+    // 与现有库重复 → 跳过;与批内已分配重名 → 追加序号(比较含 music/ 前缀的完整相对路径)
+    const fullBase = MUSIC_DIR + '/' + base;
+    if (existing.has(fullBase)) {
       plan.duplicates.push(src);
       continue;
     }
-    let dest = base;
+    let dest = MUSIC_DIR + '/' + base;
     let n = 1;
     while (used.has(dest)) {
-      dest = stem + ' (' + n + ')' + ext;
+      dest = MUSIC_DIR + '/' + stem + ' (' + n + ')' + ext;
       n++;
     }
     used.add(dest);

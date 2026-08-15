@@ -59,7 +59,7 @@
 - 后台播放: AVSession 锁屏/控制中心播控,断点续播,四种播放模式(顺序/单曲循环/列表循环/随机)
 - 格式与元数据: MP3 / AAC(M4A) / FLAC / WAV;导入时提取标签与封面;歌词仅读同目录 `.lrc`(有则显示)
 - UI: 五页(音乐库[歌曲/专辑/艺术家] / 正在播放 / 播放队列[拖拽排序] / 歌单 / 设置);暂停按钮为不规则椭圆泡泡
-- 数据库: 6 表(tracks / albums / artists / playlists / play_history / favorites);启动增量扫描 + 手动全量重扫
+- 数据库: 9 张物理表(tracks / albums / artists / playlists / playlist_tracks / play_history / favorites / server_profiles / player_state;code-review 后与 PRD 对齐);启动增量扫描 + 手动全量重扫
 - 网络预留(**只做这些**): api-enhanced 服务器 Profile 管理(Cloudflare Tunnel 域名为主、局域网直连备选)+ `GET /health` 健康检查(3s 超时、启动+15s 轮询+手动、三态静默显示,ADR-0002);**不调用任何业务端点**
 
 ### 后续阶段: 连接 api-enhanced

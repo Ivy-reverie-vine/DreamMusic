@@ -266,6 +266,16 @@ export class LibraryStore {
     await this.db().insert('artists', values);
   }
 
+  /** 专辑/艺术家聚合统一入口(导入与扫描共用;空值守卫在此统一) */
+  async indexTrackMeta(meta: Track): Promise<void> {
+    if (meta.artist !== '') {
+      await this.upsertArtist(meta.artist);
+    }
+    if (meta.album !== '' || meta.artist !== '') {
+      await this.upsertAlbum(meta.album, meta.artist);
+    }
+  }
+
   async listAlbums(): Promise<Album[]> {
     const rs = await this.db().querySql('SELECT * FROM albums ORDER BY name');
     const out: Album[] = [];

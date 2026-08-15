@@ -3,12 +3,12 @@ import { fileIo } from '@kit.CoreFileKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { computeScanDiff, ScanDiffResult } from './ScanDiff';
 import { ImportService } from './ImportService';
+import { MUSIC_DIR } from './ImportPlanner';
 import { LibraryStore } from './LibraryStore';
 import { Track } from '../../model/Entities';
 
 const DOMAIN = 0x0000;
 const TAG = 'LibraryScanService';
-const MUSIC_DIR = 'music';
 
 export interface ScanReport {
   added: number;
@@ -48,10 +48,7 @@ export class LibraryScanService {
         meta.importedAt = Date.now();
         meta.missing = false;
         await store.insertTrack(meta);
-        if (meta.title !== '' || meta.artist !== '') {
-          await store.upsertAlbum(meta.album, meta.artist);
-          await store.upsertArtist(meta.artist);
-        }
+        await store.indexTrackMeta(meta);
         addedCount++;
       } catch (err) {
         const e = err as Error;
@@ -60,6 +57,10 @@ export class LibraryScanService {
     }
     for (const rel of diff.missing) {
       await store.markMissing(rel);
+    }
+    // 消失后重现的文件恢复 present(code-review 修复:markPresent 此前未被调用)
+    for (const rel of diff.unchanged) {
+      await store.markPresent(rel);
     }
     return { added: addedCount, missing: diff.missing.length };
   }

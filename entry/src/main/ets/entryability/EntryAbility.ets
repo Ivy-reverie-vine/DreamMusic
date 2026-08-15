@@ -5,6 +5,7 @@ import { LibraryStore } from '../service/library/LibraryStore';
 import { LibraryScanService } from '../service/library/LibraryScanService';
 import { BackgroundPlayback } from '../service/playback/BackgroundPlayback';
 import { ThemeService } from '../service/theme/ThemeService';
+import { networkViewModel } from '../viewmodel/NetworkViewModel';
 
 const DOMAIN = 0x0000;
 
@@ -26,6 +27,10 @@ export default class EntryAbility extends UIAbility {
       return LibraryScanService.scan(this.context);
     }).catch((err: Error) => {
       hilog.error(DOMAIN, 'LibraryStore', 'init/scan failed: %{public}s', err.message);
+    });
+    // 启动健康检查(ADR-0002:启动时探活;code-review 修复)
+    networkViewModel.load().then(() => {
+      networkViewModel.startPolling();
     });
   }
 

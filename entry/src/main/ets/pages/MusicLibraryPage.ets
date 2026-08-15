@@ -252,7 +252,7 @@ export struct MusicLibraryPage {
             .fontColor(index === this.tab ? this.theme.primary : this.theme.muted)
             .padding({ left: 14, right: 14, top: 6, bottom: 6 })
             .borderRadius(16)
-            .backgroundColor(index === this.tab ? this.theme.bg : '#00000000')
+            .backgroundColor(index === this.tab ? this.theme.bg : this.theme.transparent)
             .onClick(() => {
               this.tab = index;
             })

@@ -30,6 +30,8 @@ export class ThemeService {
   ink: string = '#F2F5F6';       // 正文白
   muted: string = '#A8B0B3';     // 弱文字
   trackColor: string = '#33FFFFFF'; // Slider 轨道(深色=白 20%)
+  overlayDim: string = '#B0000000'; // 弹层/遮罩半透明黑(code-review 后 token 化)
+  transparent: string = '#00000000';
   primary: string = SEED_PRIMARY_HEX;
   secondary: string = SEED_SECONDARY_HEX;
   scrimList: number = 0.65;      // 列表页蒙层不透明度(0-1)

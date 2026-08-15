@@ -64,7 +64,7 @@ struct Index {
             Circle()
               .width(4)
               .height(4)
-              .fill(index === this.current ? this.theme.primary : '#00000000')
+              .fill(index === this.current ? this.theme.primary : this.theme.transparent)
           }
           .layoutWeight(1)
           .padding({ top: 10, bottom: 10 })
@@ -75,7 +75,7 @@ struct Index {
       }
       .width('100%')
       .padding({ bottom: 8 })
-      .backgroundColor('#B0000000')
+      .backgroundColor(this.theme.overlayDim)
       .backgroundBlurStyle(BlurStyle.Thin)
     }
     .width('100%')

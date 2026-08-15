@@ -8,7 +8,7 @@ export default function importPlannerTest() {
       expect(plan.items.length).assertEqual(2);
       expect(plan.items[0].ext).assertEqual('.mp3');
       expect(plan.items[1].ext).assertEqual('.flac');
-      expect(plan.items[0].destRelative).assertEqual('song.MP3');
+      expect(plan.items[0].destRelative).assertEqual('music/song.MP3');
       expect(plan.skipped.length).assertEqual(0);
     });
 
@@ -22,7 +22,7 @@ export default function importPlannerTest() {
     });
 
     it('plan_existingPath_duplicate', 0, () => {
-      const plan = planImport(['/x/song.mp3'], ['song.mp3']);
+      const plan = planImport(['/x/song.mp3'], ['music/song.mp3']);
       expect(plan.items.length).assertEqual(0);
       expect(plan.duplicates.length).assertEqual(1);
       expect(plan.duplicates[0]).assertEqual('/x/song.mp3');
@@ -31,8 +31,8 @@ export default function importPlannerTest() {
     it('plan_sameBasenameInBatch_renamed', 0, () => {
       const plan = planImport(['dir1/x.mp3', 'dir2/x.mp3'], []);
       expect(plan.items.length).assertEqual(2);
-      expect(plan.items[0].destRelative).assertEqual('x.mp3');
-      expect(plan.items[1].destRelative).assertEqual('x (1).mp3');
+      expect(plan.items[0].destRelative).assertEqual('music/x.mp3');
+      expect(plan.items[1].destRelative).assertEqual('music/x (1).mp3');
     });
 
     it('plan_illegalFilenameChars_sanitized', 0, () => {
@@ -54,9 +54,9 @@ export default function importPlannerTest() {
       plan.items.forEach((it) => {
         dests.push(it.destRelative);
       });
-      expect(dests.includes('a.mp3')).assertTrue();
-      expect(dests.includes('a (1).mp3')).assertTrue();
-      expect(dests.includes('c.flac')).assertTrue();
+      expect(dests.includes('music/a.mp3')).assertTrue();
+      expect(dests.includes('music/a (1).mp3')).assertTrue();
+      expect(dests.includes('music/c.flac')).assertTrue();
     });
   });
 }

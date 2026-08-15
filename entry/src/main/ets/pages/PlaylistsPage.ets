@@ -279,7 +279,7 @@ export struct PlaylistsPage {
         .width('100%')
         .height('100%')
         .justifyContent(FlexAlign.Center)
-        .backgroundColor('#B0000000')
+        .backgroundColor(this.theme.overlayDim)
       }
     }
     .width('100%')
