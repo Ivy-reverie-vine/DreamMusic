@@ -2,7 +2,9 @@ import { ThemeService } from '../service/theme/ThemeService';
 import { BubblePauseButton } from '../components/BubblePauseButton';
 import { playerViewModel, PlayerViewModel } from '../viewmodel/PlayerViewModel';
 import { queueViewModel } from '../viewmodel/QueueViewModel';
+import { lyricsViewModel, LyricsViewModel } from '../viewmodel/LyricsViewModel';
 import { PlayerState } from '../model/Playback';
+import { LyricLine } from '../service/lyrics/LrcParser';
 import { common } from '@kit.AbilityKit';
 
 function fmt(ms: number): string {
@@ -12,11 +14,16 @@ function fmt(ms: number): string {
   return m + ':' + (s < 10 ? '0' + s : s.toString());
 }
 
-/** 正在播放页(issue-05):封面/曲目信息/进度/音量/泡泡暂停按钮 */
+/** 正在播放页(issue-05/08):封面/曲目信息/歌词/进度/音量/泡泡暂停按钮 */
 @Component
 export struct NowPlayingPage {
   @Prop theme: ThemeService;
   @State vm: PlayerViewModel = playerViewModel;
+  @State lrc: LyricsViewModel = lyricsViewModel;
+
+  aboutToAppear(): void {
+    this.lrc.setContext(this.ctx());
+  }
 
   private ctx(): common.UIAbilityContext {
     return this.getUIContext().getHostContext() as common.UIAbilityContext;
@@ -28,6 +35,35 @@ export struct NowPlayingPage {
       return '';
     }
     return 'file://' + this.ctx().filesDir + '/' + t.coverPath;
+  }
+
+  @Builder
+  LyricWindow() {
+    Column({ space: 6 }) {
+      if (this.lrc.lines.length > 0) {
+        // 当前行 + 前后各一行;无歌词时整个区域隐藏
+        Text(this.lrc.activeIndex > 0 ? this.lrc.lines[this.lrc.activeIndex - 1].text : '')
+          .fontSize(14)
+          .fontColor(this.theme.muted)
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+        Text(this.lrc.activeIndex >= 0 ? this.lrc.lines[this.lrc.activeIndex].text : '')
+          .fontSize(17)
+          .fontWeight(FontWeight.Bold)
+          .fontColor(this.theme.primary)
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+        Text(this.lrc.activeIndex >= 0 && this.lrc.activeIndex + 1 < this.lrc.lines.length
+          ? this.lrc.lines[this.lrc.activeIndex + 1].text : '')
+          .fontSize(14)
+          .fontColor(this.theme.muted)
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+      }
+    }
+    .width('100%')
+    .height(96)
+    .justifyContent(FlexAlign.Center)
   }
 
   build() {
@@ -75,6 +111,9 @@ export struct NowPlayingPage {
             .textOverflow({ overflow: TextOverflow.Ellipsis })
         }
         .width('100%')
+
+        // 歌词窗口(无歌词自动隐藏)
+        this.LyricWindow()
 
         // 进度条
         Row({ space: 8 }) {

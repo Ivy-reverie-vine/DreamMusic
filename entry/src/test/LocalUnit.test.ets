@@ -3,6 +3,7 @@ import colorExtractTest from './ColorExtract.test';
 import importPlannerTest from './ImportPlanner.test';
 import scanDiffTest from './ScanDiff.test';
 import queueEngineTest from './QueueEngine.test';
+import lrcParserTest from './LrcParser.test';
 
 export default function localUnitTest() {
   describe('localUnitTest', () => {
@@ -39,5 +40,6 @@ export default function localUnitTest() {
     importPlannerTest();
     scanDiffTest();
     queueEngineTest();
+    lrcParserTest();
   });
 }

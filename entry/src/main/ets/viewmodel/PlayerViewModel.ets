@@ -20,6 +20,10 @@ export class PlayerViewModel {
   endedHandler: (() => void) | null = null;
   /** issue-06 队列域钩子:暂停时落盘进度 */
   pausePositionHandler: ((ms: number) => void) | null = null;
+  /** issue-08 歌词域钩子:切歌 */
+  trackChangeHandler: ((t: Track) => void) | null = null;
+  /** issue-08 歌词域钩子:位置滴答 */
+  positionTickHandler: ((ms: number) => void) | null = null;
   private session: PlayerSession = new PlayerSession();
   private lastContext: common.Context | null = null;
 
@@ -40,6 +44,9 @@ export class PlayerViewModel {
     this.errorText = '';
     this.positionMs = startMs;
     this.durationMs = track.durationMs > 0 ? track.durationMs : 0;
+    if (this.trackChangeHandler !== null) {
+      this.trackChangeHandler(track);
+    }
     const abs = context.filesDir + '/' + track.path;
     const callbacks: PlaybackCallbacks = {
       onStateChange: (s: PlayerState): void => {
@@ -50,6 +57,9 @@ export class PlayerViewModel {
         this.positionMs = ms;
         if (this.durationMs <= 0) {
           this.durationMs = this.session.getDuration();
+        }
+        if (this.positionTickHandler !== null) {
+          this.positionTickHandler(ms);
         }
         this.syncBackground(false);
       },
@@ -85,6 +95,12 @@ export class PlayerViewModel {
     this.durationMs = track.durationMs > 0 ? track.durationMs : 0;
     this.errorText = '';
     this.state = PlayerState.PAUSED;
+    if (this.trackChangeHandler !== null) {
+      this.trackChangeHandler(track);
+    }
+    if (this.positionTickHandler !== null) {
+      this.positionTickHandler(positionMs);
+    }
   }
 
   async togglePause(): Promise<void> {
