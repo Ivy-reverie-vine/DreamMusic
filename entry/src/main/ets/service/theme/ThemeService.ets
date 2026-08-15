@@ -14,6 +14,7 @@ const SEED_H = 180.0;
 
 const PREF_NAME = 'ivy_prefs';
 const KEY_THEME_MODE = 'theme_mode';
+const KEY_BG_INDEX = 'bg_index';
 
 /** 主题模式:深色 / 浅色 / 跟随系统 */
 export enum ThemeMode {
@@ -21,6 +22,20 @@ export enum ThemeMode {
   LIGHT = 'LIGHT',
   SYSTEM = 'SYSTEM'
 }
+
+/** 内置背景图预设(issue-14 定稿:固定几张图,绕开 Image 文件缓存问题) */
+export interface BgPreset {
+  res: Resource;
+  primary: string;
+  secondary: string;
+}
+
+export const BG_PRESETS: BgPreset[] = [
+  { res: $r('app.media.bg_01'), primary: '#5B8DEF', secondary: '#8F6FE8' },
+  { res: $r('app.media.bg_02'), primary: '#63B092', secondary: '#D9A05B' },
+  { res: $r('app.media.bg_03'), primary: '#E09A55', secondary: '#A8B8D9' },
+  { res: $r('app.media.bg_04'), primary: '#9678E8', secondary: '#5B8DEF' }
+];
 
 function toHex(rgb: number[]): string {
   const hx = (v: number): string => {
@@ -74,8 +89,12 @@ export class ThemeService {
   card: string = '#12FFFFFF';    // 卡片底色(半透明白,叠于蒙层之上,PRD-v1.1)
   barBg: string = '#59000000';   // 玻璃底栏底色(半透明黑)
   hasBackground: boolean = false;
-  /** 背景图相对路径(相对 filesDir);文件名带时间戳,每次切换 URI 唯一(issue-14) */
-  bgImagePath: string = '';
+  /** 当前内置背景图资源(issue-14 定稿:固定预设图,不依赖沙箱文件) */
+  bgRes: Resource | null = null;
+  /** 背景图版本号:切换时 +1,Index 用奇偶分支强制重建 Image 组件(绕开缓存) */
+  bgStamp: number = 0;
+  /** 当前预设索引,-1 = 无背景 */
+  bgPresetIndex: number = -1;
 
   private static instance: ThemeService | null = null;
 
@@ -159,10 +178,47 @@ export class ThemeService {
     this.hasBackground = has;
   }
 
-  /** 彻底清除背景图状态(设置页"恢复默认主题"= 删除文件后调用,issue-12/13) */
+  /** 应用内置背景图预设(issue-14 定稿);index 越界 = 无背景回退种子色 */
+  applyPresetBg(index: number): void {
+    this.bgPresetIndex = index;
+    if (index < 0 || index >= BG_PRESETS.length) {
+      this.bgRes = null;
+      this.bgStamp++;
+      this.applyDefault();
+      return;
+    }
+    const p = BG_PRESETS[index];
+    this.bgRes = p.res;
+    this.applyExtracted(p.primary, p.secondary);
+    this.bgStamp++;
+  }
+
+  /** 持久化当前背景预设索引 */
+  static loadBgIndex(context: common.Context): number {
+    try {
+      const prefs = preferences.getPreferencesSync(context, { name: PREF_NAME });
+      return prefs.getSync(KEY_BG_INDEX, -1) as number;
+    } catch (err) {
+      return -1;
+    }
+  }
+
+  static saveBgIndex(context: common.Context, index: number): void {
+    try {
+      const prefs = preferences.getPreferencesSync(context, { name: PREF_NAME });
+      prefs.putSync(KEY_BG_INDEX, index);
+      prefs.flush();
+    } catch (err) {
+      // 持久化失败静默
+    }
+  }
+
+  /** 彻底清除背景图状态(内部保留,当前无 UI 入口) */
   clearBackground(): void {
-    this.bgImagePath = '';
+    this.bgRes = null;
+    this.bgPresetIndex = -1;
     this.hasBackground = false;
+    this.bgStamp++;
     this.applyDefault();
   }
 

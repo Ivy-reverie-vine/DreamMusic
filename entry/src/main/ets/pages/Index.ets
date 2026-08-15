@@ -55,8 +55,6 @@ struct Index {
     };
     // 断点续播恢复(issue-06):还原队列/当前曲/进度为暂停态
     queueViewModel.restore(ctx);
-    // 背景图重启恢复 + 全局铺满(issue-00 AC,真机验证)
-    BackgroundAdapter.restoreIfPresent(ctx, this.theme);
   }
 
   /** 底栏触摸:按下亮起白光圆(跟随手指),松手 260ms 扩散淡出(QQ音乐式沉浸光感) */
@@ -125,13 +123,20 @@ struct Index {
         .height('100%')
         .backgroundColor(this.theme.bg)
 
-      // 用户背景图:全局铺满 + 蒙层保底(DESIGN.md 蒙层保底规则);
-      // file:// 显示(中心裁剪 Cover);文件名带时间戳,URI 每次唯一 → 切换即时生效
-      if (this.theme.hasBackground && this.theme.bgImagePath !== '') {
-        Image('file://' + this.ctx().filesDir + '/' + this.theme.bgImagePath)
-          .width('100%')
-          .height('100%')
-          .objectFit(ImageFit.Cover)
+      // 用户背景图(内置预设):全局铺满 + 蒙层保底(DESIGN.md 蒙层保底规则);
+      // 奇偶双分支强制重建 Image 组件,切换即时生效(issue-14 定稿)
+      if (this.theme.bgRes !== null) {
+        if (this.theme.bgStamp % 2 === 0) {
+          Image(this.theme.bgRes)
+            .width('100%')
+            .height('100%')
+            .objectFit(ImageFit.Cover)
+        } else {
+          Image(this.theme.bgRes)
+            .width('100%')
+            .height('100%')
+            .objectFit(ImageFit.Cover)
+        }
         Column()
           .width('100%')
           .height('100%')

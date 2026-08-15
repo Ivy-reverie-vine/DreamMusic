@@ -4,7 +4,7 @@ import { window } from '@kit.ArkUI';
 import { LibraryStore } from '../service/library/LibraryStore';
 import { LibraryScanService } from '../service/library/LibraryScanService';
 import { BackgroundPlayback } from '../service/playback/BackgroundPlayback';
-import { ThemeService } from '../service/theme/ThemeService';
+import { ThemeService, ThemeMode } from '../service/theme/ThemeService';
 import { networkViewModel } from '../viewmodel/NetworkViewModel';
 import { queueViewModel } from '../viewmodel/QueueViewModel';
 import { playerViewModel } from '../viewmodel/PlayerViewModel';
@@ -19,10 +19,10 @@ export default class EntryAbility extends UIAbility {
       hilog.error(DOMAIN, 'testTag', 'Failed to set colorMode. Cause: %{public}s', JSON.stringify(err));
     }
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
-    // 主题:应用持久化模式(issue-12:默认深色,可手动切浅色/跟随系统)
-    const saved = ThemeService.loadMode(this.context);
-    ThemeService.getInstance().applyMode(saved,
-      this.context.config.colorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK);
+    // 主题:默认深色(issue-12 定稿)
+    ThemeService.getInstance().applyMode(ThemeMode.DARK, true);
+    // 内置背景图预设恢复(issue-14 定稿:固定图,持久化索引)
+    ThemeService.getInstance().applyPresetBg(ThemeService.loadBgIndex(this.context));
     // 后台播控会话初始化(issue-07,真机验证)
     BackgroundPlayback.getInstance().init(this.context);
     // 音乐库存储初始化 + 启动增量扫描(issue-02/04,真机验证)
