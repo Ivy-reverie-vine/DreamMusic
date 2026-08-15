@@ -20,6 +20,12 @@ export class QueueViewModel {
   mode: PlayMode = PlayMode.SEQUENTIAL;
   private engine: QueueEngine = new QueueEngine();
   private context: common.Context | null = null;
+  /**
+   * id → Track 映射缓存(issue-14 修复):
+   * syncDisplay 需要把队列 id 解析为 Track;此前依赖旧 queueTracks 自映射,
+   * 首次点歌时为空导致队列/正在播放/播放全部静默失败。
+   */
+  private trackCache: Track[] = [];
 
   constructor() {
     // 播放自然结束 → 队列域接管切歌
@@ -60,6 +66,11 @@ export class QueueViewModel {
   }
 
   private trackById(id: number): Track | null {
+    for (const t of this.trackCache) {
+      if (t.id === id) {
+        return t;
+      }
+    }
     for (const t of this.queueTracks) {
       if (t.id === id) {
         return t;
@@ -90,6 +101,7 @@ export class QueueViewModel {
   /** 点歌:来源列表成为队列,从 startIndex 开始播 */
   async playFromList(tracks: Track[], startIndex: number, context: common.Context): Promise<void> {
     this.context = context;
+    this.trackCache = tracks.slice();
     const ids: number[] = [];
     tracks.forEach((t: Track) => {
       ids.push(t.id);
@@ -219,6 +231,7 @@ export class QueueViewModel {
       shuffleSteps: state.shuffleSteps
     };
     this.engine.fromSnapshot(snap);
+    this.trackCache = all;
     this.syncDisplay();
     const t = this.trackById(this.engine.current());
     if (t !== null) {

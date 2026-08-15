@@ -34,8 +34,6 @@ struct Index {
   @State rippleY: number = 0;
   @State rippleRelease: boolean = false;
   private rippleHideTimer: number = -1;
-  private barY: number = 0;
-  private barHeight: number = 64;
   private tabs: NavTab[] = [
     { label: '音乐库', icon: $r('sys.symbol.music_note_list') },
     { label: '正在播放', icon: $r('sys.symbol.play_circle') },
@@ -67,9 +65,10 @@ struct Index {
       return;
     }
     const t = e.touches[0];
-    // windowX/windowY 相对窗口左上;底栏横贯窗口,barX=0
+    // windowX/windowY 相对应用窗口左上;光晕节点在外层全屏 Stack 中,
+    // position 坐标与窗口坐标一致,直接使用触点坐标(issue-14 修复:不再减 barY/clamp)
     const x = t.windowX;
-    const y = Math.min(Math.max(t.windowY - this.barY, 0), this.barHeight);
+    const y = t.windowY;
     if (e.type === TouchType.Down) {
       try {
         if (accessibility.isAnimationReduceEnabledSync()) {
@@ -193,10 +192,6 @@ struct Index {
       .backgroundColor(this.theme.barBg)
       .backgroundBlurStyle(BlurStyle.Thin)
       .borderRadius({ topLeft: 22, topRight: 22 })
-      .onAreaChange((_oldArea: Area, newArea: Area) => {
-        this.barY = newArea.globalPosition.y as number;
-        this.barHeight = newArea.height as number;
-      })
       .onTouch((e: TouchEvent) => {
         this.handleNavTouch(e);
       })

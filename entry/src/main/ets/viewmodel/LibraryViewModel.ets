@@ -22,20 +22,15 @@ export class LibraryViewModel {
     this.albums = await store.listAlbums();
     this.artists = await store.listArtists();
     const favIds = await store.listFavoritesTrackIds();
-    this.favoriteIds.clear();
-    favIds.forEach((id: number) => {
-      this.favoriteIds.add(id);
-    });
+    // issue-14 修复:整体赋值新 Set(原地 clear/add 不触发 @Observed 刷新)
+    this.favoriteIds = new Set<number>(favIds);
     this.loading = false;
   }
 
   async toggleFavorite(trackId: number): Promise<void> {
     await playlistsViewModel.toggleFavorite(trackId);
     const favIds = await LibraryStore.getInstance().listFavoritesTrackIds();
-    this.favoriteIds.clear();
-    favIds.forEach((id: number) => {
-      this.favoriteIds.add(id);
-    });
+    this.favoriteIds = new Set<number>(favIds);
   }
 
   async rescan(context: common.Context): Promise<void> {
