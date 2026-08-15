@@ -1,4 +1,5 @@
 import { describe, beforeAll, beforeEach, afterEach, afterAll, it, expect } from '@ohos/hypium';
+import colorExtractTest from './ColorExtract.test';
 
 export default function localUnitTest() {
   describe('localUnitTest', () => {
@@ -29,5 +30,8 @@ export default function localUnitTest() {
       expect(a).assertContain(b);
       expect(a).assertEqual(a);
     });
+    // 新增测试套件入口:hvigor CLI 不会自动发现 src/test 下的新文件,
+    // 统一在此 import 并调用其默认导出(IDE 环境同样兼容)。见 docs/research/build-environment.md
+    colorExtractTest();
   });
 }
