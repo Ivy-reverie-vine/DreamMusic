@@ -1,38 +1,147 @@
-import { ThemeService, BG_PRESETS, BgPreset } from '../service/theme/ThemeService';
+import { ThemeService, BG_PRESETS, BgPreset, ThemeMode } from '../service/theme/ThemeService';
 import { BackgroundAdapter } from '../service/theme/BackgroundAdapter';
 import { LibraryScanService } from '../service/library/LibraryScanService';
 import { networkViewModel, NetworkViewModel } from '../viewmodel/NetworkViewModel';
+import { DreamMusicAuth } from '../service/network/DreamMusicAuth';
 import { ServerProfile } from '../model/Entities';
-import { common } from '@kit.AbilityKit';
+import { common, ConfigurationConstant } from '@kit.AbilityKit';
 import { OutlineButton } from '../components/OutlineButton';
-import { RADIUS_CARD, FONT_LABEL, FONT_TITLE } from '../common/DesignTokens';
+import { QrBindView } from '../components/QrBindView';
+import { RADIUS_CARD, RADIUS_CAPSULE, FONT_LABEL, FONT_TITLE } from '../common/DesignTokens';
+
+interface ThemeModeOption {
+  label: string;
+  mode: ThemeMode;
+}
+
+const THEME_MODES: ThemeModeOption[] = [
+  { label: '深色', mode: ThemeMode.DARK },
+  { label: '浅色', mode: ThemeMode.LIGHT },
+  { label: '跟随系统', mode: ThemeMode.SYSTEM }
+];
 
 /**
- * 设置页(issue-14 定稿):
- * 标题在最上,选项依次排下——背景图(内置预设网格,点选即应用并持久化)/
- * 重新扫描 / api-enhanced 连接 / 服务器配置。
+ * 设置页(issue-14 定稿 + 阶段 v2):
+ * 主题模式三态(兑现 DESIGN.md,8/16 恢复入口)/ 背景图(内置预设 + 自定义 + 恢复默认)/
+ * 账户(DreamMusic 中间层:登录/注册 + QR 绑定)/ 重新扫描 / 中间层连接(请求驱动,ADR-0003)/ 服务器配置(删除需确认)。
  */
 @Component
 export struct SettingsPage {
-  @Prop theme: ThemeService;
+  @State theme: ThemeService = ThemeService.getInstance();
   @State scanStatus: string = '';
   @State bgStatus: string = '';
   @State net: NetworkViewModel = networkViewModel;
   @State newAlias: string = '';
   @State newUrl: string = '';
+  /** 账户区状态与弹层:0=关 1=登录/注册 2=QR 绑定 */
+  @State accountStatus: string = '';
+  @State sheetMode: number = 0;
+  /** 弹层显隐独立状态:拖拽关闭时 onDisappear 复位,避免"大框常驻"(v2.2 修复) */
+  @State showSheet: boolean = false;
+  @State username: string = '';
+  @State password: string = '';
+  @State inviteCode: string = 'dreammusic';
+  @State busy: boolean = false;
 
   aboutToAppear(): void {
     this.net.load();
+    this.refreshAccountStatus();
   }
 
   private ctx(): common.UIAbilityContext {
     return this.getUIContext().getHostContext() as common.UIAbilityContext;
   }
 
+  private async setThemeMode(mode: ThemeMode): Promise<void> {
+    let systemDark = false;
+    if (mode === ThemeMode.SYSTEM) {
+      try {
+        const cfg = await this.ctx().resourceManager.getConfiguration();
+        systemDark = (cfg.colorMode as number) === (ConfigurationConstant.ColorMode.COLOR_MODE_DARK as number);
+      } catch (err) {
+        systemDark = false;
+      }
+    }
+    this.theme.applyMode(mode, systemDark);
+    ThemeService.saveMode(this.ctx(), mode);
+  }
+
+  private async refreshAccountStatus(): Promise<void> {
+    const ctx = this.ctx();
+    if (!DreamMusicAuth.isLoggedIn(ctx)) {
+      this.accountStatus = '未登录';
+      return;
+    }
+    try {
+      const user = await DreamMusicAuth.me(ctx);
+      if (user === null) {
+        this.accountStatus = '未登录';
+        return;
+      }
+      if (user.status === 'banned') {
+        this.accountStatus = '账号被封禁';
+      } else if (user.bindInvalid) {
+        this.accountStatus = `已登录:${user.username}(绑定失效,请重新扫码)`;
+      } else if (user.bound) {
+        this.accountStatus = `已登录:${user.username}(已绑定网易云)`;
+      } else {
+        this.accountStatus = `已登录:${user.username}(未绑定网易云)`;
+      }
+    } catch (err) {
+      this.accountStatus = '会话失效,请重新登录';
+    }
+  }
+
+  private async doLogin(): Promise<void> {
+    if (this.busy) {
+      return;
+    }
+    this.busy = true;
+    this.accountStatus = '登录中…';
+    try {
+      await DreamMusicAuth.login(this.ctx(), this.username.trim(), this.password);
+      this.sheetMode = 0;
+      this.showSheet = false;
+      await this.refreshAccountStatus();
+      await this.net.probe(this.ctx());
+    } catch (err) {
+      this.accountStatus = '登录失败:' + (err as Error).message;
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private async doRegister(): Promise<void> {
+    if (this.busy) {
+      return;
+    }
+    this.busy = true;
+    this.accountStatus = '注册中…';
+    try {
+      await DreamMusicAuth.register(this.ctx(), this.username.trim(), this.password,
+        this.inviteCode.trim());
+      this.sheetMode = 0;
+      this.showSheet = false;
+      await this.refreshAccountStatus();
+      await this.net.probe(this.ctx());
+    } catch (err) {
+      this.accountStatus = '注册失败:' + (err as Error).message;
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private async doLogout(): Promise<void> {
+    await DreamMusicAuth.logout(this.ctx());
+    await this.refreshAccountStatus();
+    await this.net.probe(this.ctx());
+  }
+
   applyBg(index: number): void {
-    // 先切图(即时生效),再异步取色应用主题色
+    // 切预设 = 放弃自定义背景(持久化同步)
     this.theme.applyPresetBg(index);
     ThemeService.saveBgIndex(this.ctx(), index);
+    ThemeService.saveCustomBg(this.ctx(), '');
     this.bgStatus = `已应用背景 ${index + 1} · 取色中…`;
     BackgroundAdapter.extractPresetColors(this.ctx(), BG_PRESETS[index].res)
       .then((colors) => {
@@ -44,10 +153,47 @@ export struct SettingsPage {
       });
   }
 
+  async pickCustomBg(): Promise<void> {
+    this.bgStatus = '应用背景图中…';
+    const err = await BackgroundAdapter.pickAndApply(this.ctx(), this.theme);
+    this.bgStatus = err === '' ? '已应用自定义背景,界面随图而变' : err;
+  }
+
+  /** 恢复默认背景:清除自定义 → 回退上次内置预设(无则品牌种子色) */
+  restoreDefaultBg(): void {
+    BackgroundAdapter.removeBackgroundFiles(this.ctx());
+    ThemeService.saveCustomBg(this.ctx(), '');
+    const idx = this.theme.bgPresetIndex;
+    if (idx >= 0 && idx < BG_PRESETS.length) {
+      this.applyBg(idx);
+    } else {
+      this.theme.clearBackground();
+      this.bgStatus = '已恢复默认主题色';
+    }
+  }
+
   async rescan(): Promise<void> {
     this.scanStatus = '扫描中…';
     const report = await LibraryScanService.scan(this.ctx());
     this.scanStatus = `新增 ${report.added},缺失 ${report.missing}`;
+  }
+
+  confirmRemoveProfile(p: ServerProfile): void {
+    this.getUIContext().showAlertDialog({
+      title: '删除服务器',
+      message: `确定删除「${p.alias}」吗?此操作不可恢复。`,
+      primaryButton: {
+        value: '删除',
+        action: () => {
+          this.net.removeProfile(p.id, this.ctx());
+        }
+      },
+      secondaryButton: {
+        value: '取消',
+        action: () => {
+        }
+      }
+    });
   }
 
   @Builder
@@ -78,16 +224,75 @@ export struct SettingsPage {
   }
 
   @Builder
+  ThemeModeRow() {
+    Row({ space: 8 }) {
+      ForEach(THEME_MODES, (m: ThemeModeOption) => {
+        Text(m.label)
+          .fontSize(13)
+          .fontColor(this.theme.mode === m.mode ? this.theme.primaryText : this.theme.muted)
+          .padding({ left: 14, right: 14, top: 7, bottom: 7 })
+          .borderRadius(RADIUS_CAPSULE)
+          .backgroundColor(this.theme.mode === m.mode
+            ? ThemeService.alpha(this.theme.primary, 0.14)
+            : this.theme.card)
+          .stateStyles({
+            pressed: { .opacity(0.6) }
+          })
+          .onClick(() => {
+            this.setThemeMode(m.mode);
+          })
+      })
+    }
+    .width('100%')
+    .padding({ left: 12, right: 12, bottom: 10 })
+  }
+
+  @Builder
   BgGrid() {
-    Row({ space: 10 }) {
-      ForEach(BG_PRESETS, (p: BgPreset, index: number) => {
+    // 横向可滚动:5 预设 + 自定义图块,窄屏不再溢出(8/16 修复)
+    Scroll() {
+      Row({ space: 10 }) {
+        ForEach(BG_PRESETS, (p: BgPreset, index: number) => {
+          Stack() {
+            Image(p.res)
+              .width(76)
+              .height(132)
+              .borderRadius(14)
+              .objectFit(ImageFit.Cover)
+            if (this.theme.bgCustomPath === '' && this.theme.bgPresetIndex === index) {
+              Column()
+                // 固定尺寸高亮层:避免横向 Scroll 内 100% 被解析成整行宽,出现巨大留白(8/16 真机修复)
+                .width(76)
+                .height(132)
+                .borderRadius(14)
+                .border({ width: 2, color: this.theme.primary })
+                .backgroundColor(ThemeService.alpha(this.theme.primary, 0.18))
+            }
+          }
+          .width(76)
+          .height(132)
+          .stateStyles({
+            pressed: { .opacity(0.7) }
+          })
+          .onClick(() => {
+            this.applyBg(index);
+          })
+        })
+
+        // 自定义背景图块(阶段 v2 恢复)
         Stack() {
-          Image(p.res)
-            .width(76)
-            .height(132)
-            .borderRadius(14)
-            .objectFit(ImageFit.Cover)
-          if (this.theme.bgPresetIndex === index) {
+          Column({ space: 6 }) {
+            SymbolGlyph($r('sys.symbol.plus'))
+              .fontSize(22)
+              .fontColor([this.theme.muted])
+            Text('自定义')
+              .fontSize(11)
+              .fontColor(this.theme.muted)
+          }
+          .width('100%')
+          .height('100%')
+          .justifyContent(FlexAlign.Center)
+          if (this.theme.bgCustomPath !== '') {
             Column()
               .width('100%')
               .height('100%')
@@ -96,16 +301,168 @@ export struct SettingsPage {
               .backgroundColor(ThemeService.alpha(this.theme.primary, 0.18))
           }
         }
+        .width(76)
+        .height(132)
+        .borderRadius(14)
+        .border({ width: 1, color: ThemeService.alpha(this.theme.primary, 0.45) })
         .stateStyles({
           pressed: { .opacity(0.7) }
         })
         .onClick(() => {
-          this.applyBg(index);
+          this.pickCustomBg();
         })
+      }
+    }
+    .scrollable(ScrollDirection.Horizontal)
+    .scrollBar(BarState.Auto)
+    .width('100%')
+    .padding({ left: 12, right: 12, bottom: 10 })
+  }
+
+  @Builder
+  AuthSheet() {
+    Column({ space: 10 }) {
+      Text('登录 / 注册')
+        .fontSize(15)
+        .fontWeight(FontWeight.Medium)
+        .fontColor(this.theme.ink)
+        .width('100%')
+      TextInput({ placeholder: '用户名(3-32 位字母/数字/_-)', text: this.username })
+        .fontSize(14)
+        .fontColor(this.theme.ink)
+        .placeholderColor(this.theme.muted)
+        .backgroundColor(ThemeService.alpha(this.theme.bg, 0.35))
+        .borderRadius(12)
+        .height(40)
+        .width('100%')
+        .onChange((v: string) => {
+          this.username = v;
+        })
+      TextInput({ placeholder: '密码(至少 6 位)', text: this.password })
+        .type(InputType.Password)
+        .fontSize(14)
+        .fontColor(this.theme.ink)
+        .placeholderColor(this.theme.muted)
+        .backgroundColor(ThemeService.alpha(this.theme.bg, 0.35))
+        .borderRadius(12)
+        .height(40)
+        .width('100%')
+        .onChange((v: string) => {
+          this.password = v;
+        })
+      TextInput({ placeholder: '邀请码', text: this.inviteCode })
+        .fontSize(14)
+        .fontColor(this.theme.ink)
+        .placeholderColor(this.theme.muted)
+        .backgroundColor(ThemeService.alpha(this.theme.bg, 0.35))
+        .borderRadius(12)
+        .height(40)
+        .width('100%')
+        .onChange((v: string) => {
+          this.inviteCode = v;
+        })
+      Row({ space: 12 }) {
+        Text('登录')
+          .fontSize(14)
+          .fontColor(this.theme.primaryText)
+          .padding({ left: 28, right: 28, top: 10, bottom: 10 })
+          .borderRadius(RADIUS_CAPSULE)
+          .backgroundColor(ThemeService.alpha(this.theme.primary, 0.14))
+          .onClick(() => {
+            this.doLogin();
+          })
+        Text('注册并登录')
+          .fontSize(14)
+          .fontColor(this.theme.primaryText)
+          .padding({ left: 28, right: 28, top: 10, bottom: 10 })
+          .borderRadius(RADIUS_CAPSULE)
+          .border({ width: 1, color: ThemeService.alpha(this.theme.primary, 0.4) })
+          .onClick(() => {
+            this.doRegister();
+          })
+      }
+      .width('100%')
+      .justifyContent(FlexAlign.Center)
+      .padding({ top: 6 })
+    }
+    .width('100%')
+    .padding(16)
+    .backgroundColor(this.theme.bg)
+  }
+
+  @Builder
+  QrSheet() {
+    Column({ space: 12 }) {
+      Text('绑定网易云账号')
+        .fontSize(15)
+        .fontWeight(FontWeight.Medium)
+        .fontColor(this.theme.ink)
+        .width('100%')
+      QrBindView({
+        onBound: () => {
+          this.showSheet = false;
+          this.sheetMode = 0;
+          this.refreshAccountStatus();
+        }
       })
     }
     .width('100%')
-    .padding({ left: 12, right: 12, bottom: 10 })
+    .padding(20)
+    .backgroundColor(this.theme.bg)
+  }
+
+  @Builder
+  sheetContent() {
+    if (this.sheetMode === 1) {
+      this.AuthSheet()
+    } else if (this.sheetMode === 2) {
+      this.QrSheet()
+    }
+  }
+
+  @Builder
+  AccountSection() {
+    this.SettingRow($r('sys.symbol.person_crop_circle_fill'), '账户', this.accountStatus)
+    if (!DreamMusicAuth.isLoggedIn(this.ctx())) {
+      Row() {
+        OutlineButton({
+          text: '登录 / 注册',
+          onTap: (): void => {
+            this.sheetMode = 1;
+            this.showSheet = true;
+          }
+        })
+      }
+      .width('100%')
+      .justifyContent(FlexAlign.End)
+      .padding({ right: 12, bottom: 10 })
+    } else {
+      Row({ space: 8 }) {
+        if (DreamMusicAuth.isBound(this.ctx()) && !DreamMusicAuth.isBindInvalid(this.ctx())) {
+          Text('已绑定网易云')
+            .fontSize(12)
+            .fontColor(this.theme.muted)
+        } else {
+          OutlineButton({
+            text: '绑定网易云账号',
+            onTap: (): void => {
+              this.sheetMode = 2;
+              this.showSheet = true;
+            }
+          })
+        }
+        Text('退出登录')
+          .fontSize(12)
+          .fontColor(this.theme.primaryText)
+          .padding(8)
+          .onClick(() => {
+            this.doLogout();
+          })
+      }
+      .width('100%')
+      .justifyContent(FlexAlign.End)
+      .padding({ right: 12, bottom: 10 })
+    }
   }
 
   build() {
@@ -117,17 +474,36 @@ export struct SettingsPage {
           .fontColor(this.theme.ink)
           .width('100%')
 
-        // 背景图(内置预设,点选即应用)
+        // 主题模式(三态,阶段 v2 恢复入口)
+        this.SettingRow($r('sys.symbol.sun_max'), '主题模式', '深色 / 浅色 / 跟随系统')
+        this.ThemeModeRow()
+
+        // 背景图(内置预设 + 自定义 + 恢复默认)
         this.SettingRow($r('sys.symbol.paintpalette'), '背景图',
-          this.bgStatus !== '' ? this.bgStatus : '从内置氛围图中选择,界面随图取色')
+          this.bgStatus !== '' ? this.bgStatus : '内置氛围图或选择自定义图片,界面随图取色')
         this.BgGrid()
+        if (this.theme.bgCustomPath !== '') {
+          Row() {
+            Text('恢复默认背景')
+              .fontSize(FONT_LABEL)
+              .fontColor(this.theme.primaryText)
+              .onClick(() => {
+                this.restoreDefaultBg();
+              })
+          }
+          .width('100%')
+          .justifyContent(FlexAlign.End)
+          .padding({ right: 12, bottom: 10 })
+        }
+
+        // 账户(DreamMusic 中间层:登录/注册 + QR 绑定 + 退出)
+        this.AccountSection()
 
         // 重新扫描
         this.SettingRow($r('sys.symbol.arrow_clockwise'), '重新扫描',
           this.scanStatus !== '' ? this.scanStatus : '比对沙箱目录与数据库')
         Row() {
           OutlineButton({
-            theme: this.theme,
             text: '扫描',
             onTap: (): void => {
               this.rescan();
@@ -138,14 +514,13 @@ export struct SettingsPage {
         .justifyContent(FlexAlign.End)
         .padding({ right: 12, bottom: 10 })
 
-        // api-enhanced 连接(预留)
-        this.SettingRow($r('sys.symbol.wifi'), 'api-enhanced', this.net.statusText)
+        // DreamMusic 中间层连接(请求驱动,ADR-0003)
+        this.SettingRow($r('sys.symbol.wifi'), 'DreamMusic 中间层', this.net.statusText)
         Row() {
           OutlineButton({
-            theme: this.theme,
             text: '刷新',
             onTap: (): void => {
-              this.net.probe();
+              this.net.probe(this.ctx());
             }
           })
         }
@@ -165,7 +540,7 @@ export struct SettingsPage {
             .onChange((v: string) => {
               this.newAlias = v;
             })
-          TextInput({ placeholder: 'https://你的域名', text: this.newUrl })
+          TextInput({ placeholder: 'http://IP:3001 或 https://域名', text: this.newUrl })
             .fontSize(13)
             .fontColor(this.theme.ink)
             .placeholderColor(this.theme.muted)
@@ -177,10 +552,9 @@ export struct SettingsPage {
               this.newUrl = v;
             })
           OutlineButton({
-            theme: this.theme,
             text: '添加',
             onTap: (): void => {
-              this.net.addProfile(this.newAlias, this.newUrl).then(() => {
+              this.net.addProfile(this.newAlias, this.newUrl, this.ctx()).then(() => {
                 this.newAlias = '';
                 this.newUrl = '';
               });
@@ -211,7 +585,7 @@ export struct SettingsPage {
                 .fontSize(12)
                 .fontColor(this.theme.primaryText)
                 .onClick(() => {
-                  this.net.setCurrent(p.id);
+                  this.net.setCurrent(p.id, this.ctx());
                 })
             } else {
               Row({ space: 4 }) {
@@ -228,7 +602,7 @@ export struct SettingsPage {
               .fontColor([this.theme.muted])
               .padding(4)
               .onClick(() => {
-                this.net.removeProfile(p.id);
+                this.confirmRemoveProfile(p);
               })
           }
           .width('100%')
@@ -243,5 +617,13 @@ export struct SettingsPage {
     .width('100%')
     .height('100%')
     .scrollBar(BarState.Auto)
+    .bindSheet(this.showSheet, this.sheetContent(), {
+      height: this.sheetMode === 1 ? 320 : 380,
+      backgroundColor: this.theme.bg,
+      onDisappear: () => {
+        this.showSheet = false;
+        this.sheetMode = 0;
+      }
+    })
   }
 }

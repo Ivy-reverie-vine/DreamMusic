@@ -54,28 +54,32 @@ export class PlayerViewModel {
     if (this.coverColorHandler !== null) {
       this.coverColorHandler(track);
     }
-    // 播放前检查文件存在(issue-14:旧数据文件缺失时给出友好提示;兼容无 music/ 前缀的历史路径)
+    // 瞬态在线音轨:直链流式播放(阶段 v2.3),不检查本地文件
+    const streaming = track.streamUrl !== undefined && track.streamUrl !== '';
     let abs = context.filesDir + '/' + track.path;
-    try {
-      if (!fileIo.accessSync(abs) && !track.path.startsWith('music/')) {
-        const alt = context.filesDir + '/' + 'music/' + track.path;
-        if (fileIo.accessSync(alt)) {
-          abs = alt;
+    if (!streaming) {
+      // 播放前检查文件存在(issue-14:旧数据文件缺失时给出友好提示;兼容无 music/ 前缀的历史路径)
+      try {
+        if (!fileIo.accessSync(abs) && !track.path.startsWith('music/')) {
+          const alt = context.filesDir + '/' + 'music/' + track.path;
+          if (fileIo.accessSync(alt)) {
+            abs = alt;
+          }
         }
+      } catch (err) {
+        // 走下方统一检查
       }
-    } catch (err) {
-      // 走下方统一检查
-    }
-    try {
-      if (!fileIo.accessSync(abs)) {
+      try {
+        if (!fileIo.accessSync(abs)) {
+          this.errorText = '文件缺失,请重新导入这首歌';
+          this.state = PlayerState.ERROR;
+          return;
+        }
+      } catch (err) {
         this.errorText = '文件缺失,请重新导入这首歌';
         this.state = PlayerState.ERROR;
         return;
       }
-    } catch (err) {
-      this.errorText = '文件缺失,请重新导入这首歌';
-      this.state = PlayerState.ERROR;
-      return;
     }
     const callbacks: PlaybackCallbacks = {
       onStateChange: (s: PlayerState): void => {
@@ -103,7 +107,11 @@ export class PlayerViewModel {
       }
     };
     try {
-      await this.session.playFile(abs, callbacks);
+      if (streaming) {
+        await this.session.playUrl(track.streamUrl!, callbacks);
+      } else {
+        await this.session.playFile(abs, callbacks);
+      }
       this.session.setVolume(this.volume);
       if (startMs > 0) {
         this.session.seekTo(startMs);

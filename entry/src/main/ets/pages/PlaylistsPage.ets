@@ -14,7 +14,7 @@ import { RADIUS_CARD, RADIUS_CAPSULE, FONT_BODY, FONT_LABEL, FONT_TITLE } from '
  */
 @Component
 export struct PlaylistsPage {
-  @Prop theme: ThemeService;
+  @State theme: ThemeService = ThemeService.getInstance();
   @State vm: PlaylistsViewModel = playlistsViewModel;
   @State newName: string = '';
   @State showRename: boolean = false;
@@ -30,6 +30,42 @@ export struct PlaylistsPage {
     return this.getUIContext().getHostContext() as common.UIAbilityContext;
   }
 
+  confirmRemovePlaylist(p: Playlist): void {
+    this.getUIContext().showAlertDialog({
+      title: '删除歌单',
+      message: `确定删除「${p.name}」吗?歌单内的歌曲不会被删除。`,
+      primaryButton: {
+        value: '删除',
+        action: () => {
+          this.vm.remove(p);
+        }
+      },
+      secondaryButton: {
+        value: '取消',
+        action: () => {
+        }
+      }
+    });
+  }
+
+  confirmClearHistory(): void {
+    this.getUIContext().showAlertDialog({
+      title: '清空最近播放',
+      message: '确定清空全部播放历史吗?此操作不可恢复。',
+      primaryButton: {
+        value: '清空',
+        action: () => {
+          this.vm.clearHistory();
+        }
+      },
+      secondaryButton: {
+        value: '取消',
+        action: () => {
+        }
+      }
+    });
+  }
+
   private coverUri(t: Track): string {
     return t.coverPath !== '' ? 'file://' + this.ctx().filesDir + '/' + t.coverPath : '';
   }
@@ -37,7 +73,7 @@ export struct PlaylistsPage {
   @Builder
   TrackRow(t: Track, index: number) {
     Row({ space: 12 }) {
-      CoverThumb({ theme: this.theme, uri: this.coverUri(t), thumbSize: 40 })
+      CoverThumb({ uri: this.coverUri(t), thumbSize: 40 })
       Column({ space: 3 }) {
         Text(t.title !== '' ? t.title : t.path)
           .fontSize(FONT_BODY)
@@ -136,7 +172,7 @@ export struct PlaylistsPage {
                   .fontColor([this.theme.muted])
                   .padding(4)
                   .onClick(() => {
-                    this.vm.remove(p);
+                    this.confirmRemovePlaylist(p);
                   })
               }
             }
@@ -172,7 +208,7 @@ export struct PlaylistsPage {
             .fontSize(12)
             .fontColor(this.theme.primaryText)
             .onClick(() => {
-              this.vm.clearHistory();
+              this.confirmClearHistory();
             })
         }
         .width('100%')
@@ -183,14 +219,30 @@ export struct PlaylistsPage {
             .fontColor(this.theme.muted)
         } else {
           List({ space: 6 }) {
-            ForEach(this.vm.historyTracks, (t: Track) => {
+            ForEach(this.vm.historyTracks, (t: Track, index: number) => {
               ListItem() {
-                Text(`${t.title !== '' ? t.title : t.path} — ${t.artist}`)
-                  .fontSize(13)
-                  .fontColor(this.theme.muted)
-                  .maxLines(1)
-                  .textOverflow({ overflow: TextOverflow.Ellipsis })
-                  .width('100%')
+                Row({ space: 8 }) {
+                  SymbolGlyph($r('sys.symbol.clock_fill'))
+                    .fontSize(13)
+                    .fontColor([this.theme.muted])
+                  Text(`${t.title !== '' ? t.title : t.path} — ${t.artist}`)
+                    .fontSize(13)
+                    .fontColor(this.theme.muted)
+                    .maxLines(1)
+                    .textOverflow({ overflow: TextOverflow.Ellipsis })
+                    .layoutWeight(1)
+                }
+                .width('100%')
+                .padding(6)
+                .borderRadius(10)
+                .stateStyles({
+                  pressed: { .backgroundColor(ThemeService.alpha(this.theme.primary, 0.1)) }
+                })
+                .onClick(() => {
+                  if (!t.missing) {
+                    queueViewModel.playFromList(this.vm.historyTracks, index, this.ctx());
+                  }
+                })
               }
             })
           }
@@ -237,7 +289,6 @@ export struct PlaylistsPage {
 
       if (this.vm.selected !== null && this.vm.selectedTracks.length === 0) {
         EmptyState({
-          theme: this.theme,
           symbol: $r('sys.symbol.heart'),
           title: this.vm.selected.systemReserved ? '还没有收藏的歌' : '歌单是空的',
           hint: this.vm.selected.systemReserved ? '在音乐库点爱心收藏' : '去音乐库点加号加歌'

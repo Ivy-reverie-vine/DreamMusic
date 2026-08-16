@@ -34,6 +34,12 @@ export class LibraryViewModel {
     this.favoriteIds = new Set<number>(favIds);
   }
 
+  /** 编辑歌名/作者(阶段 v2.2);完成后刷新三视图与收藏态 */
+  async editTrackMeta(track: Track, title: string, artist: string): Promise<void> {
+    await LibraryStore.getInstance().updateTrackMeta(track.id, title.trim(), artist.trim());
+    await this.load();
+  }
+
   async rescan(context: common.Context): Promise<void> {
     this.statusText = '扫描中…';
     const report = await LibraryScanService.scan(context);

@@ -6,7 +6,7 @@ import { ThemeService } from '../service/theme/ThemeService';
  */
 @Component
 export struct CoverThumb {
-  @Prop theme: ThemeService;
+  @State theme: ThemeService = ThemeService.getInstance();
   @Prop uri: string = '';
   @Prop thumbSize: number = 44;
 

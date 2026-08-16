@@ -6,7 +6,7 @@ import { ThemeService } from '../service/theme/ThemeService';
  */
 @Component
 export struct EmptyState {
-  @Prop theme: ThemeService;
+  @State theme: ThemeService = ThemeService.getInstance();
   @Prop symbol: Resource = $r('sys.symbol.music_note_list');
   @Prop title: string = '这里还是空的';
   @Prop hint: string = '';

@@ -13,6 +13,15 @@
 | 专辑详情(Album Detail) | 从音乐库"专辑"视图进入的音轨子视图,展示该专辑全部音轨并可点播(v1.1 起) |
 | 艺术家详情(Artist Detail) | 从音乐库"艺术家"视图进入的音轨子视图,展示该艺术家全部音轨并可点播(v1.1 起) |
 | 主题模式(Theme Mode) | 深色 / 浅色 / 跟随系统 三态;默认深色,设置页可切换并持久化(v1.1 起) |
+| 自定义背景图(Custom Background) | 用户通过系统选择器从相册选择、复制进应用沙箱的全局背景图片;界面主题色从图中动态提取;未设置时回退内置氛围图或品牌种子色(issue-14 曾因真机 Image 缓存切换问题改为内置预设,后按用户要求恢复) |
+| 在线音轨(Online Track) | 来自 DreamMusic 中间层转发的 api-enhanced 搜索结果的音轨,以网易云歌曲 id 为唯一标识;点播时先用直链**流式即播**,同时后台把文件下载进沙箱入库,成为可离线播放的普通本地音轨(用户 8/16 拍板:自建播放器歌曲必须存本地;v2.3 起流式+落盘并行) |
+| 在线歌词(Online Lyrics) | 本地无同名 .lrc 时,经 DreamMusic 中间层 `/lyric/new` 拉取的歌词文本(取 lrc.lyric,复用本地 LrcParser 解析) |
+| 账户会话(Account Session) | DreamMusic 中间层的注册/登录会话:登录获得 HttpOnly 会话 Cookie(`dm_session`),再换取 `X-API-Key` 用于转发类接口;两种凭证均持久化到本机 |
+| 绑定(Binding) | 用户用网易云音乐 App 扫码(QR 三件套:key/create/check),把网易云账号绑定到中间层账户的过程;未绑定转发接口返回 403,绑定失效返回业务码 301 |
+| 登录门禁(Login Gate) | 打开应用先弹登录页但**可跳过**:本地歌不登录也能听;在线功能(搜索/下载/歌词)使用时才要求登录;注册需邀请码;登录后未绑定网易云自动弹出二维码(v2.2 起) |
+| 歌曲编辑(Track Edit) | 编辑音轨的歌名/作者,同步更新艺术家聚合与专辑行作者标签;封面/歌词/来源不变(v2.2 起) |
+| 手写 Logo(Handwritten Logo) | 移植自 DreamMusic(ivy-move-font 笔迹数据)的逐笔书写品牌字"IvyReverie":ArkUI Path 描边动画 3 秒写出,写完副标题"梦有回响,点滴成光"淡入;系统减弱动效时立即完成(v2.2 起) |
+| DreamMusic 中间层 | 用户自建的 Express 服务(默认 :3001),统一前缀 `/dreammusic/api/v1`,负责鉴权、白名单与转发到内网 api-enhanced(:3000),并自动注入绑定账号的网易云 cookie |
 | 离线播放 | 不依赖任何网络的本地音轨播放能力,是核心可用性保证 |
 | 播放队列(Queue) | 当前播放顺序的音轨列表;持久化到数据库,重启恢复;支持拖拽调整顺序 |
 | 断点续播(Resume) | 重启后恢复到上次播放的音轨与进度位置 |
@@ -22,15 +31,14 @@
 | 播放历史(Play History) | 自动记录的播放事件(音轨+时间),上限 500 条,可清空 |
 | 播放模式(Play Mode) | 顺序 / 单曲循环 / 列表循环 / 随机,共四种 |
 | 后台播控(Background Playback) | 锁屏/控制中心可控制的持续后台播放(AVSession + audioPlayback 长时任务) |
-| api-enhanced | 用户自建的网易云 API 服务(本机跑,经 Cloudflare Tunnel 暴露),本应用**未来**的网络能力来源;当前阶段仅预留接口 |
-| 服务器配置(Server Profile) | 手动保存的一条服务器地址(别名+URL),支持多条并存与一键切换;主=Cloudflare Tunnel 域名,备=局域网直连 |
-| 连接状态(Connection Status) | 通过 `GET {base}/health` 判定的网络可达性;三态: 在线/离线/检查中 |
-| 健康检查(Health Check) | 3s 超时 + 启动时/每 15s/手动触发的探活请求;2xx 且 body 可解析=在线,否则离线,失败静默 |
+| api-enhanced | 用户自建的网易云 API 服务(默认 :3000,仅内网可达),由 DreamMusic 中间层转发 |
+| 服务器配置(Server Profile) | 手动保存的一条 DreamMusic 中间层地址(别名+URL),支持多条并存与一键切换;应用自动拼接 `/dreammusic/api/v1` 前缀 |
+| 连接状态(Connection Status) | 通过最近一次 DreamMusic 中间层请求成败判定的可达性(ADR-0003,8/16 起,取代 /health 探活);三态: 在线/离线/检查中,未发生过请求时为"未检测" |
 
 ## 已定约束(来自用户)
 
-- 当前阶段**只做本地音乐播放器**;api-enhanced 只预留(服务器配置 + 健康检查网关),不调用任何业务端点
-- api-enhanced 仓库**可修改**(用户已本地克隆),`/health` 端点后续由我们补
+- 阶段 v2(8/16 拍板): 在线能力**仅限** 单曲搜索 + 在线音轨下载进沙箱入库并播放 + 在线歌词;接入 DreamMusic 中间层,走账户注册/登录 + QR 扫码绑定网易云(8/16 更新,取代匿名游客登录);音质固定 `exhigh`;不做 账号密码即音质选择 / 在线歌单同步 / 榜单 / 推荐 / 评论 / 云盘 / 电台
+- api-enhanced 仅内网可达,由 DreamMusic 中间层转发;`/health` 端点不再需要(ADR-0003)
 - 禁止使用 Android API 与 Android 开发习惯套用鸿蒙;所有系统能力基于 Kit 官方文档(AGENT.md)
 - 传输: Cloudflare Tunnel 域名(HTTPS,公网证书)为主,局域网直连备选
 - 音频格式: MP3 / AAC(M4A) / FLAC / WAV;歌词 v1 仅读同目录 .lrc

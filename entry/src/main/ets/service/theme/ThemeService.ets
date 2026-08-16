@@ -15,6 +15,7 @@ const SEED_H = 180.0;
 const PREF_NAME = 'ivy_prefs';
 const KEY_THEME_MODE = 'theme_mode';
 const KEY_BG_INDEX = 'bg_index';
+const KEY_BG_CUSTOM = 'bg_custom';
 
 /** 主题模式:深色 / 浅色 / 跟随系统 */
 export enum ThemeMode {
@@ -89,9 +90,16 @@ export class ThemeService {
   barBg: string = '#59000000';   // 玻璃底栏底色(半透明黑)
   /** 播放页按钮固定灰(issue-14 用户定稿:不随取色) */
   controlGray: string = '#8A9096';
+  /** 错误/警告文案色(深浅主题均保证可读;timeout 等提示用) */
+  errorColor: string = '#FF8A80';
   hasBackground: boolean = false;
-  /** 当前内置背景图资源(issue-14 定稿:固定预设图,不依赖沙箱文件) */
-  bgRes: Resource | null = null;
+  /**
+   * 当前背景图源:内置预设为 Resource,自定义背景为 'file://' + 沙箱绝对路径。
+   * 自定义背景(阶段 v2 恢复,8/16 用户拍板)与内置预设共用此字段。
+   */
+  bgSrc: Resource | string | null = null;
+  /** 自定义背景图沙箱相对路径(相对 filesDir;'' = 未使用自定义背景,持久化用) */
+  bgCustomPath: string = '';
   /** 背景图版本号:切换时 +1,Index 用奇偶分支强制重建 Image 组件(绕开缓存) */
   bgStamp: number = 0;
   /** 当前预设索引,-1 = 无背景 */
@@ -117,6 +125,7 @@ export class ThemeService {
       this.card = '#12FFFFFF';
       this.barBg = '#59000000';
       this.controlGray = '#8A9096';
+      this.errorColor = '#FF8A80';
       this.primaryText = mixHex(this.primary, '#FFFFFF', 0.38);
     } else {
       this.bg = '#F5F7F8';
@@ -126,6 +135,7 @@ export class ThemeService {
       this.card = '#0A000000';
       this.barBg = '#59FFFFFF';
       this.controlGray = '#6B757A';
+      this.errorColor = '#C62828';
       this.primaryText = mixHex(this.primary, '#1B2226', 0.22);
     }
   }
@@ -185,12 +195,30 @@ export class ThemeService {
   applyPresetBg(index: number, colors?: ExtractedColors): void {
     this.bgPresetIndex = index;
     if (index < 0 || index >= BG_PRESETS.length) {
-      this.bgRes = null;
+      this.bgSrc = null;
+      this.bgCustomPath = '';
       this.bgStamp++;
       this.applyDefault();
       return;
     }
-    this.bgRes = BG_PRESETS[index].res;
+    this.bgSrc = BG_PRESETS[index].res;
+    this.bgCustomPath = '';
+    if (colors !== undefined) {
+      this.applyExtracted(colors.primary, colors.secondary);
+    }
+    this.hasBackground = true;
+    this.bgStamp++;
+  }
+
+  /**
+   * 应用自定义背景图(阶段 v2 恢复,8/16 用户拍板)。
+   * relPath 为沙箱相对路径(持久化);uri 为 'file://' 绝对路径(Image 直接用)。
+   * colors 由调用方取色后传入;bgPresetIndex 保留为"恢复默认"时的回退预设。
+   */
+  applyCustomBg(relPath: string, uri: string, colors?: ExtractedColors): void {
+    this.bgCustomPath = relPath;
+    this.bgSrc = uri;
+    this.hasBackground = true;
     if (colors !== undefined) {
       this.applyExtracted(colors.primary, colors.secondary);
     }
@@ -217,10 +245,21 @@ export class ThemeService {
     }
   }
 
+  static saveCustomBg(context: common.Context, relPath: string): void {
+    try {
+      const prefs = preferences.getPreferencesSync(context, { name: PREF_NAME });
+      prefs.putSync(KEY_BG_CUSTOM, relPath);
+      prefs.flush();
+    } catch (err) {
+      // 持久化失败静默,仅本次会话生效
+    }
+  }
+
   /** 彻底清除背景图状态(内部保留,当前无 UI 入口) */
   clearBackground(): void {
-    this.bgRes = null;
+    this.bgSrc = null;
     this.bgPresetIndex = -1;
+    this.bgCustomPath = '';
     this.hasBackground = false;
     this.bgStamp++;
     this.applyDefault();

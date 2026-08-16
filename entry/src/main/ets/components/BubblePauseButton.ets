@@ -6,7 +6,7 @@ import { ThemeService } from '../service/theme/ThemeService';
  */
 @Component
 export struct BubblePauseButton {
-  @Prop theme: ThemeService;
+  @State theme: ThemeService = ThemeService.getInstance();
   @Prop isPlaying: boolean;
   onToggle: () => void = () => {
   };

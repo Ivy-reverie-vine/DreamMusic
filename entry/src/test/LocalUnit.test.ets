@@ -5,6 +5,7 @@ import scanDiffTest from './ScanDiff.test';
 import queueEngineTest from './QueueEngine.test';
 import lrcParserTest from './LrcParser.test';
 import healthStateMachineTest from './HealthStateMachine.test';
+import handwrittenLayoutTest from './HandwrittenLayout.test';
 
 export default function localUnitTest() {
   describe('localUnitTest', () => {
@@ -43,5 +44,6 @@ export default function localUnitTest() {
     queueEngineTest();
     lrcParserTest();
     healthStateMachineTest();
+    handwrittenLayoutTest();
   });
 }

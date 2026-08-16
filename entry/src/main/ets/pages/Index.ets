@@ -10,6 +10,11 @@ import { NowPlayingPage } from './NowPlayingPage';
 import { QueuePage } from './QueuePage';
 import { PlaylistsPage } from './PlaylistsPage';
 import { SettingsPage } from './SettingsPage';
+import { LoginView } from '../components/LoginView';
+import { QrBindView } from '../components/QrBindView';
+import { BackgroundLayer } from '../components/BackgroundLayer';
+import { DreamMusicAuth } from '../service/network/DreamMusicAuth';
+import { ApiError } from '../service/network/ApiClient';
 
 const RIPPLE_DIAMETER = 64;
 
@@ -28,6 +33,15 @@ interface NavTab {
 struct Index {
   @State theme: ThemeService = ThemeService.getInstance();
   @State current: number = 0;
+  /** 登录门禁(阶段 v2.2):打开应用先弹登录页,可跳过;本地歌不登录可听,在线功能再提示登录 */
+  @State booting: boolean = true;
+  @State loggedIn: boolean = false;
+  /** 启动时未登录 → 展示可跳过的登录页 */
+  @State loginPromptVisible: boolean = false;
+  /** 在线功能触发 → 主界面上盖登录页 */
+  @State showLoginOverlay: boolean = false;
+  /** 启动时已登录但未绑定/绑定失效 → 自动弹 QR 绑定 */
+  @State showBindAtStart: boolean = false;
   // 触点光晕状态(issue-12 重做:按下常亮 → 随指移动 → 松手扩散淡出)
   @State rippleVisible: boolean = false;
   @State rippleX: number = 0;
@@ -55,6 +69,61 @@ struct Index {
     };
     // 断点续播恢复(issue-06):还原队列/当前曲/进度为暂停态
     queueViewModel.restore(ctx);
+    this.checkGate();
+  }
+
+  /** 登录门禁:无会话 → 可跳过登录页;有会话 → 校验 /auth/me,失效清本地并回登录页 */
+  private async checkGate(): Promise<void> {
+    const ctx = this.ctx();
+    if (!DreamMusicAuth.isLoggedIn(ctx)) {
+      this.booting = false;
+      this.loggedIn = false;
+      this.loginPromptVisible = true;
+      return;
+    }
+    try {
+      const user = await DreamMusicAuth.me(ctx);
+      if (user === null) {
+        this.booting = false;
+        this.loggedIn = false;
+        this.loginPromptVisible = true;
+        return;
+      }
+      this.loggedIn = true;
+      if (!user.bound || user.bindInvalid) {
+        this.showBindAtStart = true;
+      }
+    } catch (err) {
+      if (err instanceof ApiError && err.code === 'UNAUTHORIZED') {
+        // 会话失效 → 清本地回登录页
+        await DreamMusicAuth.logout(ctx);
+        this.loggedIn = false;
+        this.loginPromptVisible = true;
+      } else {
+        // 中间层临时不可达:保留会话进入,功能侧会显示离线
+        this.loggedIn = true;
+      }
+    }
+    this.booting = false;
+  }
+
+  @Builder
+  StartBindSheet() {
+    Column({ space: 12 }) {
+      Text('绑定网易云账号')
+        .fontSize(15)
+        .fontWeight(FontWeight.Medium)
+        .fontColor(this.theme.ink)
+        .width('100%')
+      QrBindView({
+        onBound: () => {
+          this.showBindAtStart = false;
+        }
+      })
+    }
+    .width('100%')
+    .padding(20)
+    .backgroundColor(this.theme.bg)
   }
 
   /** 底栏触摸:按下亮起白光圆(跟随手指),松手 260ms 扩散淡出(QQ音乐式沉浸光感) */
@@ -103,46 +172,57 @@ struct Index {
   @Builder
   PageContent() {
     if (this.current === 0) {
-      MusicLibraryPage({ theme: this.theme })
+      MusicLibraryPage({
+        onGoSettings: () => {
+          this.current = 4;
+        },
+        onGoLogin: () => {
+          this.showLoginOverlay = true;
+        }
+      })
     } else if (this.current === 1) {
-      NowPlayingPage({ theme: this.theme })
+      NowPlayingPage()
     } else if (this.current === 2) {
-      QueuePage({ theme: this.theme })
+      QueuePage()
     } else if (this.current === 3) {
-      PlaylistsPage({ theme: this.theme })
+      PlaylistsPage()
     } else {
-      SettingsPage({ theme: this.theme })
+      SettingsPage()
     }
   }
 
-  build() {
-    Stack({ alignContent: Alignment.Bottom }) {
-      // 背景:近黑底(有背景图后叠图+蒙层)
-      Column()
-        .width('100%')
-        .height('100%')
-        .backgroundColor(this.theme.bg)
+  /** 登录成功统一收口:关闭所有登录层 */
+  private login(): void {
+    this.loggedIn = true;
+    this.loginPromptVisible = false;
+    this.showLoginOverlay = false;
+  }
 
-      // 用户背景图(内置预设):全局铺满 + 蒙层保底(DESIGN.md 蒙层保底规则);
-      // 奇偶双分支强制重建 Image 组件,切换即时生效(issue-14 定稿)
-      if (this.theme.bgRes !== null) {
-        if (this.theme.bgStamp % 2 === 0) {
-          Image(this.theme.bgRes)
-            .width('100%')
-            .height('100%')
-            .objectFit(ImageFit.Cover)
-        } else {
-          Image(this.theme.bgRes)
-            .width('100%')
-            .height('100%')
-            .objectFit(ImageFit.Cover)
-        }
-        Column()
-          .width('100%')
-          .height('100%')
-          .backgroundColor(this.theme.isDark ? '#000000' : '#FFFFFF')
-          .opacity(this.current === 1 ? this.theme.scrimNowPlaying : this.theme.scrimList)
+  build() {
+    if (this.booting) {
+      Stack() {
+        BackgroundLayer()
+        Text('IvyReverie')
+          .fontSize(26)
+          .fontWeight(FontWeight.Bold)
+          .fontColor(this.theme.ink)
       }
+      .width('100%')
+      .height('100%')
+    } else if (!this.loggedIn && this.loginPromptVisible) {
+      LoginView({
+        onLoggedIn: () => {
+          this.login();
+        },
+        onSkip: () => {
+          this.loginPromptVisible = false;
+        }
+      })
+    } else {
+      Stack() {
+        Stack({ alignContent: Alignment.Bottom }) {
+      // 全局背景层(近黑底 + 背景图 + 蒙层,登录页同款;v2.2 抽取共用)
+      BackgroundLayer({ nowPlaying: this.current === 1 })
 
       Column() {
         this.PageContent()
@@ -201,8 +281,31 @@ struct Index {
       .onTouch((e: TouchEvent) => {
         this.handleNavTouch(e);
       })
+        }
+        .width('100%')
+        .height('100%')
+        .bindSheet(this.showBindAtStart, this.StartBindSheet(), {
+          height: 420,
+          backgroundColor: this.theme.bg,
+          onDisappear: () => {
+            this.showBindAtStart = false;
+          }
+        })
+
+        // 在线功能触发的登录盖层(本地功能不受影响)
+        if (this.showLoginOverlay) {
+          LoginView({
+            onLoggedIn: () => {
+              this.login();
+            },
+            onSkip: () => {
+              this.showLoginOverlay = false;
+            }
+          })
+        }
+      }
+      .width('100%')
+      .height('100%')
     }
-    .width('100%')
-    .height('100%')
   }
 }

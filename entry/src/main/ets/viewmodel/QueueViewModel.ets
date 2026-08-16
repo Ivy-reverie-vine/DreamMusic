@@ -172,6 +172,78 @@ export class QueueViewModel {
     this.persist(playerViewModel.positionMs);
   }
 
+  /**
+   * 拖拽实时重排(8/16 真机修复):
+   * 引擎重排 + 显示数组**原地 splice**(不整组重建),ForEach 按 id 键最小 diff,
+   * 避免拖拽过程中数据整体刷新导致拖拽被中断;落盘由 commitReorder 在松手后统一做。
+   */
+  moveLive(from: number, to: number): void {
+    const n = this.queueTracks.length;
+    if (from < 0 || to < 0 || from >= n || to >= n || from === to) {
+      return;
+    }
+    this.engine.move(from, to);
+    const moved = this.queueTracks.splice(from, 1)[0];
+    if (moved !== undefined) {
+      this.queueTracks.splice(to, 0, moved);
+    }
+    this.currentId = this.engine.current();
+    this.mode = this.engine.currentMode;
+  }
+
+  /** 拖拽结束:按引擎最终顺序持久化(顺序变更重启后恢复) */
+  commitReorder(): void {
+    this.persist(playerViewModel.positionMs);
+  }
+
+  /** 按拖拽后的 id 顺序重建引擎并落盘(8/16 修复:拖拽在页面本地数组上进行,松手统一提交) */
+  reorder(ids: number[]): void {
+    if (ids.length !== this.engine.queueLength) {
+      return;
+    }
+    const cur = this.engine.current();
+    const curIdx = ids.indexOf(cur);
+    this.engine.setQueue(ids, Math.max(0, curIdx), this.mode);
+    this.syncDisplay();
+    this.persist(playerViewModel.positionMs);
+  }
+
+  /**
+   * 瞬态流式条目下载完成 → 原地换成本地音轨(阶段 v2.3):
+   * 队列中把当前条目 id 换成正式音轨,并同步播放器当前曲(封面/歌词立即生效,不中断播放)。
+   */
+  swapCurrentWithLocal(track: Track): void {
+    const ids = this.engine.queueIds;
+    const idx = ids.indexOf(this.currentId);
+    if (idx < 0) {
+      return;
+    }
+    const newIds = ids.slice();
+    newIds[idx] = track.id;
+    this.engine.setQueue(newIds, idx, this.mode);
+    // 保证新 id 可被 trackById 解析
+    let cached = false;
+    for (let i = 0; i < this.trackCache.length; i++) {
+      if (this.trackCache[i].id === track.id) {
+        cached = true;
+        break;
+      }
+    }
+    if (!cached) {
+      this.trackCache.push(track);
+    }
+    this.syncDisplay();
+    // 播放器当前曲元数据同步(播放会话不重启)
+    playerViewModel.currentTrack = track;
+    if (playerViewModel.trackChangeHandler !== null) {
+      playerViewModel.trackChangeHandler(track);
+    }
+    if (playerViewModel.coverColorHandler !== null) {
+      playerViewModel.coverColorHandler(track);
+    }
+    this.persist(playerViewModel.positionMs);
+  }
+
   removeAt(index: number): void {
     this.engine.removeAt(index);
     this.syncDisplay();

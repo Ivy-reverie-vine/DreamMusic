@@ -4,7 +4,7 @@ import { RADIUS_CAPSULE } from '../common/DesignTokens';
 /** 描边胶囊按钮(issue-13 设置页/歌单页统一控件;无实色块) */
 @Component
 export struct OutlineButton {
-  @Prop theme: ThemeService;
+  @State theme: ThemeService = ThemeService.getInstance();
   @Prop text: string;
   onTap: () => void = () => {
   };

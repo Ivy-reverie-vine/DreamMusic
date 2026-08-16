@@ -53,6 +53,28 @@ export class PlayerSession {
     await avp.play();
   }
 
+  /** 网络直链流式播放(阶段 v2.3:点搜索即播,后台再下载落盘) */
+  async playUrl(url: string, callbacks: PlaybackCallbacks): Promise<void> {
+    await this.release();
+    this.cb = callbacks;
+    const avp = await media.createAVPlayer();
+    this.player = avp;
+    avp.on('stateChange', (state: string) => {
+      this.handleState(state);
+    });
+    avp.on('timeUpdate', (ms: number) => {
+      if (this.cb !== null) {
+        this.cb.onPositionUpdate(ms);
+      }
+    });
+    callbacks.onStateChange(PlayerState.PREPARING);
+    // 网络源: idle 状态设置 url → initialized → prepare → play
+    avp.url = url;
+    await this.waitInitialized();
+    await avp.prepare();
+    await avp.play();
+  }
+
   private waitInitialized(): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       this.initResolve = resolve;

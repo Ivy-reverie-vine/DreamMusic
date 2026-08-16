@@ -8,6 +8,7 @@ import { Track, Album, Artist, Playlist } from '../model/Entities';
 import { common } from '@kit.AbilityKit';
 import { CoverThumb } from '../components/CoverThumb';
 import { EmptyState } from '../components/EmptyState';
+import { OnlineSearchView } from '../components/OnlineSearchView';
 import {
   FONT_TITLE, FONT_BODY, FONT_LABEL, RADIUS_CARD, RADIUS_CAPSULE, RADIUS_CONTROL,
   SHADOW_CARD_RADIUS, SHADOW_CARD_COLOR, SHADOW_CARD_OFFSET_Y
@@ -21,14 +22,28 @@ import {
  */
 @Component
 export struct MusicLibraryPage {
-  @Prop theme: ThemeService;
+  @State theme: ThemeService = ThemeService.getInstance();
+  /** 跳转设置 tab(登录/绑定引导,阶段 v2.1) */
+  onGoSettings: () => void = () => {
+  };
+  /** 在线功能触发登录盖层(阶段 v2.2:本地歌不登录可听) */
+  onGoLogin: () => void = () => {
+  };
   @State vm: LibraryViewModel = new LibraryViewModel();
   @State qvm: QueueViewModel = queueViewModel;
   @State pvm: PlayerViewModel = playerViewModel;
   @State tab: number = 0;
   @State importStatus: string = '';
-  @State addTrack: Track | null = null;
-  @State showAdd: boolean = false;
+  /** 统一底部弹层:0=关 1=歌曲操作 2=添加到歌单 3=编辑信息(阶段 v2/v2.2) */
+  @State sheetMode: number = 0;
+  /** 弹层显隐独立状态:拖拽关闭时 onDisappear 复位,避免"大框常驻"(v2.2 修复) */
+  @State showSheet: boolean = false;
+  @State sheetTarget: Track | null = null;
+  @State editTitle: string = '';
+  @State editArtist: string = '';
+  /** 网易云来源信息展开(弹层内展示,不再关闭弹层导致"无法操作"状态) */
+  @State showSourceInfo: boolean = false;
+  @State showSearch: boolean = false;
   // 专辑/艺术家详情子视图(issue-13)
   @State detailAlbum: Album | null = null;
   @State detailArtist: Artist | null = null;
@@ -37,6 +52,11 @@ export struct MusicLibraryPage {
   @Builder
   addPanel() {
     Column({ space: 10 }) {
+      Text('添加到歌单')
+        .fontSize(15)
+        .fontWeight(FontWeight.Medium)
+        .fontColor(this.theme.ink)
+        .width('100%')
       ForEach(playlistsViewModel.playlists, (p: Playlist) => {
         if (!p.systemReserved) {
           Row() {
@@ -50,10 +70,11 @@ export struct MusicLibraryPage {
           .borderRadius(RADIUS_CONTROL)
           .backgroundColor(this.theme.card)
           .onClick(() => {
-            if (this.addTrack !== null) {
-              playlistsViewModel.addToPlaylist(p.id, this.addTrack.id);
+            if (this.sheetTarget !== null) {
+              playlistsViewModel.addToPlaylist(p.id, this.sheetTarget.id);
             }
-            this.showAdd = false;
+            this.sheetMode = 0;
+            this.showSheet = false;
           })
         }
       })
@@ -65,6 +86,7 @@ export struct MusicLibraryPage {
     }
     .width('100%')
     .padding(16)
+    .backgroundColor(this.theme.bg)
   }
 
   aboutToAppear(): void {
@@ -160,7 +182,7 @@ export struct MusicLibraryPage {
   @Builder
   TrackRowItem(t: Track, index: number, source: Track[]) {
     Row({ space: 12 }) {
-      CoverThumb({ theme: this.theme, uri: this.coverUri(t), thumbSize: 44 })
+      CoverThumb({ uri: this.coverUri(t), thumbSize: 44 })
       Column({ space: 3 }) {
         Text(t.title !== '' ? t.title : t.path)
           .fontSize(FONT_BODY)
@@ -184,20 +206,16 @@ export struct MusicLibraryPage {
         .onClick(() => {
           this.vm.toggleFavorite(t.id);
         })
-      SymbolGlyph($r('sys.symbol.plus'))
-        .fontSize(19)
+      // 阶段 v2 行操作重设计:爱心高频留行内,加歌单/移除收进"⋯"底部弹层
+      SymbolGlyph($r('sys.symbol.ellipsis_circle'))
+        .fontSize(20)
         .fontColor([this.theme.muted])
         .padding(4)
         .onClick(() => {
-          this.addTrack = t;
-          this.showAdd = true;
-        })
-      SymbolGlyph($r('sys.symbol.trash'))
-        .fontSize(17)
-        .fontColor([this.theme.muted])
-        .padding(5)
-        .onClick(() => {
-          this.confirmRemove(t);
+          this.sheetTarget = t;
+          this.sheetMode = 1;
+          this.showSheet = true;
+          this.showSourceInfo = false;
         })
     }
     .width('100%')
@@ -370,7 +388,6 @@ export struct MusicLibraryPage {
 
       if (this.detailTracks.length === 0) {
         EmptyState({
-          theme: this.theme,
           symbol: $r('sys.symbol.music_note_list'),
           title: '这里没有音轨',
           hint: '该聚合下暂无歌曲'
@@ -392,9 +409,131 @@ export struct MusicLibraryPage {
     .height('100%')
   }
 
+  @Builder
+  SheetActionRow(icon: Resource, text: string, danger: boolean, action: () => void) {
+    Row({ space: 12 }) {
+      SymbolGlyph(icon)
+        .fontSize(18)
+        .fontColor([danger ? this.theme.secondary : this.theme.muted])
+      Text(text)
+        .fontSize(FONT_BODY)
+        .fontColor(danger ? this.theme.secondary : this.theme.ink)
+    }
+    .width('100%')
+    .padding({ left: 20, right: 20, top: 14, bottom: 14 })
+    .borderRadius(RADIUS_CONTROL)
+    .backgroundColor(this.theme.card)
+    .stateStyles({
+      pressed: { .opacity(0.6) }
+    })
+    .onClick(() => {
+      action();
+    })
+  }
+
+  @Builder
+  SheetContent() {
+    if (this.sheetMode === 1 && this.sheetTarget !== null) {
+      Column({ space: 10 }) {
+        Text('歌曲操作')
+          .fontSize(15)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(this.theme.ink)
+          .width('100%')
+        Text(this.sheetTarget.title !== '' ? this.sheetTarget.title : this.sheetTarget.path)
+          .fontSize(FONT_BODY)
+          .fontColor(this.theme.muted)
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+        this.SheetActionRow($r('sys.symbol.plus'), '添加到歌单', false, () => {
+          this.sheetMode = 2;
+        })
+        this.SheetActionRow($r('sys.symbol.square_and_pencil'), '编辑信息', false, () => {
+          if (this.sheetTarget !== null) {
+            this.editTitle = this.sheetTarget.title;
+            this.editArtist = this.sheetTarget.artist;
+          }
+          this.sheetMode = 3;
+        })
+        if (this.sheetTarget.neteaseId > 0) {
+          this.SheetActionRow($r('sys.symbol.music_note_list'), '网易云来源歌曲', false, () => {
+            this.showSourceInfo = !this.showSourceInfo;
+          })
+          if (this.showSourceInfo) {
+            Text('该歌曲来自网易云音乐,经 DreamMusic 中间层下载入库,可离线播放')
+              .fontSize(FONT_LABEL)
+              .fontColor(this.theme.muted)
+              .width('100%')
+              .padding({ left: 20, right: 20 })
+          }
+        }
+        this.SheetActionRow($r('sys.symbol.trash'), '从音乐库移除', true, () => {
+          if (this.sheetTarget !== null) {
+            const t: Track = this.sheetTarget;
+            this.sheetMode = 0;
+            this.showSheet = false;
+            this.confirmRemove(t);
+          }
+        })
+      }
+      .width('100%')
+      .padding({ top: 8, bottom: 16 })
+      .backgroundColor(this.theme.bg)
+    } else if (this.sheetMode === 2) {
+      this.addPanel()
+    } else if (this.sheetMode === 3 && this.sheetTarget !== null) {
+      Column({ space: 12 }) {
+        Text('编辑信息')
+          .fontSize(15)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(this.theme.ink)
+          .width('100%')
+        TextInput({ placeholder: '歌名', text: this.editTitle })
+          .fontSize(14)
+          .fontColor(this.theme.ink)
+          .placeholderColor(this.theme.muted)
+          .backgroundColor(ThemeService.alpha(this.theme.bg, 0.35))
+          .borderRadius(12)
+          .height(40)
+          .width('100%')
+          .onChange((v: string) => {
+            this.editTitle = v;
+          })
+        TextInput({ placeholder: '作者', text: this.editArtist })
+          .fontSize(14)
+          .fontColor(this.theme.ink)
+          .placeholderColor(this.theme.muted)
+          .backgroundColor(ThemeService.alpha(this.theme.bg, 0.35))
+          .borderRadius(12)
+          .height(40)
+          .width('100%')
+          .onChange((v: string) => {
+            this.editArtist = v;
+          })
+        Text('保存')
+          .fontSize(14)
+          .fontColor(this.theme.primaryText)
+          .padding({ left: 28, right: 28, top: 10, bottom: 10 })
+          .borderRadius(RADIUS_CAPSULE)
+          .backgroundColor(ThemeService.alpha(this.theme.primary, 0.14))
+          .onClick(() => {
+            if (this.sheetTarget !== null) {
+              const t: Track = this.sheetTarget;
+              this.vm.editTrackMeta(t, this.editTitle, this.editArtist);
+            }
+            this.sheetMode = 0;
+            this.showSheet = false;
+          })
+      }
+      .width('100%')
+      .padding({ top: 8, bottom: 16 })
+      .backgroundColor(this.theme.bg)
+    }
+  }
+
   build() {
     Column({ space: 14 }) {
-      // 页头:标题 + 扫描(无底色)
+      // 页头:标题 + 搜索 + 扫描(无底色;阶段 v2 在线搜索入口)
       Row() {
         Text('音乐库')
           .fontSize(FONT_TITLE)
@@ -402,18 +541,33 @@ export struct MusicLibraryPage {
           .fontColor(this.theme.ink)
           .layoutWeight(1)
         Row({ space: 4 }) {
-          SymbolGlyph($r('sys.symbol.arrow_clockwise'))
-            .fontSize(14)
-            .fontColor([this.theme.primaryText])
-          Text('扫描')
-            .fontSize(13)
-            .fontColor(this.theme.primaryText)
+          Row({ space: 4 }) {
+            SymbolGlyph($r('sys.symbol.magnifyingglass'))
+              .fontSize(14)
+              .fontColor([this.theme.primaryText])
+            Text('搜索')
+              .fontSize(13)
+              .fontColor(this.theme.primaryText)
+          }
+          .padding(8)
+          .borderRadius(RADIUS_CAPSULE)
+          .onClick(() => {
+            this.showSearch = true;
+          })
+          Row({ space: 4 }) {
+            SymbolGlyph($r('sys.symbol.arrow_clockwise'))
+              .fontSize(14)
+              .fontColor([this.theme.primaryText])
+            Text('扫描')
+              .fontSize(13)
+              .fontColor(this.theme.primaryText)
+          }
+          .padding(8)
+          .borderRadius(RADIUS_CAPSULE)
+          .onClick(() => {
+            this.vm.rescan(this.ctx());
+          })
         }
-        .padding(8)
-        .borderRadius(RADIUS_CAPSULE)
-        .onClick(() => {
-          this.vm.rescan(this.ctx());
-        })
       }
       .width('100%')
 
@@ -442,6 +596,19 @@ export struct MusicLibraryPage {
 
       if (this.detailAlbum !== null || this.detailArtist !== null) {
         this.DetailView()
+      } else if (this.showSearch) {
+        OnlineSearchView({
+          onBack: () => {
+            this.showSearch = false;
+            this.vm.load();
+          },
+          onGoSettings: () => {
+            this.onGoSettings();
+          },
+          onGoLogin: () => {
+            this.onGoLogin();
+          }
+        })
       } else {
         // 导入入口(仅文件;文件夹选择手机不支持,已移除)
         Row({ space: 8 }) {
@@ -476,7 +643,6 @@ export struct MusicLibraryPage {
         if (this.tab === 0) {
           if (this.vm.tracks.length === 0) {
             EmptyState({
-              theme: this.theme,
               symbol: $r('sys.symbol.music_note_list'),
               title: '这里还是空的',
               hint: '点击上方「导入文件」添加 MP3/AAC(M4A)/FLAC/WAV'
@@ -487,7 +653,6 @@ export struct MusicLibraryPage {
         } else if (this.tab === 1) {
           if (this.vm.albums.length === 0) {
             EmptyState({
-              theme: this.theme,
               symbol: $r('sys.symbol.rectangle_stack'),
               title: '还没有专辑',
               hint: '导入带专辑信息的音乐后会按专辑聚合'
@@ -498,7 +663,6 @@ export struct MusicLibraryPage {
         } else {
           if (this.vm.artists.length === 0) {
             EmptyState({
-              theme: this.theme,
               symbol: $r('sys.symbol.person'),
               title: '还没有艺术家',
               hint: '导入带艺术家信息的音乐后会按艺术家聚合'
@@ -512,9 +676,13 @@ export struct MusicLibraryPage {
     .padding(20)
     .width('100%')
     .height('100%')
-    .bindSheet(this.showAdd, this.addPanel(), {
-      height: 420,
-      title: { title: '添加到歌单' }
+    .bindSheet(this.showSheet, this.SheetContent(), {
+      height: this.sheetMode === 3 ? 300 : this.sheetMode === 1 ? 340 : 420,
+      backgroundColor: this.theme.bg,
+      onDisappear: () => {
+        this.showSheet = false;
+        this.sheetMode = 0;
+      }
     })
   }
 }

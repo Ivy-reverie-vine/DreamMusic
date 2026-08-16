@@ -43,7 +43,7 @@
 
 | API | 用途 | 官方出处 |
 | :--- | :--- | :--- |
-| `http.createHttp()` / `request` / `destroy` | `GET /health` 探活(3s 超时;HTTPS 域名为主、HTTP LAN 备选) | [@ohos.net.http (数据请求)](https://developer.huawei.com/consumer/cn/doc/harmonyos-references-v5/js-apis-http-V5) |
+| `http.createHttp()` / `request` / `on('dataReceive')` / `on('dataReceiveProgress')` / `destroy` | 阶段 v2 业务请求与 CDN 下载(ADR-0003:请求驱动,不再 /health 探活);JSON 15s 超时、下载 120s 超时 | [@ohos.net.http (数据请求)](https://developer.huawei.com/consumer/cn/doc/harmonyos-references-v5/js-apis-http-V5) |
 
 > 明文 HTTP: 由系统配置决定是否禁止(用户已核实),LAN 备选 Profile 先支持 http://,真机若不通再按官方配置调整。
 

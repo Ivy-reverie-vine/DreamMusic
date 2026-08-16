@@ -98,7 +98,8 @@ export class ImportService {
           durationMs: meta.durationMs,
           coverPath: coverRelative,
           importedAt: Date.now(),
-          missing: false
+          missing: false,
+          neteaseId: 0
         };
         await store.insertTrack(track);
         // 专辑/艺术家聚合(条件统一由 store.indexTrackMeta 负责,code-review 修复)
@@ -165,7 +166,8 @@ export class ImportService {
         durationMs: typeof md.duration === 'number' ? md.duration : 0,
         coverPath: '',
         importedAt: 0,
-        missing: false
+        missing: false,
+        neteaseId: 0
       };
       extractor.release().catch(() => {
       });

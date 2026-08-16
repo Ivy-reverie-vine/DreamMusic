@@ -22,19 +22,23 @@ export default class EntryAbility extends UIAbility {
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
     // 主题:默认深色(issue-12 定稿)
     ThemeService.getInstance().applyMode(ThemeMode.DARK, true);
-    // 内置背景图预设恢复(issue-14 定稿:固定图,持久化索引;主题色异步取色)
+    // 背景恢复(阶段 v2):优先自定义背景(沙箱固定文件,持久化相对路径),无则回退内置预设索引
     const theme = ThemeService.getInstance();
-    const bgIndex = ThemeService.loadBgIndex(this.context);
-    theme.applyPresetBg(bgIndex);
-    if (bgIndex >= 0 && bgIndex < BG_PRESETS.length) {
-      BackgroundAdapter.extractPresetColors(this.context, BG_PRESETS[bgIndex].res)
-        .then((colors) => {
-          theme.applyExtracted(colors.primary, colors.secondary);
-        })
-        .catch(() => {
-          // 取色失败保持当前色
-        });
-    }
+    BackgroundAdapter.restoreIfPresent(this.context, theme).then((restored: boolean) => {
+      if (!restored) {
+        const bgIndex = ThemeService.loadBgIndex(this.context);
+        theme.applyPresetBg(bgIndex);
+        if (bgIndex >= 0 && bgIndex < BG_PRESETS.length) {
+          BackgroundAdapter.extractPresetColors(this.context, BG_PRESETS[bgIndex].res)
+            .then((colors) => {
+              theme.applyExtracted(colors.primary, colors.secondary);
+            })
+            .catch(() => {
+              // 取色失败保持当前色
+            });
+        }
+      }
+    });
     // 后台播控会话初始化(issue-07,真机验证)
     BackgroundPlayback.getInstance().init(this.context);
     // 音乐库存储初始化 + 启动增量扫描(issue-02/04,真机验证)
@@ -43,10 +47,8 @@ export default class EntryAbility extends UIAbility {
     }).catch((err: Error) => {
       hilog.error(DOMAIN, 'LibraryStore', 'init/scan failed: %{public}s', err.message);
     });
-    // 启动健康检查(ADR-0002:启动时探活 + 每 15s 轮询,应用级生命周期)
-    networkViewModel.load().then(() => {
-      networkViewModel.startPolling();
-    });
+    // 连接状态加载(ADR-0003:请求驱动,不再启动探活与 15s 轮询)
+    networkViewModel.load();
   }
 
   onConfigurationUpdate(newConfig: Configuration): void {

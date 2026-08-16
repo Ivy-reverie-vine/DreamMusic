@@ -10,6 +10,9 @@ import {
 const DOMAIN = 0x0000;
 const TAG = 'LibraryStore';
 const DB_NAME = 'ivy.db';
+/** 默认服务器配置(8/16 用户提供):DreamMusic 中间层公网域名,应用自动拼接 /dreammusic/api/v1 */
+const DEFAULT_SERVER_ALIAS = 'DreamMusic 服务器';
+const DEFAULT_SERVER_URL = 'https://nd.ivyreverie.dpdns.org';
 
 /** 播放队列持久化记录(issue-06/13:含洗牌序,重启延续随机周期) */
 export interface PlayerStateRecord {
@@ -50,6 +53,7 @@ export class LibraryStore {
     this.store = await relationalStore.getRdbStore(context, config);
     await this.createSchema();
     await this.ensureSystemPlaylist();
+    await this.ensureDefaultProfile();
   }
 
   get isReady(): boolean {
@@ -71,10 +75,11 @@ export class LibraryStore {
          title TEXT NOT NULL DEFAULT '',
          artist TEXT NOT NULL DEFAULT '',
          album TEXT NOT NULL DEFAULT '',
-         duration_ms INTEGER NOT NULL DEFAULT 0,
-         cover_path TEXT NOT NULL DEFAULT '',
-         imported_at INTEGER NOT NULL DEFAULT 0,
-         missing INTEGER NOT NULL DEFAULT 0
+       duration_ms INTEGER NOT NULL DEFAULT 0,
+       cover_path TEXT NOT NULL DEFAULT '',
+       imported_at INTEGER NOT NULL DEFAULT 0,
+       missing INTEGER NOT NULL DEFAULT 0,
+       netease_id INTEGER NOT NULL DEFAULT 0
        )`,
       `CREATE TABLE IF NOT EXISTS albums (
          id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -127,6 +132,17 @@ export class LibraryStore {
       await this.db().executeSql(sql);
     }
     await this.migratePlayerState();
+    await this.migrateTracks();
+  }
+
+  /** 阶段 v2:旧库补 netease_id 列(列已存在时忽略,幂等) */
+  private async migrateTracks(): Promise<void> {
+    try {
+      await this.db().executeSql(
+        'ALTER TABLE tracks ADD COLUMN netease_id INTEGER NOT NULL DEFAULT 0');
+    } catch (err) {
+      // 列已存在(重复启动幂等)
+    }
   }
 
   /** 旧库补列(issue-13:洗牌序持久化;列已存在时忽略) */
@@ -161,6 +177,26 @@ export class LibraryStore {
     }
   }
 
+  /** 首次安装自动写入默认服务器配置并设为当前(已有配置不覆盖) */
+  private async ensureDefaultProfile(): Promise<void> {
+    const rs = await this.db().querySql('SELECT COUNT(*) AS c FROM server_profiles');
+    let count = 0;
+    if (rs.goToFirstRow()) {
+      count = rs.getLong(rs.getColumnIndex('c'));
+    }
+    rs.close();
+    if (count > 0) {
+      return;
+    }
+    const values: relationalStore.ValuesBucket = {
+      'alias': DEFAULT_SERVER_ALIAS,
+      'url': DEFAULT_SERVER_URL,
+      'is_current': 1,
+      'last_status': 0
+    };
+    await this.db().insert('server_profiles', values);
+  }
+
   // ---------- tracks ----------
 
   /** 按唯一键(沙箱相对路径)插入;重复路径被数据库约束拒绝 → 返回 -1 */
@@ -172,9 +208,32 @@ export class LibraryStore {
       'album': t.album,
       'duration_ms': t.durationMs,
       'cover_path': t.coverPath,
-      'imported_at': t.importedAt
+      'imported_at': t.importedAt,
+      'netease_id': t.neteaseId !== undefined ? t.neteaseId : 0
     };
     return await this.db().insert('tracks', values);
+  }
+
+  /** 按网易云歌曲 id 查音轨(阶段 v2 去重:已入库则直接播放,不重复下载) */
+  async getTrackByNeteaseId(neteaseId: number): Promise<Track | null> {
+    const pred = new relationalStore.RdbPredicates('tracks');
+    pred.equalTo('netease_id', neteaseId);
+    const rs = await this.db().query(pred);
+    if (rs.goToFirstRow()) {
+      const t = this.rowToTrack(rs);
+      rs.close();
+      return t;
+    }
+    rs.close();
+    return null;
+  }
+
+  /** 更新封面路径(阶段 v2.3:自愈补齐封面用) */
+  async updateTrackCover(trackId: number, coverPath: string): Promise<void> {
+    const values: relationalStore.ValuesBucket = { 'cover_path': coverPath };
+    const pred = new relationalStore.RdbPredicates('tracks');
+    pred.equalTo('id', trackId);
+    await this.db().update(values, pred);
   }
 
   async getTrackByPath(path: string): Promise<Track | null> {
@@ -208,6 +267,43 @@ export class LibraryStore {
     await this.db().delete(pred);
   }
 
+  /**
+   * 编辑音轨元数据(歌名/作者,阶段 v2.2);
+   * 作者变更时同步艺术家/专辑聚合计数,保证聚合视图与音轨一致。
+   */
+  async updateTrackMeta(trackId: number, title: string, artist: string): Promise<void> {
+    const pred = new relationalStore.RdbPredicates('tracks');
+    pred.equalTo('id', trackId);
+    const rs = await this.db().query(pred);
+    if (!rs.goToFirstRow()) {
+      rs.close();
+      return;
+    }
+    const old = this.rowToTrack(rs);
+    rs.close();
+    const values: relationalStore.ValuesBucket = {};
+    if (title !== old.title) {
+      values['title'] = title;
+    }
+    if (artist !== old.artist) {
+      values['artist'] = artist;
+    }
+    const keys = Object.keys(values);
+    if (keys.length > 0) {
+      await this.db().update(values, pred);
+    }
+    if (artist !== old.artist) {
+      if (old.artist !== '') {
+        await this.decrementArtistCount(old.artist);
+      }
+      if (artist !== '') {
+        await this.upsertArtist(artist);
+      }
+      // 专辑行的作者标签跟随最新编辑(专辑名不变)
+      await this.db().executeSql('UPDATE albums SET artist = ? WHERE name = ?', [artist, old.album]);
+    }
+  }
+
   private rowToTrack(rs: relationalStore.ResultSet): Track {
     return {
       id: rs.getLong(rs.getColumnIndex('id')),
@@ -218,7 +314,8 @@ export class LibraryStore {
       durationMs: rs.getLong(rs.getColumnIndex('duration_ms')),
       coverPath: rs.getString(rs.getColumnIndex('cover_path')),
       importedAt: rs.getLong(rs.getColumnIndex('imported_at')),
-      missing: rs.getLong(rs.getColumnIndex('missing')) === 1
+      missing: rs.getLong(rs.getColumnIndex('missing')) === 1,
+      neteaseId: rs.getLong(rs.getColumnIndex('netease_id'))
     };
   }
 

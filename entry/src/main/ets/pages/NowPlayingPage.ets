@@ -6,6 +6,7 @@ import { queueViewModel } from '../viewmodel/QueueViewModel';
 import { lyricsViewModel, LyricsViewModel } from '../viewmodel/LyricsViewModel';
 import { PlayerState } from '../model/Playback';
 import { Track } from '../model/Entities';
+import { LyricLine, findActiveLine } from '../service/lyrics/LrcParser';
 import { common } from '@kit.AbilityKit';
 import { accessibility } from '@kit.AccessibilityKit';
 import {
@@ -26,11 +27,16 @@ function fmt(ms: number): string {
  */
 @Component
 export struct NowPlayingPage {
-  @Prop theme: ThemeService;
+  @State theme: ThemeService = ThemeService.getInstance();
   @State vm: PlayerViewModel = playerViewModel;
   @State lrc: LyricsViewModel = lyricsViewModel;
   /** 黑胶翻开动画相位:false=合上(初始帧),true=展开 */
   @State flip: boolean = false;
+  /** 歌词滚动控制器 + 自动跟随(用户手动滑动时暂停跟随) */
+  private lrcScroller: Scroller = new Scroller();
+  @State userScrollingLyrics: boolean = false;
+  private followTimer: number = -1;
+  private followResetTimer: number = -1;
 
   aboutToAppear(): void {
     this.lrc.setContext(this.ctx());
@@ -41,6 +47,37 @@ export struct NowPlayingPage {
     // 切歌/进入页 → 黑胶翻开(温和版)
     if (this.vm.currentTrack !== null) {
       this.flipCover();
+    }
+    this.startLyricFollow();
+  }
+
+  aboutToDisappear(): void {
+    this.stopLyricFollow();
+  }
+
+  /** 当前高亮行:直接由播放进度实时计算(不依赖间接状态,保证逐句切换) */
+  private activeLineIndex(): number {
+    return findActiveLine(this.lrc.lines, this.vm.positionMs);
+  }
+
+  private startLyricFollow(): void {
+    this.stopLyricFollow();
+    this.followTimer = setInterval(() => {
+      if (!this.userScrollingLyrics && this.lrc.lines.length > 0) {
+        const idx = this.activeLineIndex();
+        this.lrcScroller.scrollToIndex(idx >= 0 ? idx : 0, true);
+      }
+    }, 800);
+  }
+
+  private stopLyricFollow(): void {
+    if (this.followTimer >= 0) {
+      clearInterval(this.followTimer);
+      this.followTimer = -1;
+    }
+    if (this.followResetTimer >= 0) {
+      clearTimeout(this.followResetTimer);
+      this.followResetTimer = -1;
     }
   }
 
@@ -161,31 +198,40 @@ export struct NowPlayingPage {
 
   @Builder
   LyricWindow() {
-    Column({ space: 6 }) {
-      if (this.lrc.lines.length > 0) {
-        // 当前行 + 前后各一行;无歌词时整个区域隐藏
-        Text(this.lrc.activeIndex > 0 ? this.lrc.lines[this.lrc.activeIndex - 1].text : '')
-          .fontSize(FONT_LABEL)
-          .fontColor(this.theme.muted)
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-        Text(this.lrc.activeIndex >= 0 ? this.lrc.lines[this.lrc.activeIndex].text : '')
-          .fontSize(17)
-          .fontWeight(FontWeight.Medium)
-          .fontColor(this.theme.primaryText)
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-        Text(this.lrc.activeIndex >= 0 && this.lrc.activeIndex + 1 < this.lrc.lines.length
-          ? this.lrc.lines[this.lrc.activeIndex + 1].text : '')
-          .fontSize(FONT_LABEL)
-          .fontColor(this.theme.muted)
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
+    // 可滑动歌词列表:当前行实时高亮(按播放进度计算),自动跟随滚动;手动滑动时暂停跟随
+    if (this.lrc.lines.length === 0) {
+      Column()
+        .width('100%')
+        .height(200)
+    } else {
+      List({ space: 4, scroller: this.lrcScroller }) {
+        ForEach(this.lrc.lines, (line: LyricLine, index: number) => {
+          ListItem() {
+            Text(line.text)
+              .fontSize(index === this.activeLineIndex() ? 17 : 14)
+              .fontWeight(index === this.activeLineIndex() ? FontWeight.Medium : FontWeight.Normal)
+              .fontColor(index === this.activeLineIndex() ? this.theme.primaryText : this.theme.muted)
+              .width('100%')
+              .textAlign(TextAlign.Center)
+              .padding({ top: 5, bottom: 5 })
+          }
+        }, (line: LyricLine) => String(line.timeMs) + '_' + line.text)
       }
+      .width('100%')
+      .height(200)
+      .scrollBar(BarState.Off)
+      .onTouch((e: TouchEvent) => {
+        if (e.type === TouchType.Down || e.type === TouchType.Move) {
+          this.userScrollingLyrics = true;
+          if (this.followResetTimer >= 0) {
+            clearTimeout(this.followResetTimer);
+          }
+          this.followResetTimer = setTimeout(() => {
+            this.userScrollingLyrics = false;
+          }, 2500);
+        }
+      })
     }
-    .width('100%')
-    .height(96)
-    .justifyContent(FlexAlign.Center)
   }
 
   build() {
@@ -257,22 +303,6 @@ export struct NowPlayingPage {
           }
           .width('88%')
 
-          // 音量
-          Row({ space: 8 }) {
-            SymbolGlyph(this.vm.volume <= 0.01 ? $r('sys.symbol.speaker_slash') : $r('sys.symbol.speaker_fill'))
-              .fontSize(16)
-              .fontColor([this.theme.muted])
-            Slider({ value: this.vm.volume, min: 0, max: 1, step: 0.01 })
-              .layoutWeight(1)
-              .trackThickness(5)
-              .selectedColor(this.theme.secondary)
-              .trackColor(this.theme.trackColor)
-              .onChange((value: number) => {
-                this.vm.setVolume(value);
-              })
-          }
-          .width('70%')
-
           Row({ space: 40 }) {
             SymbolGlyph($r('sys.symbol.backward_end_fill'))
               .fontSize(30)
@@ -281,7 +311,6 @@ export struct NowPlayingPage {
                 queueViewModel.playPrev();
               })
             BubblePauseButton({
-              theme: this.theme,
               isPlaying: this.vm.state === PlayerState.PLAYING,
               onToggle: (): void => {
                 this.vm.togglePause();
@@ -300,7 +329,7 @@ export struct NowPlayingPage {
           if (this.vm.errorText !== '') {
             Text(this.vm.errorText)
               .fontSize(FONT_LABEL)
-              .fontColor(this.theme.secondary)
+              .fontColor(this.theme.errorColor)
           }
         }
       }

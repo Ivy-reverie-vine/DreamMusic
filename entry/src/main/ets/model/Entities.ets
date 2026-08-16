@@ -15,6 +15,22 @@ export interface Track {
   importedAt: number;
   /** 扫描判定:文件已从沙箱消失(保留记录,不自动删) */
   missing: boolean;
+  /** 网易云歌曲 id(0 = 本地导入;>0 = 在线下载入库,用于去重与来源标记,阶段 v2) */
+  neteaseId: number;
+  /** 瞬态在线音轨的播放直链(仅流式即播阶段存在;下载入库后置空,阶段 v2.3) */
+  streamUrl?: string;
+}
+
+/** 在线搜索结果(api-enhanced /search 返回;非数据库实体,阶段 v2) */
+export interface OnlineSong {
+  /** 网易云歌曲 id(后续 /song/url/v1、/lyric 共用) */
+  id: number;
+  name: string;
+  artist: string;
+  album: string;
+  /** 网易 CDN 封面 URL(可能为空,UI 用占位渐变) */
+  coverUrl: string;
+  durationMs: number;
 }
 
 export interface Album {

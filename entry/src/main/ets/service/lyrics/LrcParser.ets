@@ -68,6 +68,54 @@ export function parseLrc(content: string): LyricLine[] {
   return out;
 }
 
+/**
+ * yrc(逐字歌词)→ 带时间轴的 LyricLine(阶段 v2.3):
+ * 行格式 `[startMs,durMs](charTime,charDur,0)字 (charTime,charDur,0)字...`,
+ * 取每行起始时间 + 拼接文字;供 /lyric/new 只返回 yrc 时兜底。
+ */
+export function parseYrc(yrc: string): LyricLine[] {
+  const out: LyricLine[] = [];
+  if (yrc.length === 0) {
+    return out;
+  }
+  const lines = yrc.split(/\r\n|\n|\r/);
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.length === 0) {
+      continue;
+    }
+    const m = /^\[(\d+),(\d+)\]/.exec(line);
+    if (m === null) {
+      continue;
+    }
+    const startMs = parseInt(m[1], 10);
+    let text = line.substring(m[0].length);
+    text = text.replace(/\(\d+,\d+,\d+\)/g, '');
+    text = text.replace(/\s+$/g, '');
+    if (text !== '') {
+      out.push({ timeMs: startMs, text: text });
+    }
+  }
+  out.sort((a: LyricLine, b: LyricLine) => a.timeMs - b.timeMs);
+  return out;
+}
+
+/** LyricLine → 标准 LRC 文本(写盘用,阶段 v2.3) */
+export function formatLrc(lines: LyricLine[]): string {
+  let out = '';
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    const m = Math.floor(l.timeMs / 60000);
+    const s = Math.floor((l.timeMs % 60000) / 1000);
+    const ms = l.timeMs % 1000;
+    const mm = m < 10 ? '0' + m : String(m);
+    const ss = s < 10 ? '0' + s : String(s);
+    const fff = ms < 10 ? '00' + ms : ms < 100 ? '0' + ms : String(ms);
+    out += '[' + mm + ':' + ss + '.' + fff + ']' + l.text + '\n';
+  }
+  return out;
+}
+
 /** 当前应高亮的行索引:最后一个 timeMs <= positionMs 的行;-1 表示尚未到第一句 */
 export function findActiveLine(lines: LyricLine[], positionMs: number): number {
   if (lines.length === 0) {
