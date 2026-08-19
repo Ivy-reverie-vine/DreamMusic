@@ -203,6 +203,19 @@ export class QueueEngine {
     this.buildShuffle();
   }
 
+  /**
+   * 用已入库音轨 ID 原位替换瞬态在线音轨 ID。
+   * 保持当前位置与其余播放顺序不变，下载完成切换本地来源时使用。
+   */
+  replaceTrackId(oldId: number, newId: number): boolean {
+    const index = this.tracks.indexOf(oldId);
+    if (index < 0 || newId === 0 || this.tracks.indexOf(newId) >= 0) {
+      return false;
+    }
+    this.tracks[index] = newId;
+    return true;
+  }
+
   toSnapshot(): QueueSnapshot {
     return {
       tracks: this.tracks.slice(),

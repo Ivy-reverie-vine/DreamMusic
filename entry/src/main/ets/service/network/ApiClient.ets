@@ -7,6 +7,7 @@ const DOMAIN = 0x0000;
 const TAG = 'ApiClient';
 const JSON_TIMEOUT_MS = 15000;
 const DOWNLOAD_TIMEOUT_MS = 120000;
+const EMPTY_HEADERS: Record<string, string> = {};
 
 /** dataReceiveProgress 回调载荷(API 10+,SDK d.ts 核实) */
 interface ReceiveProgressInfo {
@@ -52,6 +53,7 @@ export class ApiClient {
       const resp = await client.request(url, {
         method: http.RequestMethod.GET,
         header: ApiClient.toHeader(headers),
+        expectDataType: http.HttpDataType.STRING,
         connectTimeout: JSON_TIMEOUT_MS,
         readTimeout: JSON_TIMEOUT_MS
       });
@@ -77,6 +79,7 @@ export class ApiClient {
         method: http.RequestMethod.POST,
         header: ApiClient.toHeader(headers),
         extraData: JSON.stringify(body),
+        expectDataType: http.HttpDataType.STRING,
         connectTimeout: JSON_TIMEOUT_MS,
         readTimeout: JSON_TIMEOUT_MS
       });
@@ -93,13 +96,38 @@ export class ApiClient {
     }
   }
 
+  /** DELETE(下载任务清理等) */
+  static async deleteJson(baseUrl: string, path: string,
+    headers: Record<string, string>): Promise<ApiJsonResult> {
+    const client = http.createHttp();
+    try {
+      const resp = await client.request(normalizeBaseUrl(baseUrl) + path, {
+        method: http.RequestMethod.DELETE,
+        header: ApiClient.toHeader(headers),
+        expectDataType: http.HttpDataType.STRING,
+        connectTimeout: JSON_TIMEOUT_MS,
+        readTimeout: JSON_TIMEOUT_MS
+      });
+      return ApiClient.parseJsonResponse(resp);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        throw err;
+      }
+      const e = err as Error;
+      throw new ApiError('NETWORK', '网络请求失败:' + e.message);
+    } finally {
+      client.destroy();
+    }
+  }
+
   /**
    * 下载二进制到沙箱文件;onProgress 0-100(基于 dataReceiveProgress,API 10+)。
    * 8/16 修复:流式下载必须用 requestInStream(普通 request 不会触发 dataReceive,文件会写 0 字节),
    * 并对空文件报错,杜绝"入库了但文件是空的"。
    */
   static async download(url: string, destAbsPath: string,
-    onProgress: (pct: number) => void): Promise<void> {
+    onProgress: (pct: number) => void,
+    headers: Record<string, string> = EMPTY_HEADERS): Promise<void> {
     const client = http.createHttp();
     let fd: number = -1;
     let written: number = 0;
@@ -124,10 +152,23 @@ export class ApiClient {
       });
       const code = await client.requestInStream(url, {
         method: http.RequestMethod.GET,
+        header: ApiClient.toHeader(headers),
         connectTimeout: DOWNLOAD_TIMEOUT_MS,
         readTimeout: DOWNLOAD_TIMEOUT_MS
       });
       if (code < 200 || code >= 300) {
+        if (code === 401) {
+          throw new ApiError('UNAUTHORIZED', '会话或 API Key 已失效');
+        }
+        if (code === 403) {
+          throw new ApiError('FORBIDDEN', '没有下载权限');
+        }
+        if (code === 429) {
+          throw new ApiError('RATE_LIMIT', '请求过于频繁,请稍后再试');
+        }
+        if (code === 502) {
+          throw new ApiError('UPSTREAM_DOWN', '上游服务暂不可用');
+        }
         throw new ApiError('HTTP_' + code, '下载失败(' + code + ')');
       }
       if (written <= 0) {
@@ -175,6 +216,8 @@ export class ApiClient {
       } catch (err) {
         parsed = null;
       }
+    } else if (raw !== null && typeof raw === 'object' && !(raw instanceof ArrayBuffer)) {
+      parsed = raw as Envelope;
     }
     if (status >= 200 && status < 300) {
       if (parsed === null) {
@@ -198,6 +241,11 @@ export class ApiClient {
     }
     if (status === 404) {
       throw new ApiError('NOT_ALLOWED', msg);
+    }
+    // 梦点不足(下载需 1 梦点,DreamMusic 下载管理器)
+    if (status === 402) {
+      throw new ApiError('INSUFFICIENT_POINTS',
+        msg !== '' && msg !== '请求失败(402)' ? msg : '梦点不足,下载需要 1 梦点');
     }
     // 中间层限流(默认 300 次/分钟/IP,API-DreamMusic.md §5.3)
     if (status === 429) {

@@ -2,7 +2,7 @@
 
 - 日期: 2026-08-16
 - 状态: 已接受(grill-with-docs 访谈,用户拍板)
-- 关联: ADR-0002(已被本文取代)、CONTEXT.md、docs/research/api-enhanced.md
+- 关联: ADR-0002(已被本文取代)、CONTEXT.md、docs/PRD-v2.1-dreammusic-middleware.md
 
 ## 背景
 

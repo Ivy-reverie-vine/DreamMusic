@@ -6,6 +6,9 @@ import { OnlineSong } from '../../model/Entities';
 const SEARCH_LIMIT = 30;
 /** 音质:exhigh(320k)。8/16 接入 DreamMusic 后走真实账号绑定,与网页端默认一致(此前匿名 standard 决策作废) */
 const QUALITY_LEVEL = 'exhigh';
+const QUERY_CACHE_TTL_MS = 2 * 60 * 1000;
+const RETRY_BASE_MS = 350;
+const MAX_QUERY_RETRIES = 2;
 
 export interface SearchPage {
   songs: OnlineSong[];
@@ -72,6 +75,11 @@ interface LyricNewResponse extends UpstreamEnvelope {
   yrc?: LyricLrc;
 }
 
+interface CacheEntry<T> {
+  value: T;
+  expiresAt: number;
+}
+
 export interface LyricPayload {
   lrc: string;
   yrc: string;
@@ -92,23 +100,41 @@ function ensureUpstreamOk(wrapper: UpstreamEnvelope): void {
  * 范围保持 8/16 拍板:搜索 / 播放链接 / 歌词 / 匿名→账户会话(QR 绑定)。
  */
 export class NetEaseApi {
+  private static searchCache: Map<string, CacheEntry<SearchPage>> =
+    new Map<string, CacheEntry<SearchPage>>();
+  private static coverCache: Map<string, CacheEntry<string>> =
+    new Map<string, CacheEntry<string>>();
+  private static lyricCache: Map<string, CacheEntry<LyricPayload>> =
+    new Map<string, CacheEntry<LyricPayload>>();
+
   /** 单曲搜索(分页) */
   static async search(context: common.Context, keywords: string, offset: number): Promise<SearchPage> {
     const base = await DreamMusicAuth.base(context);
-    const headers = await NetEaseApi.keyHeaders(context);
+    const cacheKey = 'search|' + base + '|' + DreamMusicAuth.username(context) + '|' +
+      keywords + '|' + offset;
+    const cached = NetEaseApi.getCache(NetEaseApi.searchCache, cacheKey);
+    if (cached !== null) {
+      return cached;
+    }
     const params: Record<string, string> = {};
     params['keywords'] = keywords;
     params['type'] = '1';
     params['limit'] = String(SEARCH_LIMIT);
     params['offset'] = String(offset);
     params['randomCNIP'] = 'true';
-    const res: ApiJsonResult = await ApiClient.getJson(base, '/search', params, headers);
+    const res: ApiJsonResult = await NetEaseApi.withQueryRetry<ApiJsonResult>(
+      () => DreamMusicAuth.withApiKey(context, (headers: Record<string, string>) => {
+        return ApiClient.getJson(base, '/search', params, headers);
+      })
+    );
     const wrapper = res.body as SearchResponse;
     ensureUpstreamOk(wrapper);
     const result = wrapper.result;
     if (result === undefined || result === null) {
       const empty: OnlineSong[] = [];
-      return { songs: empty, hasMore: false };
+      const result: SearchPage = { songs: empty, hasMore: false };
+      NetEaseApi.putCache(NetEaseApi.searchCache, cacheKey, result);
+      return result;
     }
     const songs: OnlineSong[] = [];
     const raw = result.songs !== undefined ? result.songs : [];
@@ -143,47 +169,58 @@ export class NetEaseApi {
       };
       songs.push(song);
     }
-    return { songs: songs, hasMore: result.more === true };
+    const page: SearchPage = { songs: songs, hasMore: result.more === true };
+    NetEaseApi.putCache(NetEaseApi.searchCache, cacheKey, page);
+    return page;
   }
 
-  /** 播放直链(level=exhigh;空 URL = 无版权/需会员) */
+  /** 普通在线播放直链(level=exhigh;不执行解灰) */
   static async resolveUrl(context: common.Context, id: number): Promise<string> {
     const base = await DreamMusicAuth.base(context);
-    const headers = await NetEaseApi.keyHeaders(context);
     const params: Record<string, string> = {};
     params['id'] = String(id);
     params['level'] = QUALITY_LEVEL;
     params['randomCNIP'] = 'true';
-    const res: ApiJsonResult = await ApiClient.getJson(base, '/song/url/v1', params, headers);
+    const res: ApiJsonResult = await NetEaseApi.withQueryRetry<ApiJsonResult>(
+      () => DreamMusicAuth.withApiKey(context, (headers: Record<string, string>) => {
+        return ApiClient.getJson(base, '/song/url/v1', params, headers);
+      })
+    );
     const wrapper = res.body as SongUrlResponse;
     ensureUpstreamOk(wrapper);
-    const data = wrapper.data;
-    if (data === undefined || data === null || data.length === 0) {
-      return '';
-    }
-    const url = data[0].url !== undefined ? data[0].url : '';
-    return url === null ? '' : url;
+    return NetEaseApi.extractUrl(wrapper);
   }
 
   /** 歌曲详情封面兜底(白名单 /song/detail;搜索未带 picUrl 时用) */
   static async songDetailCover(context: common.Context, id: number): Promise<string> {
     const base = await DreamMusicAuth.base(context);
-    const headers = await NetEaseApi.keyHeaders(context);
+    const cacheKey = 'cover|' + base + '|' + DreamMusicAuth.username(context) + '|' + id;
+    const cached = NetEaseApi.getCache(NetEaseApi.coverCache, cacheKey);
+    if (cached !== null) {
+      return cached;
+    }
     const params: Record<string, string> = {};
     params['ids'] = String(id);
     params['randomCNIP'] = 'true';
-    const res: ApiJsonResult = await ApiClient.getJson(base, '/song/detail', params, headers);
+    const res: ApiJsonResult = await NetEaseApi.withQueryRetry<ApiJsonResult>(
+      () => DreamMusicAuth.withApiKey(context, (headers: Record<string, string>) => {
+        return ApiClient.getJson(base, '/song/detail', params, headers);
+      })
+    );
     const wrapper = res.body as SongDetailResponse;
     ensureUpstreamOk(wrapper);
     const songs = wrapper.songs;
     if (songs === undefined || songs === null || songs.length === 0) {
+      NetEaseApi.putCache(NetEaseApi.coverCache, cacheKey, '');
       return '';
     }
     const al = songs[0].al !== undefined ? songs[0].al
       : (songs[0].album !== undefined ? songs[0].album : undefined);
     if (al !== undefined && al.picUrl !== undefined && al.picUrl !== null && al.picUrl !== '') {
+      NetEaseApi.putCache(NetEaseApi.coverCache, cacheKey, al.picUrl);
       return al.picUrl;
     }
+    NetEaseApi.putCache(NetEaseApi.coverCache, cacheKey, '');
     return '';
   }
 
@@ -196,11 +233,19 @@ export class NetEaseApi {
   /** 新版歌词原文(lrc + yrc;阶段 v2.3:lrc 缺失时用 yrc 兜底) */
   static async lyricRaw(context: common.Context, id: number): Promise<LyricPayload> {
     const base = await DreamMusicAuth.base(context);
-    const headers = await NetEaseApi.keyHeaders(context);
+    const cacheKey = 'lyric|' + base + '|' + DreamMusicAuth.username(context) + '|' + id;
+    const cached = NetEaseApi.getCache(NetEaseApi.lyricCache, cacheKey);
+    if (cached !== null) {
+      return cached;
+    }
     const params: Record<string, string> = {};
     params['id'] = String(id);
     params['randomCNIP'] = 'true';
-    const res: ApiJsonResult = await ApiClient.getJson(base, '/lyric/new', params, headers);
+    const res: ApiJsonResult = await NetEaseApi.withQueryRetry<ApiJsonResult>(
+      () => DreamMusicAuth.withApiKey(context, (headers: Record<string, string>) => {
+        return ApiClient.getJson(base, '/lyric/new', params, headers);
+      })
+    );
     const wrapper = res.body as LyricNewResponse;
     ensureUpstreamOk(wrapper);
     let lrcText = '';
@@ -213,13 +258,63 @@ export class NetEaseApi {
       wrapper.yrc.lyric !== undefined && wrapper.yrc.lyric !== null) {
       yrcText = wrapper.yrc.lyric;
     }
-    return { lrc: lrcText, yrc: yrcText };
+    const payload: LyricPayload = { lrc: lrcText, yrc: yrcText };
+    NetEaseApi.putCache(NetEaseApi.lyricCache, cacheKey, payload);
+    return payload;
   }
 
-  /** 转发类接口统一鉴权头 */
-  private static async keyHeaders(context: common.Context): Promise<Record<string, string>> {
-    const out: Record<string, string> = {};
-    out['X-API-Key'] = await DreamMusicAuth.ensureApiKey(context);
-    return out;
+  private static extractUrl(wrapper: SongUrlResponse): string {
+    const data = wrapper.data;
+    if (data === undefined || data === null || data.length === 0) {
+      return '';
+    }
+    const url = data[0].url !== undefined ? data[0].url : '';
+    return url === null ? '' : url;
+  }
+
+  private static async withQueryRetry<T>(request: () => Promise<T>): Promise<T> {
+    let attempt = 0;
+    let delay = RETRY_BASE_MS;
+    while (true) {
+      try {
+        return await request();
+      } catch (err) {
+        const retryable = err instanceof ApiError &&
+          (err.code === 'RATE_LIMIT' || err.code === 'UPSTREAM_503' || err.code === 'HTTP_503');
+        if (!retryable || attempt >= MAX_QUERY_RETRIES) {
+          if (err instanceof Error) {
+            throw err;
+          }
+          throw new Error('查询失败');
+        }
+        await NetEaseApi.sleep(delay);
+        delay = delay * 2;
+        attempt++;
+      }
+    }
+  }
+
+  private static getCache<T>(cache: Map<string, CacheEntry<T>>, key: string): T | null {
+    const item = cache.get(key);
+    if (item === undefined) {
+      return null;
+    }
+    if (item.expiresAt <= Date.now()) {
+      cache.delete(key);
+      return null;
+    }
+    return item.value;
+  }
+
+  private static putCache<T>(cache: Map<string, CacheEntry<T>>, key: string, value: T): void {
+    cache.set(key, { value: value, expiresAt: Date.now() + QUERY_CACHE_TTL_MS });
+  }
+
+  private static sleep(ms: number): Promise<void> {
+    return new Promise<void>((resolve) => {
+      setTimeout(() => {
+        resolve();
+      }, ms);
+    });
   }
 }

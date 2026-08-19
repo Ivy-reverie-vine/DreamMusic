@@ -18,4 +18,4 @@
 
 - issue-04-library-views-scan
 - issue-09-playlists-favorites-history
-- issue-10-network-reserve-health
+- ADR-0003-request-driven-connectivity

@@ -82,6 +82,16 @@ export default function queueEngineTest() {
       expect(e.next()).assertEqual(-1);
     });
 
+    it('replaceTrackId_keepsCurrentSlot_andFollowingOrder', 0, () => {
+      const e = new QueueEngine();
+      e.setQueue([-101, 2, 3], 0);
+      e.replaceTrackId(-101, 101);
+      expect(e.current()).assertEqual(101);
+      expect(e.queueIds[0]).assertEqual(101);
+      expect(e.next()).assertEqual(2);
+      expect(e.next()).assertEqual(3);
+    });
+
     it('prev_sequential_clampsAtStart', 0, () => {
       const e = new QueueEngine();
       e.setQueue([1, 2, 3], 1);

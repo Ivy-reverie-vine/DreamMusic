@@ -1,5 +1,6 @@
 # PRD v2.1: 接入 DreamMusic 中间层(账户 + API Key + QR 绑定)
 
+- 状态: 在线歌曲采用普通直链即时播放，并后台下载入库；解灰部分由 `docs/adr/0005-audio-source-boundary.md` 明确禁止。
 - 阶段: 8/16 追加轮次(取代 PRD-v2 中"匿名游客登录"方案)
 - 依据: `D:/Blog/docs/API-DreamMusic.md`(中间层 API 契约)+ 服务端代码核验(D:\Blog\server)
 - 目标环境: HarmonyOS 6.1 / API 23 / ArkTS / 真机 phone

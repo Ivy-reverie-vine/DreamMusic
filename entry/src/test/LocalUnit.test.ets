@@ -6,6 +6,7 @@ import queueEngineTest from './QueueEngine.test';
 import lrcParserTest from './LrcParser.test';
 import healthStateMachineTest from './HealthStateMachine.test';
 import handwrittenLayoutTest from './HandwrittenLayout.test';
+import dateUtilTest from './DateUtil.test';
 
 export default function localUnitTest() {
   describe('localUnitTest', () => {
@@ -45,5 +46,6 @@ export default function localUnitTest() {
     lrcParserTest();
     healthStateMachineTest();
     handwrittenLayoutTest();
+    dateUtilTest();
   });
 }

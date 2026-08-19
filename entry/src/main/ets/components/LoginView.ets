@@ -1,6 +1,7 @@
 import { ThemeService } from '../service/theme/ThemeService';
 import { common } from '@kit.AbilityKit';
 import { DreamMusicAuth } from '../service/network/DreamMusicAuth';
+import { OnlineMusicService } from '../service/network/OnlineMusicService';
 import { QrBindView } from './QrBindView';
 import { BackgroundLayer } from './BackgroundLayer';
 import { HandwrittenLogo } from './HandwrittenLogo';
@@ -39,8 +40,9 @@ export struct LoginView {
       return;
     }
     this.busy = true;
-    this.statusText = this.mode === 'login' ? '登录中…' : '注册中…';
+      this.statusText = this.mode === 'login' ? '登录中…' : '注册中…';
     try {
+      OnlineMusicService.clearCache(this.ctx());
       if (this.mode === 'login') {
         await DreamMusicAuth.login(this.ctx(), this.username.trim(), this.password);
       } else {
@@ -48,6 +50,8 @@ export struct LoginView {
           this.inviteCode.trim());
       }
       if (DreamMusicAuth.isBound(this.ctx()) && !DreamMusicAuth.isBindInvalid(this.ctx())) {
+        OnlineMusicService.prefetch(this.ctx()).catch(() => {
+        });
         this.onLoggedIn();
       } else {
         this.needBind = true;

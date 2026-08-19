@@ -2,7 +2,7 @@
 
 - 日期: 2026-02-13
 - 状态: **已被 ADR-0003 取代**(2026-08-16,用户拍板:不补 /health,改为请求驱动连接判定)
-- 关联: docs/research/api-enhanced.md
+- 关联: ADR-0003-request-driven-connectivity.md
 
 ## 背景
 

@@ -1,6 +1,6 @@
-# DreamMusic 音乐下载代理 — 实现笔记
+# DreamMusic 普通在线播放代理 — 实现笔记
 
-> 记录 IvyReverieMusic 接入 DreamMusic 中间层后的在线音乐下载链路、关键决策与真机注意事项。
+> 记录 IvyReverieMusic 接入 DreamMusic 中间层后的普通在线播放链路、关键决策与真机注意事项。
 > 关联: `API-DreamMusic.md`(D:\Blog\docs)、`docs/adr/0003`、`docs/PRD-v2.1` / `PRD-v2.2`。
 
 ## 1. 链路与角色
@@ -11,30 +11,30 @@
   → 鉴权(X-API-Key / dm_session)
   → 白名单 → 注入绑定账号的网易云 cookie
   → api-enhanced(:3000) → 网易云
-音频文件: 中间层只返回播放直链(CDN URL),文件由应用直连 CDN 下载进沙箱
+音频: 中间层只返回普通播放直链(CDN URL),由 AVPlayer 直接播放
 ```
 
-中间层是"代理+鉴权+注入",**不转发音频字节**;下载阶段应用直连 CDN。
+中间层是"代理+鉴权+注入",**不转发音频字节**；客户端用返回的普通 CDN 直链即时播放，并在后台下载到自己的沙箱入库。
 
 ## 2. 下载前链路
 
 | 步骤 | 端点 | 说明 |
 | :--- | :--- | :--- |
 | 搜索 | `GET /search?keywords&type=1&limit&offset&randomCNIP=true` | 拿网易云歌曲 id / 名称 / 歌手 / 专辑 / 封面 / 时长 |
-| 播放链接 | `GET /song/url/v1?id&level=exhigh&randomCNIP=true` | 返回 CDN 直链;`url` 为空 = 无版权/需会员 |
-| 歌词 | `GET /lyric/new?id&randomCNIP=true` | 取 `lrc.lyric`,落盘同名 `.lrc`(失败静默) |
-| 封面 | 搜索结果 `album.picUrl` | 直连 CDN 下载,落盘 `covers/<id>.jpg`(失败静默) |
+| 普通在线播放 | `GET /song/url/v1?id&level=exhigh&randomCNIP=true` | 只取普通 CDN 直链;`url` 为空 = 无版权/需会员,客户端不自行解灰 |
+| 歌词 | `GET /lyric/new?id&randomCNIP=true` | 取 `lrc.lyric` 或 `yrc.lyric`,播放页显示并落盘为同名 `.lrc` |
+| 封面 | 搜索结果 `album.picUrl` | 播放页即时使用远程 URL；下载完成后落盘到 `covers/<songId>.jpg` |
 
 统一要求: 转发请求带 `X-API-Key` 头 + `randomCNIP=true`;不要自己传 `cookie`(中间层注入)。
 
-## 3. 下载入库(应用侧)
+## 3. 客户端播放边界
 
-1. 点播(阶段 v2.3): 先查本地(去重,文件损坏视为未下载)→ 无则取直链 → 瞬态音轨(`id=-neteaseId` + `streamUrl`)**流式即播**(AVPlayer `url` 网络源)→ 同时后台下载
-2. 去重: 按 `tracks.netease_id` 查库且文件非空,已存在直接本地播放,不重复下载
-3. 音频: `ApiClient.download` 用 `requestInStream`(流式下载专用,普通 request 不触发 dataReceive)直连 CDN,`dataReceive` 分块写文件,`dataReceiveProgress` 上报 0-100%;空文件报错不入库
-4. 文件命名: 音频 `music/<neteaseId>.<ext>`(扩展名取直链);封面 `covers/<neteaseId>.jpg`;歌词 `music/<neteaseId>.lrc`
-5. 入库: `LibraryStore.insertTrack` + `indexTrackMeta`(专辑/艺术家聚合),`netease_id` 列自动迁移;下载完即与本地音轨同域(队列/断点/收藏/歌单),瞬态流式条目重启不恢复
-6. 失败清理: 下载异常删除半成品文件,错误上屏;下载失败不影响正在进行的流式播放
+1. 点播直接取 `/song/url/v1` 的普通播放 URL，创建瞬态音轨(`id=-neteaseId` + `streamUrl`)交给 AVPlayer，同时启动后台下载。
+2. 下载完成后写入 `tracks`，并用正式数据库 ID 原位替换队列中的瞬态 ID；切歌和重启均从本地库解析。
+3. 播放页先使用远程封面和在线歌词；下载完成后切换到本地封面与同名 `.lrc`，切歌时用请求序号丢弃旧歌词响应。
+4. URL 为空、无版权或普通播放失败时，只提示播放失败；不执行客户端解灰。
+
+> 账户侧对齐(8/16): 设置页账户区新增 梦点余额 / 每日签到(+10,东八区幂等)/ 兑换码 / 平台公告(公开接口);`/auth/*` 现支持 X-API-Key,账户类调用不再依赖会话 Cookie。
 
 ## 4. 鉴权与绑定
 
@@ -59,10 +59,9 @@
 
 ## 6. 关键源码
 
-- `service/network/ApiClient.ets` — HTTP 网关(JSON + 二进制下载 + 错误映射)
+- `service/network/ApiClient.ets` — HTTP 网关(JSON + 错误映射)
 - `service/network/DreamMusicAuth.ets` — 账户会话/API Key/QR 绑定
-- `service/network/NetEaseApi.ets` — 搜索/播放链接/歌词
-- `service/network/OnlineDownloadService.ets` — 下载→入库→歌词/封面
+- `service/network/NetEaseApi.ets` — 搜索/普通播放链接/在线歌词
 - `viewmodel/NetworkViewModel.ets` — 请求驱动连接状态(ADR-0003)
 - `components/OnlineSearchView.ets` / `LoginView.ets` / `QrBindView.ets` — UI
 
@@ -71,6 +70,6 @@
 - 默认服务器配置已内置: `https://nd.ivyreverie.dpdns.org`(首次安装自动写入并设为当前;已有配置不覆盖)
 - 服务器 Profile 填**手机可达**的中间层地址(局域网 IP:3001 或公网域名),不是 localhost
 - `level=exhigh`(320k),依赖绑定账号的音质权限;无版权歌直链为空
-- CDN 直链有时效,下载后已落盘,不受影响;下载失败会清理半成品
+- CDN 播放直链有时效,仅在当前播放会话中使用;无版权歌直链为空
 - 二维码 base64 可能带 `data:image/png;base64,` 前缀,解码前需剥离
 - 登录/QR 相关请求勿高频(中间层限流 + 上游 2 分钟 URL 缓存)

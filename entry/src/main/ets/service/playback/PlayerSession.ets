@@ -53,7 +53,7 @@ export class PlayerSession {
     await avp.play();
   }
 
-  /** 网络直链流式播放(阶段 v2.3:点搜索即播,后台再下载落盘) */
+  /** 网络直链流式播放：只交给 AVPlayer，不落盘。 */
   async playUrl(url: string, callbacks: PlaybackCallbacks): Promise<void> {
     await this.release();
     this.cb = callbacks;

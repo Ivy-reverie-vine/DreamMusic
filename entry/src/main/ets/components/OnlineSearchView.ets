@@ -20,7 +20,7 @@ function fmt(ms: number): string {
 /**
  * 在线搜索子视图(阶段 v2,8/16 拍板):
  * 音乐库页头搜索图标进入;300ms 防抖搜索、滚动加载更多;
- * 点结果 = 直链流式即播 + 后台下载落盘入库(阶段 v2.3);下载进度行内展示。
+ * 点结果 = 直链流式即播 + 后台下载落盘入库;下载完成后原位替换队列条目。
  */
 @Component
 export struct OnlineSearchView {
@@ -99,7 +99,6 @@ export struct OnlineSearchView {
   }
 
   private async streamAndPlay(song: OnlineSong): Promise<void> {
-    // 已在本地 → 直接本地播放(去重复用)
     const local = await OnlineDownloadService.findLocal(this.ctx(), song.id);
     if (local !== null) {
       this.errorText = '';
@@ -121,6 +120,11 @@ export struct OnlineSearchView {
         this.busyId = -1;
         return;
       }
+      // 搜索结果偶尔不带专辑图；用详情接口补齐，避免播放页退化成无封面。
+      let coverUrl = song.coverUrl;
+      if (coverUrl === '') {
+        coverUrl = await NetEaseApi.songDetailCover(this.ctx(), song.id).catch(() => '');
+      }
       const transient: Track = {
         id: -song.id,
         path: 'music/' + song.id + '.mp3',
@@ -132,9 +136,10 @@ export struct OnlineSearchView {
         importedAt: Date.now(),
         missing: false,
         neteaseId: song.id,
-        streamUrl: url
+        streamUrl: url,
+        streamCoverUrl: coverUrl
       };
-      // 立即流式播放(直链,不落盘)
+      // 先在线播放，下载失败不打断当前播放。
       await queueViewModel.playFromList([transient], 0, this.ctx());
       if (playerViewModel.errorText !== '') {
         this.errorText = '播放失败:' + playerViewModel.errorText;
@@ -143,15 +148,13 @@ export struct OnlineSearchView {
       }
       networkViewModel.markOnline();
       this.progressText = '播放中 · 下载中 0%';
-      // 后台下载入库(失败不影响在线播放)
-      OnlineDownloadService.ensureLocal(this.ctx(), song, (pct: number) => {
+      OnlineDownloadService.ensureLocal(this.ctx(), song, (pct: number): void => {
         this.progressText = '播放中 · 下载中 ' + pct + '%';
       }).then((track: Track) => {
-        this.progressText = '已下载,可离线播放';
-        // 若正在播放这首的瞬态条目 → 原地换成本地音轨,封面/歌词立即生效
-        const cur = playerViewModel.currentTrack;
-        if (cur !== null && cur.neteaseId === song.id &&
-          cur.streamUrl !== undefined && cur.streamUrl !== '') {
+        this.progressText = '已下载，可离线播放';
+        const current = playerViewModel.currentTrack;
+        if (current !== null && current.neteaseId === song.id &&
+          current.streamUrl !== undefined && current.streamUrl !== '') {
           queueViewModel.swapCurrentWithLocal(track);
         }
         this.busyId = -1;
@@ -331,7 +334,7 @@ export struct OnlineSearchView {
         .width('100%')
       } else if (this.keyword.trim() === '') {
         this.Hint($r('sys.symbol.magnifyingglass'), '搜索在线音乐',
-          '搜索 api-enhanced 服务,点结果下载到本地并播放')
+          '搜索 DreamMusic 服务，点结果自动下载到音乐库并播放')
       } else if (this.results.length === 0) {
         this.Hint($r('sys.symbol.music_note_list'), '没有找到相关歌曲',
           '换个关键词试试')

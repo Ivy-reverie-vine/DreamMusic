@@ -129,7 +129,13 @@ export struct NowPlayingPage {
 
   private coverUri(): string {
     const t = this.vm.currentTrack;
-    if (t === null || t.coverPath === '') {
+    if (t === null) {
+      return '';
+    }
+    if (t.streamCoverUrl !== undefined && t.streamCoverUrl !== '') {
+      return t.streamCoverUrl;
+    }
+    if (t.coverPath === '') {
       return '';
     }
     return 'file://' + this.ctx().filesDir + '/' + t.coverPath;

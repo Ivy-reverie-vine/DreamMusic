@@ -6,6 +6,7 @@ import { LibraryStore } from '../service/library/LibraryStore';
 import { PlayMode } from '../service/playback/QueueEngine';
 import { PlayerState } from '../model/Playback';
 import { Track } from '../model/Entities';
+import { DreamMusicAuth } from '../service/network/DreamMusicAuth';
 
 /** 播放状态容器(全局单例,音乐库页与正在播放页共享;队列域经钩子接管切歌) */
 @Observed
@@ -30,6 +31,8 @@ export class PlayerViewModel {
   coverColorHandler: ((t: Track) => void) | null = null;
   private session: PlayerSession = new PlayerSession();
   private lastContext: common.Context | null = null;
+  private lastStatsReportedMs: number = 0;
+  private statsReporting: boolean = false;
 
   private syncBackground(force: boolean): void {
     const bp = BackgroundPlayback.getInstance();
@@ -47,6 +50,7 @@ export class PlayerViewModel {
     this.currentTrack = track;
     this.errorText = '';
     this.positionMs = startMs;
+    this.lastStatsReportedMs = startMs;
     this.durationMs = track.durationMs > 0 ? track.durationMs : 0;
     if (this.trackChangeHandler !== null) {
       this.trackChangeHandler(track);
@@ -94,6 +98,9 @@ export class PlayerViewModel {
         if (this.positionTickHandler !== null) {
           this.positionTickHandler(ms);
         }
+        if (this.state === PlayerState.PLAYING) {
+          this.reportOnlineStats(ms);
+        }
         this.syncBackground(false);
       },
       onTrackEnded: (): void => {
@@ -118,13 +125,41 @@ export class PlayerViewModel {
       }
       this.syncBackground(true);
       // 播放历史自动记录(issue-09,500 条滚动淘汰)
-      LibraryStore.getInstance().insertHistory(track.id).catch(() => {
-      });
+      // 普通在线播放是瞬态负 ID，不写入本地播放历史；本地音轨才进入历史。
+      if (track.id > 0) {
+        LibraryStore.getInstance().insertHistory(track.id).catch(() => {
+        });
+      }
     } catch (err) {
       const e = err as Error;
       this.errorText = e.message;
       this.state = PlayerState.ERROR;
     }
+  }
+
+  /** 仅上报在线歌曲;本地导入歌曲不上传播放行为。 */
+  private reportOnlineStats(positionMs: number): void {
+    const track = this.currentTrack;
+    const context = this.lastContext;
+    if (track === null || context === null || track.neteaseId <= 0 || this.statsReporting) {
+      return;
+    }
+    const elapsedMs = positionMs - this.lastStatsReportedMs;
+    if (elapsedMs < 30 * 1000) {
+      return;
+    }
+    const seconds = Math.min(120, Math.floor(elapsedMs / 1000));
+    this.statsReporting = true;
+    DreamMusicAuth.reportStats(context, seconds, track.neteaseId)
+      .then(() => {
+        this.lastStatsReportedMs += seconds * 1000;
+      })
+      .catch(() => {
+        // 统计失败不打断播放;下一个 30 秒窗口继续尝试。
+      })
+      .finally(() => {
+        this.statsReporting = false;
+      });
   }
 
   /** 启动恢复:只还原界面状态与进度,不打开文件;按播放时从断点续播 */

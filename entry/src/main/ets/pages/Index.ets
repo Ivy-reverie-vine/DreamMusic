@@ -1,7 +1,7 @@
 import { ThemeService } from '../service/theme/ThemeService';
 import { BackgroundAdapter } from '../service/theme/BackgroundAdapter';
 import { queueViewModel } from '../viewmodel/QueueViewModel';
-import { playerViewModel } from '../viewmodel/PlayerViewModel';
+import { playerViewModel, PlayerViewModel } from '../viewmodel/PlayerViewModel';
 import { lyricsViewModel } from '../viewmodel/LyricsViewModel';
 import { common } from '@kit.AbilityKit';
 import { accessibility } from '@kit.AccessibilityKit';
@@ -9,12 +9,15 @@ import { MusicLibraryPage } from './MusicLibraryPage';
 import { NowPlayingPage } from './NowPlayingPage';
 import { QueuePage } from './QueuePage';
 import { PlaylistsPage } from './PlaylistsPage';
-import { SettingsPage } from './SettingsPage';
+import { MyPage } from './MyPage';
 import { LoginView } from '../components/LoginView';
 import { QrBindView } from '../components/QrBindView';
 import { BackgroundLayer } from '../components/BackgroundLayer';
 import { DreamMusicAuth } from '../service/network/DreamMusicAuth';
 import { ApiError } from '../service/network/ApiClient';
+import { OnlineMusicService } from '../service/network/OnlineMusicService';
+import { MiniPlayerBar } from '../components/MiniPlayerBar';
+import { PlayerState } from '../model/Playback';
 
 const RIPPLE_DIAMETER = 64;
 
@@ -33,6 +36,7 @@ interface NavTab {
 struct Index {
   @State theme: ThemeService = ThemeService.getInstance();
   @State current: number = 0;
+  @State player: PlayerViewModel = playerViewModel;
   /** 登录门禁(阶段 v2.2):打开应用先弹登录页,可跳过;本地歌不登录可听,在线功能再提示登录 */
   @State booting: boolean = true;
   @State loggedIn: boolean = false;
@@ -53,7 +57,7 @@ struct Index {
     { label: '正在播放', icon: $r('sys.symbol.play_circle') },
     { label: '队列', icon: $r('sys.symbol.list_bullet') },
     { label: '歌单', icon: $r('sys.symbol.rectangle_stack') },
-    { label: '设置', icon: $r('sys.symbol.gearshape') }
+    { label: '我的', icon: $r('sys.symbol.person_crop_circle_fill') }
   ];
 
   private ctx(): common.UIAbilityContext {
@@ -75,6 +79,7 @@ struct Index {
   /** 登录门禁:无会话 → 可跳过登录页;有会话 → 校验 /auth/me,失效清本地并回登录页 */
   private async checkGate(): Promise<void> {
     const ctx = this.ctx();
+    await DreamMusicAuth.initialize(ctx);
     if (!DreamMusicAuth.isLoggedIn(ctx)) {
       this.booting = false;
       this.loggedIn = false;
@@ -92,11 +97,15 @@ struct Index {
       this.loggedIn = true;
       if (!user.bound || user.bindInvalid) {
         this.showBindAtStart = true;
+      } else {
+        OnlineMusicService.prefetch(ctx).catch(() => {
+        });
       }
     } catch (err) {
       if (err instanceof ApiError && err.code === 'UNAUTHORIZED') {
         // 会话失效 → 清本地回登录页
         await DreamMusicAuth.logout(ctx);
+        OnlineMusicService.clearCache(ctx);
         this.loggedIn = false;
         this.loginPromptVisible = true;
       } else {
@@ -187,7 +196,30 @@ struct Index {
     } else if (this.current === 3) {
       PlaylistsPage()
     } else {
-      SettingsPage()
+      MyPage()
+    }
+  }
+
+  @Builder
+  ResidentPlayerBar() {
+    if (this.current !== 1 && this.player.currentTrack !== null) {
+      Column() {
+        MiniPlayerBar({
+          track: this.player.currentTrack,
+          playing: this.player.state === PlayerState.PLAYING,
+          onOpen: (): void => {
+            this.current = 1;
+          },
+          onToggle: (): void => {
+            this.player.togglePause();
+          },
+          onNext: (): void => {
+            queueViewModel.playNext();
+          }
+        })
+      }
+      .width('100%')
+      .padding({ left: 12, right: 12 })
     }
   }
 
@@ -220,67 +252,47 @@ struct Index {
       })
     } else {
       Stack() {
-        Stack({ alignContent: Alignment.Bottom }) {
-      // 全局背景层(近黑底 + 背景图 + 蒙层,登录页同款;v2.2 抽取共用)
-      BackgroundLayer({ nowPlaying: this.current === 1 })
+        BackgroundLayer({ nowPlaying: this.current === 1 })
 
-      Column() {
-        this.PageContent()
-      }
-      .width('100%')
-      .height('100%')
-
-      // 触点光晕层(自绘沉浸光感:白色径向渐变圆,按着亮、松手扩散淡出;
-      // 不用 Circle,避免默认黑色填充盖住渐变——issue-12 修复)
-      if (this.rippleVisible) {
-        Column()
-          .width(RIPPLE_DIAMETER)
-          .height(RIPPLE_DIAMETER)
-          .borderRadius(RIPPLE_DIAMETER / 2)
-          .position({
-            x: this.rippleX - RIPPLE_DIAMETER / 2,
-            y: this.rippleY - RIPPLE_DIAMETER / 2
-          })
-          .scale({ x: this.rippleRelease ? 1.7 : 1.0, y: this.rippleRelease ? 1.7 : 1.0 })
-          .opacity(this.rippleRelease ? 0 : 1)
-          .radialGradient({
-            center: [0.5, 0.5],
-            radius: 0.5,
-            colors: this.theme.isDark
-              ? [['#80FFFFFF', 0.0], ['#00FFFFFF', 1.0]]
-              : [['#26000000', 0.0], ['#00000000', 1.0]]
-          })
-      }
-
-      // 玻璃底栏:半透明模糊,内容透过可见(DESIGN.md 玻璃底栏规则 + 沉浸光感)
-      Row() {
-        ForEach(this.tabs, (item: NavTab, index: number) => {
-          Column({ space: 2 }) {
-            SymbolGlyph(item.icon)
-              .fontSize(20)
-              .fontColor([index === this.current ? this.theme.primaryText : this.theme.muted])
-            Text(item.label)
-              .fontSize(11)
-              .fontColor(index === this.current ? this.theme.primaryText : this.theme.muted)
-              .fontWeight(index === this.current ? FontWeight.Medium : FontWeight.Normal)
+        Column() {
+          Column() {
+            this.PageContent()
           }
+          .width('100%')
           .layoutWeight(1)
-          .padding({ top: 10, bottom: 10 })
-          .borderRadius(20)
-          .backgroundColor(index === this.current ? ThemeService.alpha(this.theme.primary, 0.14) : this.theme.transparent)
-          .onClick(() => {
-            this.current = index;
+
+          this.ResidentPlayerBar()
+
+          // 导航栏必须位于播放条之后的独立布局层，避免播放条的点击区域覆盖导航按钮。
+          Row() {
+            ForEach(this.tabs, (item: NavTab, index: number) => {
+              Column({ space: 2 }) {
+                SymbolGlyph(item.icon)
+                  .fontSize(20)
+                  .fontColor([index === this.current ? this.theme.primaryText : this.theme.muted])
+                Text(item.label)
+                  .fontSize(11)
+                  .fontColor(index === this.current ? this.theme.primaryText : this.theme.muted)
+                  .fontWeight(index === this.current ? FontWeight.Medium : FontWeight.Normal)
+              }
+              .layoutWeight(1)
+              .padding({ top: 10, bottom: 10 })
+              .borderRadius(20)
+              .backgroundColor(index === this.current
+                ? ThemeService.alpha(this.theme.primary, 0.14) : this.theme.transparent)
+              .onClick(() => {
+                this.current = index;
+              })
+            })
+          }
+          .width('100%')
+          .padding({ left: 8, right: 8, bottom: 8 })
+          .backgroundColor(this.theme.barBg)
+          .backgroundBlurStyle(BlurStyle.Thin)
+          .borderRadius({ topLeft: 22, topRight: 22 })
+          .onTouch((e: TouchEvent) => {
+            this.handleNavTouch(e);
           })
-        })
-      }
-      .width('100%')
-      .padding({ left: 8, right: 8, bottom: 8 })
-      .backgroundColor(this.theme.barBg)
-      .backgroundBlurStyle(BlurStyle.Thin)
-      .borderRadius({ topLeft: 22, topRight: 22 })
-      .onTouch((e: TouchEvent) => {
-        this.handleNavTouch(e);
-      })
         }
         .width('100%')
         .height('100%')
@@ -291,6 +303,27 @@ struct Index {
             this.showBindAtStart = false;
           }
         })
+
+        if (this.rippleVisible) {
+          Column()
+            .width(RIPPLE_DIAMETER)
+            .height(RIPPLE_DIAMETER)
+            .borderRadius(RIPPLE_DIAMETER / 2)
+            .position({
+              x: this.rippleX - RIPPLE_DIAMETER / 2,
+              y: this.rippleY - RIPPLE_DIAMETER / 2
+            })
+            .scale({ x: this.rippleRelease ? 1.7 : 1.0, y: this.rippleRelease ? 1.7 : 1.0 })
+            .opacity(this.rippleRelease ? 0 : 1)
+            .radialGradient({
+              center: [0.5, 0.5],
+              radius: 0.5,
+              colors: this.theme.isDark
+                ? [['#80FFFFFF', 0.0], ['#00FFFFFF', 1.0]]
+                : [['#26000000', 0.0], ['#00000000', 1.0]]
+            })
+            .zIndex(20)
+        }
 
         // 在线功能触发的登录盖层(本地功能不受影响)
         if (this.showLoginOverlay) {

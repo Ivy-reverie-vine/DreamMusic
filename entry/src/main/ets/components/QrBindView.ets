@@ -1,6 +1,7 @@
 import { ThemeService } from '../service/theme/ThemeService';
 import { common } from '@kit.AbilityKit';
 import { DreamMusicAuth } from '../service/network/DreamMusicAuth';
+import { OnlineMusicService } from '../service/network/OnlineMusicService';
 import { FONT_LABEL, RADIUS_CAPSULE } from '../common/DesignTokens';
 
 /**
@@ -63,6 +64,8 @@ export struct QrBindView {
       const code = await DreamMusicAuth.qrCheck(this.ctx(), this.unikey);
       if (code === 803) {
         this.qrStatus = '绑定成功!';
+        OnlineMusicService.prefetch(this.ctx()).catch(() => {
+        });
         this.onBound();
         return;
       }

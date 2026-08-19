@@ -55,7 +55,8 @@ export class LibraryScanService {
 
     let addedCount = 0;
     for (const rel of diff.added) {
-      const abs = musicDir + '/' + rel;
+      // rel 已归一化为相对 filesDir 的 music/xxx；不要再拼一次 music/。
+      const abs = context.filesDir + '/' + rel;
       try {
         const meta = await ImportService.readMetadata(abs);
         meta.path = rel;

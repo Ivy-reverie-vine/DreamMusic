@@ -209,19 +209,14 @@ export class QueueViewModel {
   }
 
   /**
-   * 瞬态流式条目下载完成 → 原地换成本地音轨(阶段 v2.3):
-   * 队列中把当前条目 id 换成正式音轨,并同步播放器当前曲(封面/歌词立即生效,不中断播放)。
+   * 下载完成后把当前瞬态在线音轨替换为已入库的正式音轨。
+   * 播放会话继续使用已打开的流地址；下一次切歌、重启和音乐库操作均解析本地记录。
    */
   swapCurrentWithLocal(track: Track): void {
-    const ids = this.engine.queueIds;
-    const idx = ids.indexOf(this.currentId);
-    if (idx < 0) {
+    const oldId = this.engine.current();
+    if (oldId >= 0 || !this.engine.replaceTrackId(oldId, track.id)) {
       return;
     }
-    const newIds = ids.slice();
-    newIds[idx] = track.id;
-    this.engine.setQueue(newIds, idx, this.mode);
-    // 保证新 id 可被 trackById 解析
     let cached = false;
     for (let i = 0; i < this.trackCache.length; i++) {
       if (this.trackCache[i].id === track.id) {
@@ -233,7 +228,6 @@ export class QueueViewModel {
       this.trackCache.push(track);
     }
     this.syncDisplay();
-    // 播放器当前曲元数据同步(播放会话不重启)
     playerViewModel.currentTrack = track;
     if (playerViewModel.trackChangeHandler !== null) {
       playerViewModel.trackChangeHandler(track);
