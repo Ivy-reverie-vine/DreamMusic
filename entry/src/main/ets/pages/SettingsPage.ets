@@ -9,6 +9,18 @@ import { common, ConfigurationConstant } from '@kit.AbilityKit';
 import { OutlineButton } from '../components/OutlineButton';
 import { QrBindView } from '../components/QrBindView';
 import { RADIUS_CARD, RADIUS_CAPSULE, FONT_LABEL, FONT_TITLE } from '../common/DesignTokens';
+import { PlayerViewModel, playerViewModel } from '../viewmodel/PlayerViewModel';
+
+interface SleepTimerOption {
+  label: string;
+  durationMs: number;
+}
+
+const SLEEP_TIMER_OPTIONS: SleepTimerOption[] = [
+  { label: '30 分钟', durationMs: 30 * 60 * 1000 },
+  { label: '60 分钟', durationMs: 60 * 60 * 1000 },
+  { label: '120 分钟', durationMs: 120 * 60 * 1000 }
+];
 
 interface ThemeModeOption {
   label: string;
@@ -29,6 +41,7 @@ const THEME_MODES: ThemeModeOption[] = [
 @Component
 export struct SettingsPage {
   @State theme: ThemeService = ThemeService.getInstance();
+  @State player: PlayerViewModel = playerViewModel;
   onAccountChanged: () => void = () => {
   };
   @State scanStatus: string = '';
@@ -45,14 +58,62 @@ export struct SettingsPage {
   @State password: string = '';
   @State inviteCode: string = 'dreammusic';
   @State busy: boolean = false;
+  @State sleepTimerRemainingMs: number = 0;
+  private sleepTimerTick: number = -1;
 
   aboutToAppear(): void {
     this.net.load();
     this.refreshAccountStatus();
+    this.refreshSleepTimer();
+    this.sleepTimerTick = setInterval(() => {
+      this.refreshSleepTimer();
+    }, 1000);
+  }
+
+  aboutToDisappear(): void {
+    if (this.sleepTimerTick >= 0) {
+      clearInterval(this.sleepTimerTick);
+      this.sleepTimerTick = -1;
+    }
   }
 
   private ctx(): common.UIAbilityContext {
     return this.getUIContext().getHostContext() as common.UIAbilityContext;
+  }
+
+  private refreshSleepTimer(): void {
+    this.player.checkSleepTimer();
+    this.sleepTimerRemainingMs = this.player.sleepTimerRemainingMs;
+  }
+
+  private formatSleepTimer(ms: number): string {
+    const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    const twoDigits = (value: number): string => value < 10 ? '0' + String(value) : String(value);
+    return twoDigits(hours) + ':' + twoDigits(minutes) + ':' + twoDigits(seconds);
+  }
+
+  private sleepTimerSubtitle(): string {
+    if (!this.player.sleepTimerActive || this.sleepTimerRemainingMs <= 0) {
+      return '关闭';
+    }
+    return '定时暂停 · ' + this.formatSleepTimer(this.sleepTimerRemainingMs);
+  }
+
+  private chooseSleepTimer(durationMs: number): void {
+    this.player.setSleepTimer(durationMs);
+    this.refreshSleepTimer();
+    this.showSheet = false;
+    this.sheetMode = 0;
+  }
+
+  private cancelSleepTimer(): void {
+    this.player.cancelSleepTimer();
+    this.refreshSleepTimer();
+    this.showSheet = false;
+    this.sheetMode = 0;
   }
 
   private async setThemeMode(mode: ThemeMode): Promise<void> {
@@ -222,7 +283,7 @@ export struct SettingsPage {
   }
 
   @Builder
-  SettingRow(icon: Resource, title: string, subtitle: string) {
+  SettingRow(icon: Resource, title: string, subtitle: string, onTap: () => void = () => {}) {
     Row({ space: 12 }) {
       SymbolGlyph(icon)
         .fontSize(18)
@@ -246,6 +307,7 @@ export struct SettingsPage {
     .padding(12)
     .borderRadius(RADIUS_CARD)
     .backgroundColor(this.theme.card)
+    .onClick(onTap)
   }
 
   @Builder
@@ -448,11 +510,65 @@ export struct SettingsPage {
   }
 
   @Builder
+  SleepTimerSheet() {
+    Column({ space: 10 }) {
+      Text('定时暂停')
+        .fontSize(15)
+        .fontWeight(FontWeight.Medium)
+        .fontColor(this.theme.ink)
+        .width('100%')
+      Text('到点暂停当前播放，不改变队列内容')
+        .fontSize(FONT_LABEL)
+        .fontColor(this.theme.muted)
+        .width('100%')
+      ForEach(SLEEP_TIMER_OPTIONS, (option: SleepTimerOption) => {
+        Row() {
+          Text(option.label)
+            .fontSize(14)
+            .fontColor(this.theme.ink)
+            .layoutWeight(1)
+          Text('设置')
+            .fontSize(FONT_LABEL)
+            .fontColor(this.theme.primaryText)
+        }
+        .width('100%')
+        .padding(12)
+        .borderRadius(RADIUS_CARD)
+        .backgroundColor(this.theme.card)
+        .onClick(() => {
+          this.chooseSleepTimer(option.durationMs);
+        })
+      })
+      Row() {
+        Text('关闭定时暂停')
+          .fontSize(14)
+          .fontColor(this.theme.primaryText)
+          .layoutWeight(1)
+        Text('关闭')
+          .fontSize(FONT_LABEL)
+          .fontColor(this.theme.muted)
+      }
+      .width('100%')
+      .padding(12)
+      .borderRadius(RADIUS_CARD)
+      .backgroundColor(this.theme.card)
+      .onClick(() => {
+        this.cancelSleepTimer();
+      })
+    }
+    .width('100%')
+    .padding(20)
+    .backgroundColor(this.theme.bg)
+  }
+
+  @Builder
   sheetContent() {
     if (this.sheetMode === 1) {
       this.AuthSheet()
     } else if (this.sheetMode === 2) {
       this.QrSheet()
+    } else if (this.sheetMode === 3) {
+      this.SleepTimerSheet()
     }
   }
 
@@ -533,6 +649,13 @@ export struct SettingsPage {
           .justifyContent(FlexAlign.End)
           .padding({ right: 12, bottom: 10 })
         }
+
+        this.SectionTitle('播放')
+        this.SettingRow($r('sys.symbol.clock_fill'), '定时暂停', this.sleepTimerSubtitle(), () => {
+          this.refreshSleepTimer();
+          this.sheetMode = 3;
+          this.showSheet = true;
+        })
 
         this.SectionTitle('账户')
         // 账户(DreamMusic 中间层:登录/注册 + QR 绑定 + 退出)
@@ -659,7 +782,7 @@ export struct SettingsPage {
     .height('100%')
     .scrollBar(BarState.Auto)
     .bindSheet(this.showSheet, this.sheetContent(), {
-      height: this.sheetMode === 1 ? 320 : 380,
+      height: this.sheetMode === 1 ? 320 : this.sheetMode === 3 ? 300 : 380,
       backgroundColor: this.theme.bg,
       onDisappear: () => {
         this.showSheet = false;

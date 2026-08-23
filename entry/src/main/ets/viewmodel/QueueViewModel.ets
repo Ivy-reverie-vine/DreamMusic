@@ -20,6 +20,9 @@ export class QueueViewModel {
   mode: PlayMode = PlayMode.SEQUENTIAL;
   private engine: QueueEngine = new QueueEngine();
   private context: common.Context | null = null;
+  private persistChain: Promise<void> = Promise.resolve();
+  private restoring: boolean = false;
+  private persistAfterRestore: boolean = false;
   /**
    * id → Track 映射缓存(issue-14 修复):
    * syncDisplay 需要把队列 id 解析为 Track;此前依赖旧 queueTracks 自映射,
@@ -36,6 +39,9 @@ export class QueueViewModel {
     playerViewModel.pausePositionHandler = (ms: number): void => {
       this.persist(ms);
     };
+    playerViewModel.sleepTimerChangedHandler = (): void => {
+      this.persist(playerViewModel.positionMs);
+    };
     // 播放中每 15s 落盘(issue-13:强杀应用也能断点续播)
     setInterval(() => {
       if (playerViewModel.state === PlayerState.PLAYING) {
@@ -46,6 +52,9 @@ export class QueueViewModel {
     const bp = BackgroundPlayback.getInstance();
     bp.onPlayCommand = (): void => {
       if (playerViewModel.state === PlayerState.PAUSED || playerViewModel.state === PlayerState.COMPLETED) {
+        if (playerViewModel.checkSleepTimer()) {
+          return;
+        }
         playerViewModel.togglePause();
       }
     };
@@ -55,9 +64,15 @@ export class QueueViewModel {
       }
     };
     bp.onNextCommand = (): void => {
+      if (playerViewModel.checkSleepTimer()) {
+        return;
+      }
       this.playNext();
     };
     bp.onPrevCommand = (): void => {
+      if (playerViewModel.checkSleepTimer()) {
+        return;
+      }
       this.playPrev();
     };
     bp.onSeekCommand = (ms: number): void => {
@@ -129,6 +144,9 @@ export class QueueViewModel {
   }
 
   handleTrackEnded(): void {
+    if (playerViewModel.checkSleepTimer()) {
+      return;
+    }
     const nextId = this.engine.next();
     if (nextId === -1) {
       // 顺序模式播完停住
@@ -140,6 +158,9 @@ export class QueueViewModel {
   }
 
   async playNext(): Promise<void> {
+    if (playerViewModel.checkSleepTimer()) {
+      return;
+    }
     const nextId = this.engine.next();
     if (nextId !== -1) {
       this.currentId = nextId;
@@ -148,6 +169,9 @@ export class QueueViewModel {
   }
 
   async playPrev(): Promise<void> {
+    if (playerViewModel.checkSleepTimer()) {
+      return;
+    }
     const prevId = this.engine.prev();
     if (prevId !== -1) {
       this.currentId = prevId;
@@ -245,9 +269,17 @@ export class QueueViewModel {
   }
 
   private persist(positionMs: number): void {
+    if (this.restoring) {
+      this.persistAfterRestore = true;
+      return;
+    }
     const store = LibraryStore.getInstance();
-    store.savePlayerState(this.engine.toSnapshot(), positionMs).catch(() => {
-    });
+    const snapshot = this.engine.toSnapshot();
+    const sleepTimer = playerViewModel.sleepTimerSnapshot;
+    this.persistChain = this.persistChain
+      .then(() => store.savePlayerState(snapshot, positionMs, sleepTimer))
+      .catch(() => {
+      });
   }
 
   /** 立即落盘(切后台/销毁时由 EntryAbility 调用,issue-13) */
@@ -283,48 +315,75 @@ export class QueueViewModel {
 
   /** 启动恢复:还原队列/当前曲/进度(暂停态,按播放续播);洗牌序随队列恢复 */
   async restore(context: common.Context): Promise<void> {
-    this.context = context;
-    const store = LibraryStore.getInstance();
-    const state = await store.loadPlayerState();
-    if (state === null || state.queue.length === 0) {
-      return;
-    }
-    const all = await store.listTracks();
-    const byId = new Map<number, Track>();
-    all.forEach((t: Track) => {
-      byId.set(t.id, t);
-    });
-    // 过滤已不存在的音轨 id,保持相对顺序
-    const validIds: number[] = [];
-    state.queue.forEach((id: number) => {
-      if (byId.has(id)) {
-        validIds.push(id);
+    this.restoring = true;
+    this.persistAfterRestore = false;
+    try {
+      this.context = context;
+      const store = LibraryStore.getInstance();
+      await store.init(context);
+      const state = await store.loadPlayerState();
+      if (state === null) {
+        return;
       }
-    });
-    if (validIds.length === 0) {
-      return;
-    }
-    // 恢复 current:按原 current id 定位(找不到则回到队首)
-    const originalCurrentId = state.currentIndex >= 0 && state.currentIndex < state.queue.length
-      ? state.queue[state.currentIndex] : -1;
-    let currentIdx = validIds.indexOf(originalCurrentId);
-    if (currentIdx < 0) {
-      currentIdx = 0;
-    }
-    const snap: QueueSnapshot = {
-      tracks: validIds,
-      currentIndex: currentIdx,
-      mode: state.mode as PlayMode,
-      shuffleOrder: state.shuffleOrder,
-      shufflePos: state.shufflePos,
-      shuffleSteps: state.shuffleSteps
-    };
-    this.engine.fromSnapshot(snap);
-    this.trackCache = all;
-    this.syncDisplay();
-    const t = this.trackById(this.engine.current());
-    if (t !== null) {
-      playerViewModel.restorePaused(t, state.positionMs, context);
+      const timerExpired = playerViewModel.restoreSleepTimer({
+        active: state.sleepTimerActive,
+        deadlineMs: state.sleepTimerDeadlineMs
+      });
+      if (state.queue.length === 0) {
+        if (timerExpired) {
+          this.persist(state.positionMs);
+        }
+        return;
+      }
+      const all = await store.listTracks();
+      const byId = new Map<number, Track>();
+      all.forEach((t: Track) => {
+        byId.set(t.id, t);
+      });
+      // 过滤已不存在的音轨 id,保持相对顺序
+      const validIds: number[] = [];
+      state.queue.forEach((id: number) => {
+        if (byId.has(id)) {
+          validIds.push(id);
+        }
+      });
+      if (validIds.length === 0) {
+        if (timerExpired) {
+          this.persist(state.positionMs);
+        }
+        return;
+      }
+      // 恢复 current:按原 current id 定位(找不到则回到队首)
+      const originalCurrentId = state.currentIndex >= 0 && state.currentIndex < state.queue.length
+        ? state.queue[state.currentIndex] : -1;
+      let currentIdx = validIds.indexOf(originalCurrentId);
+      if (currentIdx < 0) {
+        currentIdx = 0;
+      }
+      const snap: QueueSnapshot = {
+        tracks: validIds,
+        currentIndex: currentIdx,
+        mode: state.mode as PlayMode,
+        shuffleOrder: state.shuffleOrder,
+        shufflePos: state.shufflePos,
+        shuffleSteps: state.shuffleSteps
+      };
+      this.engine.fromSnapshot(snap);
+      this.trackCache = all;
+      this.syncDisplay();
+      const t = this.trackById(this.engine.current());
+      if (t !== null) {
+        playerViewModel.restorePaused(t, state.positionMs, context);
+      }
+      if (timerExpired) {
+        this.persist(state.positionMs);
+      }
+    } finally {
+      this.restoring = false;
+      if (this.persistAfterRestore) {
+        this.persistAfterRestore = false;
+        this.persist(playerViewModel.positionMs);
+      }
     }
   }
 }

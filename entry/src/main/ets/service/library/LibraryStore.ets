@@ -2,6 +2,7 @@ import { relationalStore } from '@kit.ArkData';
 import { common } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { QueueSnapshot } from '../playback/QueueEngine';
+import { SleepTimerSnapshot } from '../playback/SleepTimer';
 import {
   Track, Album, Artist, Playlist, PlayHistoryEntry, ServerProfile,
   LocalPlaybackStats, PLAY_HISTORY_LIMIT, FAVORITES_PLAYLIST_NAME
@@ -23,6 +24,8 @@ export interface PlayerStateRecord {
   shuffleOrder: number[];
   shufflePos: number;
   shuffleSteps: number;
+  sleepTimerActive: boolean;
+  sleepTimerDeadlineMs: number;
 }
 
 /**
@@ -33,6 +36,7 @@ export interface PlayerStateRecord {
 export class LibraryStore {
   private static instance: LibraryStore | null = null;
   private store: relationalStore.RdbStore | null = null;
+  private initPromise: Promise<void> | null = null;
 
   static getInstance(): LibraryStore {
     if (LibraryStore.instance === null) {
@@ -43,17 +47,34 @@ export class LibraryStore {
 
   /** 应用启动时调用一次(幂等) */
   async init(context: common.Context): Promise<void> {
+    if (this.initPromise !== null) {
+      return this.initPromise;
+    }
     if (this.store !== null) {
       return;
     }
-    const config: relationalStore.StoreConfig = {
-      name: DB_NAME,
-      securityLevel: relationalStore.SecurityLevel.S1
-    };
-    this.store = await relationalStore.getRdbStore(context, config);
-    await this.createSchema();
-    await this.ensureSystemPlaylist();
-    await this.ensureDefaultProfile();
+    const pending = (async (): Promise<void> => {
+      const config: relationalStore.StoreConfig = {
+        name: DB_NAME,
+        securityLevel: relationalStore.SecurityLevel.S1
+      };
+      this.store = await relationalStore.getRdbStore(context, config);
+      await this.createSchema();
+      await this.ensureSystemPlaylist();
+      await this.ensureDefaultProfile();
+    })();
+    this.initPromise = pending;
+    try {
+      await pending;
+    } catch (err) {
+      this.store = null;
+      const e = err as Error;
+      throw new Error(e.message);
+    } finally {
+      if (this.initPromise === pending) {
+        this.initPromise = null;
+      }
+    }
   }
 
   get isReady(): boolean {
@@ -125,7 +146,9 @@ export class LibraryStore {
          queue TEXT NOT NULL DEFAULT '[]',
          current_index INTEGER NOT NULL DEFAULT -1,
          mode TEXT NOT NULL DEFAULT 'SEQUENTIAL',
-         position_ms INTEGER NOT NULL DEFAULT 0
+         position_ms INTEGER NOT NULL DEFAULT 0,
+         sleep_timer_active INTEGER NOT NULL DEFAULT 0,
+         sleep_timer_deadline_ms INTEGER NOT NULL DEFAULT 0
        )`
     ];
     for (const sql of ddl) {
@@ -153,6 +176,17 @@ export class LibraryStore {
       'shuffle_steps INTEGER NOT NULL DEFAULT 0'
     ];
     for (const c of cols) {
+      try {
+        await this.db().executeSql('ALTER TABLE player_state ADD COLUMN ' + c);
+      } catch (err) {
+        // 列已存在(重复启动幂等)
+      }
+    }
+    const timerCols: string[] = [
+      'sleep_timer_active INTEGER NOT NULL DEFAULT 0',
+      'sleep_timer_deadline_ms INTEGER NOT NULL DEFAULT 0'
+    ];
+    for (const c of timerCols) {
       try {
         await this.db().executeSql('ALTER TABLE player_state ADD COLUMN ' + c);
       } catch (err) {
@@ -662,7 +696,8 @@ export class LibraryStore {
 
   // ---------- 播放队列持久化(issue-06/13) ----------
 
-  async savePlayerState(snap: QueueSnapshot, positionMs: number): Promise<void> {
+  async savePlayerState(snap: QueueSnapshot, positionMs: number,
+    sleepTimer: SleepTimerSnapshot = { active: false, deadlineMs: 0 }): Promise<void> {
     const queueJson = JSON.stringify(snap.tracks);
     await this.db().executeSql('DELETE FROM player_state WHERE id = 1');
     const values: relationalStore.ValuesBucket = {
@@ -673,7 +708,9 @@ export class LibraryStore {
       'position_ms': positionMs,
       'shuffle_order': JSON.stringify(snap.shuffleOrder),
       'shuffle_pos': snap.shufflePos,
-      'shuffle_steps': snap.shuffleSteps
+      'shuffle_steps': snap.shuffleSteps,
+      'sleep_timer_active': sleepTimer.active ? 1 : 0,
+      'sleep_timer_deadline_ms': sleepTimer.deadlineMs
     };
     await this.db().insert('player_state', values);
   }
@@ -701,7 +738,9 @@ export class LibraryStore {
       positionMs: rs.getLong(rs.getColumnIndex('position_ms')),
       shuffleOrder: shuffleOrder,
       shufflePos: rs.getLong(rs.getColumnIndex('shuffle_pos')),
-      shuffleSteps: rs.getLong(rs.getColumnIndex('shuffle_steps'))
+      shuffleSteps: rs.getLong(rs.getColumnIndex('shuffle_steps')),
+      sleepTimerActive: rs.getLong(rs.getColumnIndex('sleep_timer_active')) === 1,
+      sleepTimerDeadlineMs: rs.getLong(rs.getColumnIndex('sleep_timer_deadline_ms'))
     };
     rs.close();
     return out;

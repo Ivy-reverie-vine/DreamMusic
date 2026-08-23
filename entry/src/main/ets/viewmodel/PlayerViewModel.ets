@@ -1,5 +1,6 @@
 import { common } from '@kit.AbilityKit';
 import { fileIo } from '@kit.CoreFileKit';
+import { hilog } from '@kit.PerformanceAnalysisKit';
 import { PlayerSession, PlaybackCallbacks } from '../service/playback/PlayerSession';
 import { BackgroundPlayback } from '../service/playback/BackgroundPlayback';
 import { LibraryStore } from '../service/library/LibraryStore';
@@ -7,6 +8,10 @@ import { PlayMode } from '../service/playback/QueueEngine';
 import { PlayerState } from '../model/Playback';
 import { Track } from '../model/Entities';
 import { DreamMusicAuth } from '../service/network/DreamMusicAuth';
+import { SleepTimer, SleepTimerSnapshot } from '../service/playback/SleepTimer';
+
+const DOMAIN = 0x0000;
+const TAG = 'PlayerViewModel';
 
 /** 播放状态容器(全局单例,音乐库页与正在播放页共享;队列域经钩子接管切歌) */
 @Observed
@@ -33,6 +38,94 @@ export class PlayerViewModel {
   private lastContext: common.Context | null = null;
   private lastStatsReportedMs: number = 0;
   private statsReporting: boolean = false;
+  private sleepTimer: SleepTimer = new SleepTimer();
+  private sleepTimerHandle: number = -1;
+  private sleepTimerPausePending: boolean = false;
+  sleepTimerChangedHandler: (() => void) | null = null;
+
+  get sleepTimerSnapshot(): SleepTimerSnapshot {
+    return this.sleepTimer.snapshot;
+  }
+
+  get sleepTimerActive(): boolean {
+    return this.sleepTimer.snapshot.active;
+  }
+
+  get sleepTimerRemainingMs(): number {
+    return this.sleepTimer.remainingMs();
+  }
+
+  setSleepTimer(durationMs: number): void {
+    this.sleepTimer.startAfter(durationMs);
+    this.scheduleSleepTimer();
+    this.notifySleepTimerChanged();
+  }
+
+  cancelSleepTimer(): void {
+    this.sleepTimer.cancel();
+    this.clearSleepTimerHandle();
+    this.notifySleepTimerChanged();
+  }
+
+  restoreSleepTimer(snapshot: SleepTimerSnapshot, nowMs: number = Date.now()): boolean {
+    const wasActive = snapshot.active;
+    this.sleepTimer.restore(snapshot, nowMs);
+    if (this.sleepTimerActive) {
+      this.scheduleSleepTimer();
+    } else {
+      this.clearSleepTimerHandle();
+    }
+    const expired = wasActive && !this.sleepTimerActive && snapshot.deadlineMs <= nowMs;
+    return expired;
+  }
+
+  checkSleepTimer(nowMs: number = Date.now()): boolean {
+    if (!this.sleepTimer.consumeIfDue(nowMs)) {
+      return false;
+    }
+    this.clearSleepTimerHandle();
+    this.notifySleepTimerChanged();
+    if (this.state === PlayerState.PLAYING) {
+      this.pause().catch((err: Error) => {
+        this.setSleepTimerPauseError(err);
+      });
+    } else if (this.state === PlayerState.PREPARING) {
+      this.sleepTimerPausePending = true;
+    } else {
+      this.syncBackground(true);
+    }
+    return true;
+  }
+
+  private setSleepTimerPauseError(err: Error): void {
+    hilog.error(DOMAIN, TAG, 'Sleep timer pause failed: %{public}s', err.message);
+    this.errorText = '定时暂停未能完成，请稍后重试';
+  }
+
+  private notifySleepTimerChanged(): void {
+    if (this.sleepTimerChangedHandler !== null) {
+      this.sleepTimerChangedHandler();
+    }
+  }
+
+  private clearSleepTimerHandle(): void {
+    if (this.sleepTimerHandle >= 0) {
+      clearTimeout(this.sleepTimerHandle);
+      this.sleepTimerHandle = -1;
+    }
+  }
+
+  private scheduleSleepTimer(): void {
+    this.clearSleepTimerHandle();
+    const remaining = this.sleepTimer.remainingMs();
+    if (remaining <= 0) {
+      return;
+    }
+    this.sleepTimerHandle = setTimeout(() => {
+      this.sleepTimerHandle = -1;
+      this.checkSleepTimer();
+    }, remaining);
+  }
 
   private syncBackground(force: boolean): void {
     const bp = BackgroundPlayback.getInstance();
@@ -46,6 +139,11 @@ export class PlayerViewModel {
   }
 
   async playTrack(track: Track, context: common.Context, startMs: number = 0): Promise<void> {
+    if (this.sleepTimer.consumeIfDue()) {
+      this.clearSleepTimerHandle();
+      this.notifySleepTimerChanged();
+    }
+    this.sleepTimerPausePending = false;
     this.lastContext = context;
     this.currentTrack = track;
     this.errorText = '';
@@ -92,6 +190,7 @@ export class PlayerViewModel {
       },
       onPositionUpdate: (ms: number): void => {
         this.positionMs = ms;
+        this.checkSleepTimer();
         if (this.durationMs <= 0) {
           this.durationMs = this.session.getDuration();
         }
@@ -124,6 +223,14 @@ export class PlayerViewModel {
         this.session.seekTo(startMs);
       }
       this.syncBackground(true);
+      if (this.sleepTimerPausePending) {
+        this.sleepTimerPausePending = false;
+        try {
+          await this.pause();
+        } catch (err) {
+          this.setSleepTimerPauseError(err as Error);
+        }
+      }
       // 播放历史自动记录(issue-09,500 条滚动淘汰)
       // 普通在线播放是瞬态负 ID，不写入本地播放历史；本地音轨才进入历史。
       if (track.id > 0) {
@@ -188,6 +295,9 @@ export class PlayerViewModel {
         this.pausePositionHandler(this.positionMs);
       }
     } else if (this.state === PlayerState.PAUSED || this.state === PlayerState.COMPLETED) {
+      if (this.checkSleepTimer()) {
+        return;
+      }
       if (!this.session.isLoaded && this.currentTrack !== null && this.lastContext !== null) {
         // 恢复场景:重新打开文件并从断点播放
         await this.playTrack(this.currentTrack, this.lastContext, this.positionMs);
@@ -195,6 +305,17 @@ export class PlayerViewModel {
         await this.session.togglePause();
       }
     }
+  }
+
+  async pause(): Promise<void> {
+    if (this.state !== PlayerState.PLAYING && !this.session.isPlaying) {
+      return;
+    }
+    await this.session.pause();
+    if (this.pausePositionHandler !== null) {
+      this.pausePositionHandler(this.positionMs);
+    }
+    this.syncBackground(true);
   }
 
   seekTo(ms: number): void {

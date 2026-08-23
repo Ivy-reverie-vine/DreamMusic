@@ -148,6 +148,13 @@ export class PlayerSession {
     }
   }
 
+  async pause(): Promise<void> {
+    const p = this.player;
+    if (p !== null && p.state === 'playing') {
+      await p.pause();
+    }
+  }
+
   seekTo(ms: number): void {
     const p = this.player;
     if (p !== null && p.state !== 'idle' && p.state !== 'released') {

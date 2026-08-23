@@ -43,12 +43,14 @@ export default class EntryAbility extends UIAbility {
     BackgroundPlayback.getInstance().init(this.context);
     // 音乐库存储初始化 + 启动增量扫描(issue-02/04,真机验证)
     LibraryStore.getInstance().init(this.context).then(() => {
-      return LibraryScanService.scan(this.context);
+      return Promise.all([
+        LibraryScanService.scan(this.context),
+        networkViewModel.load()
+      ]);
     }).catch((err: Error) => {
       hilog.error(DOMAIN, 'LibraryStore', 'init/scan failed: %{public}s', err.message);
     });
-    // 连接状态加载(ADR-0003:请求驱动,不再启动探活与 15s 轮询)
-    networkViewModel.load();
+    // 连接状态加载随库存初始化完成(ADR-0003:请求驱动,不再启动探活与 15s 轮询)
   }
 
   onConfigurationUpdate(newConfig: Configuration): void {
@@ -87,6 +89,7 @@ export default class EntryAbility extends UIAbility {
 
   onForeground(): void {
     // Ability has brought to foreground
+    playerViewModel.checkSleepTimer();
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onForeground');
   }
 }
