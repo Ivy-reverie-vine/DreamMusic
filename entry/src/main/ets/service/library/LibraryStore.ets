@@ -4,7 +4,7 @@ import { hilog } from '@kit.PerformanceAnalysisKit';
 import { QueueSnapshot } from '../playback/QueueEngine';
 import {
   Track, Album, Artist, Playlist, PlayHistoryEntry, ServerProfile,
-  PLAY_HISTORY_LIMIT, FAVORITES_PLAYLIST_NAME
+  LocalPlaybackStats, PLAY_HISTORY_LIMIT, FAVORITES_PLAYLIST_NAME
 } from '../../model/Entities';
 
 const DOMAIN = 0x0000;
@@ -583,6 +583,39 @@ export class LibraryStore {
 
   async clearHistory(): Promise<void> {
     await this.db().executeSql('DELETE FROM play_history');
+  }
+
+  /** 统计本机事件记录；播放历史有 500 条上限，故不命名为生命周期总播放量。 */
+  async localPlaybackStats(): Promise<LocalPlaybackStats> {
+    const history = await this.db().querySql(
+      'SELECT COUNT(*) AS c FROM play_history');
+    let playRecordCount = 0;
+    if (history.goToFirstRow()) {
+      playRecordCount = history.getLong(history.getColumnIndex('c'));
+    }
+    history.close();
+
+    const playlists = await this.db().querySql(
+      'SELECT COUNT(*) AS c FROM playlists WHERE system_reserved = 0');
+    let customPlaylistCount = 0;
+    if (playlists.goToFirstRow()) {
+      customPlaylistCount = playlists.getLong(playlists.getColumnIndex('c'));
+    }
+    playlists.close();
+
+    const favorites = await this.db().querySql(
+      'SELECT COUNT(*) AS c FROM favorites');
+    let favoriteCount = 0;
+    if (favorites.goToFirstRow()) {
+      favoriteCount = favorites.getLong(favorites.getColumnIndex('c'));
+    }
+    favorites.close();
+
+    return {
+      playRecordCount: playRecordCount,
+      customPlaylistCount: customPlaylistCount,
+      favoriteCount: favoriteCount
+    };
   }
 
   // ---------- server profiles(issue-10) ----------

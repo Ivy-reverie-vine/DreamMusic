@@ -7,6 +7,7 @@ import lrcParserTest from './LrcParser.test';
 import healthStateMachineTest from './HealthStateMachine.test';
 import handwrittenLayoutTest from './HandwrittenLayout.test';
 import dateUtilTest from './DateUtil.test';
+import navigationTest from './Navigation.test';
 
 export default function localUnitTest() {
   describe('localUnitTest', () => {
@@ -47,5 +48,6 @@ export default function localUnitTest() {
     healthStateMachineTest();
     handwrittenLayoutTest();
     dateUtilTest();
+    navigationTest();
   });
 }

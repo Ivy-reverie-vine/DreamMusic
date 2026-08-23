@@ -62,6 +62,20 @@ export interface PlayHistoryEntry {
   playedAt: number;
 }
 
+/** 仅来自本机 SQLite 的播放统计，不代表账户生命周期总量。 */
+export interface LocalPlaybackStats {
+  playRecordCount: number;
+  customPlaylistCount: number;
+  favoriteCount: number;
+}
+
+/** 来自 DreamMusic 账户的跨设备播放统计。 */
+export interface AccountPlaybackStats {
+  playSeconds: number;
+  playedSongCount: number;
+  syncedAt: number;
+}
+
 export interface ServerProfile {
   id: number;
   alias: string;

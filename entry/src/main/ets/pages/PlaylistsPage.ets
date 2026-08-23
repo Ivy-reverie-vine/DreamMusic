@@ -18,6 +18,8 @@ import { DreamMusicAuth } from '../service/network/DreamMusicAuth';
 @Component
 export struct PlaylistsPage {
   @State theme: ThemeService = ThemeService.getInstance();
+  onBack: () => void = () => {
+  };
   @State vm: PlaylistsViewModel = playlistsViewModel;
   @State newName: string = '';
   @State showRename: boolean = false;
@@ -68,6 +70,21 @@ export struct PlaylistsPage {
     this.onlineVm.selectedPlaylist = null;
     this.onlineVm.selectedSongs = [];
     this.onlineStatus = '';
+  }
+
+  /** 子页先收起在线/本地歌单详情，再把返回交给“我的”父页。 */
+  onBackPress(): boolean {
+    if (this.vm.selected !== null) {
+      this.vm.selected = null;
+      this.vm.selectedTracks = [];
+      return true;
+    }
+    if (this.onlineDetailMode !== 0) {
+      this.closeOnlineDetail();
+      return true;
+    }
+    this.onBack();
+    return true;
   }
 
   @Builder

@@ -38,6 +38,13 @@ export interface DreamUser {
   playedSongCount?: number;
 }
 
+/** /auth/profile 的账户级播放统计。 */
+export interface DreamMusicProfileStats {
+  playSeconds: number;
+  playedSongCount: number;
+  syncedAt: number;
+}
+
 export interface DreamSession {
   token: string;
   username: string;
@@ -61,6 +68,15 @@ export interface DreamPointLog {
 interface MeEnvelope {
   code?: number;
   data?: DreamUser;
+}
+
+interface ProfileData {
+  playSeconds?: number;
+  playedSongCount?: number;
+}
+
+interface ProfileEnvelope {
+  data?: ProfileData;
 }
 
 interface SessionsEnvelope {
@@ -365,6 +381,24 @@ export class DreamMusicAuth {
     }
     DreamMusicAuth.applyUser(context, user);
     return user;
+  }
+
+  /** 账户统计专用读取，不复用登录门禁的 /auth/me。 */
+  static async profile(context: common.Context): Promise<DreamMusicProfileStats> {
+    const base = await DreamMusicAuth.base(context);
+    return DreamMusicAuth.withApiKey<DreamMusicProfileStats>(context,
+      async (headers: Record<string, string>) => {
+        const res = await ApiClient.getJson(base, '/auth/profile', {}, headers);
+        const env = res.body as ProfileEnvelope;
+        const data = env.data;
+        return {
+          playSeconds: data !== undefined && data.playSeconds !== undefined
+            ? data.playSeconds : 0,
+          playedSongCount: data !== undefined && data.playedSongCount !== undefined
+            ? data.playedSongCount : 0,
+          syncedAt: Date.now()
+        };
+      });
   }
 
   /** 用户对象 → 本地绑定/封禁状态 */
