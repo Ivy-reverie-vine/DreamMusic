@@ -28,7 +28,7 @@ export struct MyPage {
   private confirmClearHistory(): void {
     this.getUIContext().showAlertDialog({
       title: '清空播放历史',
-      message: '确定清空全部播放历史吗？此操作不可恢复。',
+      message: '确定清空吗？此操作不可恢复。',
       primaryButton: {
         value: '清空',
         action: () => {
@@ -56,7 +56,7 @@ export struct MyPage {
             .fontColor(this.theme.ink)
           Text(DreamMusicAuth.isLoggedIn(this.ctx())
             ? '梦点 ' + DreamMusicAuth.dreamPoints(this.ctx())
-            : '登录后可使用在线音乐功能')
+            : '登录后可使用搜索功能')
             .fontSize(FONT_LABEL)
             .fontColor(this.theme.muted)
         }
@@ -74,8 +74,8 @@ export struct MyPage {
       }
       .width('100%')
       Text(DreamMusicAuth.isLoggedIn(this.ctx())
-        ? (DreamMusicAuth.checkedInToday(this.ctx()) ? '今日已签到' : '今日可签到 · 每日 +10 梦点')
-        : '本地歌曲无需登录即可播放')
+        ? (DreamMusicAuth.checkedInToday(this.ctx()) ? '已签' : '签到')
+        : '占位')
         .fontSize(FONT_LABEL)
         .fontColor(this.theme.muted)
         .width('100%')
@@ -162,8 +162,8 @@ export struct MyPage {
       if (this.vm.historyTracks.length === 0) {
         EmptyState({
           symbol: $r('sys.symbol.clock_fill'),
-          title: '还没有播放记录',
-          hint: '播放过的歌曲会显示在这里'
+          title: '空空如也',
+          hint: '播放历史'
         })
       } else {
         List({ space: 8 }) {
