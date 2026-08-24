@@ -47,7 +47,8 @@ export class LyricsViewModel {
       this.activeIndex = -1;
       return;
     }
-    if (t.streamUrl !== undefined && t.streamUrl !== '' && t.neteaseId > 0) {
+    if (t.streamUrl !== undefined && t.streamUrl !== '' &&
+      (t.neteaseId > 0 || (t.mediaRef !== undefined && t.mediaRef !== ''))) {
       this.lines = [];
       this.activeIndex = -1;
       this.reloadChecked = true;
@@ -67,7 +68,8 @@ export class LyricsViewModel {
       if (context === null) {
         return;
       }
-      const payload = await NetEaseApi.lyricRaw(context, t.neteaseId);
+      const mediaRef = t.mediaRef !== undefined ? t.mediaRef : '';
+      const payload = await NetEaseApi.lyricRaw(context, t.neteaseId, mediaRef);
       if (token !== this.changeToken) {
         return;
       }

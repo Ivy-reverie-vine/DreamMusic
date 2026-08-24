@@ -20,6 +20,7 @@ const KEY_CHECKIN_DATE = 'dm_checkin_date';
 const KEY_MESSAGE_TODAY = 'dm_message_today';
 const KEY_NETEASE_UID = 'dm_netease_uid';
 const PREFIX = '/dreammusic/api/v1';
+const PREFIX_V2 = '/dreammusic/api/v2';
 const QR_DIR = 'qr';
 const EMPTY_HEADERS: Record<string, string> = {};
 
@@ -277,6 +278,18 @@ export class DreamMusicAuth {
       const p = profiles[i];
       if (p.isCurrent) {
         return normalizeBaseUrl(p.url) + PREFIX;
+      }
+    }
+    throw new Error('未配置 DreamMusic 中间层服务器,请先在设置中添加');
+  }
+
+  /** 版本化音乐来源 API base;v1 保留给旧网易云接口和账户接口。 */
+  static async baseV2(context: common.Context): Promise<string> {
+    const profiles = await LibraryStore.getInstance().listProfiles();
+    for (let i = 0; i < profiles.length; i++) {
+      const p = profiles[i];
+      if (p.isCurrent) {
+        return normalizeBaseUrl(p.url) + PREFIX_V2;
       }
     }
     throw new Error('未配置 DreamMusic 中间层服务器,请先在设置中添加');

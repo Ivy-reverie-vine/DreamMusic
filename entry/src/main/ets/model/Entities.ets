@@ -21,11 +21,13 @@ export interface Track {
   streamUrl?: string;
   /** 瞬态在线音轨的远程封面 URL(不落盘,仅正在播放页显示) */
   streamCoverUrl?: string;
+  /** v2 版本化来源引用;不包含可直接播放的 URL */
+  mediaRef?: string;
 }
 
-/** 在线搜索结果(api-enhanced /search 返回;非数据库实体,阶段 v2) */
+/** 在线搜索结果(v2 mediaRef 或 v1 api-enhanced;非数据库实体) */
 export interface OnlineSong {
-  /** 网易云歌曲 id(后续 /song/url/v1、/lyric 共用) */
+  /** 网易云歌曲 id;非网易来源为 0 */
   id: number;
   name: string;
   artist: string;
@@ -33,6 +35,10 @@ export interface OnlineSong {
   /** 网易 CDN 封面 URL(可能为空,UI 用占位渐变) */
   coverUrl: string;
   durationMs: number;
+  /** v2 来源引用;普通在线播放和歌词请求使用它 */
+  mediaRef?: string;
+  source?: string;
+  sourceId?: string;
 }
 
 export interface Album {

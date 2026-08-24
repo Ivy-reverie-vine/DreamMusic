@@ -38,6 +38,7 @@ export struct OnlineSearchView {
   @State errorText: string = '';
   @State hasMore: boolean = false;
   @State busyId: number = -1;
+  @State busyRef: string = '';
   @State progressText: string = '';
   @State errorCode: string = '';
   private searchTimer: number = -1;
@@ -99,35 +100,40 @@ export struct OnlineSearchView {
   }
 
   private async streamAndPlay(song: OnlineSong): Promise<void> {
-    const local = await OnlineDownloadService.findLocal(this.ctx(), song.id);
-    if (local !== null) {
-      this.errorText = '';
-      this.errorCode = '';
-      await queueViewModel.playFromList([local], 0, this.ctx());
-      return;
+    if (song.id > 0) {
+      const local = await OnlineDownloadService.findLocal(this.ctx(), song.id);
+      if (local !== null) {
+        this.errorText = '';
+        this.errorCode = '';
+        await queueViewModel.playFromList([local], 0, this.ctx());
+        return;
+      }
     }
-    if (this.busyId !== -1) {
+    if (this.busyId !== -1 || this.busyRef !== '') {
       return;
     }
     this.busyId = song.id;
+    this.busyRef = song.mediaRef !== undefined ? song.mediaRef : '';
     this.progressText = '获取播放链接…';
     this.errorText = '';
     this.errorCode = '';
     try {
-      const url = await NetEaseApi.resolveUrl(this.ctx(), song.id);
+      const mediaRef = song.mediaRef !== undefined ? song.mediaRef : '';
+      const url = await NetEaseApi.resolveUrl(this.ctx(), song.id, mediaRef);
       if (url === '') {
         this.errorText = '无版权或需要会员,无法播放';
         this.busyId = -1;
+        this.busyRef = '';
         return;
       }
       // 搜索结果偶尔不带专辑图；用详情接口补齐，避免播放页退化成无封面。
       let coverUrl = song.coverUrl;
       if (coverUrl === '') {
-        coverUrl = await NetEaseApi.songDetailCover(this.ctx(), song.id).catch(() => '');
+        coverUrl = await NetEaseApi.songDetailCover(this.ctx(), song.id, mediaRef).catch(() => '');
       }
       const transient: Track = {
-        id: -song.id,
-        path: 'music/' + song.id + '.mp3',
+        id: song.id > 0 ? -song.id : -1,
+        path: 'music/online-stream.mp3',
         title: song.name,
         artist: song.artist,
         album: song.album,
@@ -135,18 +141,26 @@ export struct OnlineSearchView {
         coverPath: '',
         importedAt: Date.now(),
         missing: false,
-        neteaseId: song.id,
+        neteaseId: song.id > 0 ? song.id : 0,
         streamUrl: url,
-        streamCoverUrl: coverUrl
+        streamCoverUrl: coverUrl,
+        mediaRef: mediaRef
       };
       // 先在线播放，下载失败不打断当前播放。
       await queueViewModel.playFromList([transient], 0, this.ctx());
       if (playerViewModel.errorText !== '') {
         this.errorText = '播放失败:' + playerViewModel.errorText;
         this.busyId = -1;
+        this.busyRef = '';
         return;
       }
       networkViewModel.markOnline();
+      if (song.id <= 0) {
+        this.progressText = '在线播放中';
+        this.busyId = -1;
+        this.busyRef = '';
+        return;
+      }
       this.progressText = '播放中 · 下载中 0%';
       OnlineDownloadService.ensureLocal(this.ctx(), song, (pct: number): void => {
         this.progressText = '播放中 · 下载中 ' + pct + '%';
@@ -158,15 +172,18 @@ export struct OnlineSearchView {
           queueViewModel.swapCurrentWithLocal(track);
         }
         this.busyId = -1;
+        this.busyRef = '';
       }).catch((err: Error) => {
         this.progressText = '在线播放中 · 下载失败:' + err.message;
         this.busyId = -1;
+        this.busyRef = '';
       });
     } catch (err) {
       OnlineSearchView.reportConnectivity(err as Error);
       this.errorText = (err as Error).message;
       this.errorCode = err instanceof ApiError ? err.code : '';
       this.busyId = -1;
+      this.busyRef = '';
     }
   }
 
@@ -177,6 +194,13 @@ export struct OnlineSearchView {
     } else {
       networkViewModel.markOnline();
     }
+  }
+
+  private isBusy(song: OnlineSong): boolean {
+    if (song.mediaRef !== undefined && song.mediaRef !== '') {
+      return this.busyRef === song.mediaRef;
+    }
+    return this.busyId === song.id;
   }
 
   /** 需要用户去设置处理的错误(登录/绑定/绑定失效) */
@@ -228,7 +252,7 @@ export struct OnlineSearchView {
       .alignItems(HorizontalAlign.Start)
       .layoutWeight(1)
 
-      if (this.busyId === song.id) {
+      if (this.isBusy(song)) {
         Text(this.progressText)
           .fontSize(FONT_LABEL)
           .fontColor(this.theme.primaryText)

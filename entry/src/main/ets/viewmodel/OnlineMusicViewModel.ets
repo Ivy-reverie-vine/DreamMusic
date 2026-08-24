@@ -87,22 +87,25 @@ export class OnlineMusicViewModel {
 
   /** 在线资料页复用搜索页的即时播放 + 后台入库链路。 */
   async playSong(context: common.Context, song: OnlineSong): Promise<void> {
-    const local = await OnlineDownloadService.findLocal(context, song.id);
-    if (local !== null) {
-      await queueViewModel.playFromList([local], 0, context);
-      return;
+    if (song.id > 0) {
+      const local = await OnlineDownloadService.findLocal(context, song.id);
+      if (local !== null) {
+        await queueViewModel.playFromList([local], 0, context);
+        return;
+      }
     }
-    const url = await NetEaseApi.resolveUrl(context, song.id);
+    const mediaRef = song.mediaRef !== undefined ? song.mediaRef : '';
+    const url = await NetEaseApi.resolveUrl(context, song.id, mediaRef);
     if (url === '') {
       throw new Error('无版权或需要会员,无法播放');
     }
     let coverUrl = song.coverUrl;
     if (coverUrl === '') {
-      coverUrl = await NetEaseApi.songDetailCover(context, song.id).catch(() => '');
+      coverUrl = await NetEaseApi.songDetailCover(context, song.id, mediaRef).catch(() => '');
     }
     const transient: Track = {
-      id: -song.id,
-      path: 'music/' + song.id + '.mp3',
+      id: song.id > 0 ? -song.id : -1,
+      path: 'music/online-stream.mp3',
       title: song.name,
       artist: song.artist,
       album: song.album,
@@ -110,13 +113,17 @@ export class OnlineMusicViewModel {
       coverPath: '',
       importedAt: Date.now(),
       missing: false,
-      neteaseId: song.id,
+      neteaseId: song.id > 0 ? song.id : 0,
       streamUrl: url,
-      streamCoverUrl: coverUrl
+      streamCoverUrl: coverUrl,
+      mediaRef: mediaRef
     };
     await queueViewModel.playFromList([transient], 0, context);
     if (playerViewModel.errorText !== '') {
       throw new Error(playerViewModel.errorText);
+    }
+    if (song.id <= 0) {
+      return;
     }
     OnlineDownloadService.ensureLocal(context, song, () => {
     }).then((track: Track) => {
