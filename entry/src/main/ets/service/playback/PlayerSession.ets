@@ -94,7 +94,10 @@ export class PlayerSession {
         durationMs: Date.now() - initializedAt, ok: false,
         errorCategory: DIAGNOSTIC_CATEGORY_AVPLAYER_INITIALIZATION_FAILURE
       });
-      throw err;
+      if (err instanceof Error) {
+        throw err;
+      }
+      throw new Error('AVPlayer 初始化失败');
     }
 
     const preparedAt = Date.now();
@@ -111,7 +114,10 @@ export class PlayerSession {
         durationMs: Date.now() - preparedAt, ok: false,
         errorCategory: DIAGNOSTIC_CATEGORY_URL_EXPIRED_OR_UNREACHABLE
       });
-      throw err;
+      if (err instanceof Error) {
+        throw err;
+      }
+      throw new Error('音频地址准备失败');
     }
 
     const playingAt = Date.now();
@@ -128,7 +134,10 @@ export class PlayerSession {
         durationMs: Date.now() - playingAt, ok: false,
         errorCategory: DIAGNOSTIC_CATEGORY_PLAYBACK_FAILURE
       });
-      throw err;
+      if (err instanceof Error) {
+        throw err;
+      }
+      throw new Error('音频播放失败');
     }
   }
 

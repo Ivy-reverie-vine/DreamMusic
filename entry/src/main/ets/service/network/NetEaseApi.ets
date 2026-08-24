@@ -214,7 +214,7 @@ export class NetEaseApi {
       });
       return url;
     } catch (err) {
-      const e = err as Error;
+      const e = err instanceof Error ? err : new Error('音乐源解析失败');
       const category = err instanceof ApiError && err.code === 'TIMEOUT'
         ? DIAGNOSTIC_CATEGORY_SOURCE_TIMEOUT
         : classifyPlaybackError('source_resolution', e.message);
@@ -226,7 +226,7 @@ export class NetEaseApi {
         ok: false,
         errorCategory: category
       });
-      throw err;
+      throw e;
     }
   }
 
