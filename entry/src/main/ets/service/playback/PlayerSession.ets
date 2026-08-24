@@ -2,6 +2,12 @@ import { media } from '@kit.MediaKit';
 import { fileIo } from '@kit.CoreFileKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { PlayerState } from '../../model/Playback';
+import {
+  DIAGNOSTIC_CATEGORY_AVPLAYER_INITIALIZATION_FAILURE,
+  DIAGNOSTIC_CATEGORY_PLAYBACK_FAILURE,
+  DIAGNOSTIC_CATEGORY_URL_EXPIRED_OR_UNREACHABLE,
+  playbackDiagnostics
+} from './PlaybackDiagnostics';
 
 const DOMAIN = 0x0000;
 const TAG = 'PlayerSession';
@@ -28,10 +34,13 @@ export class PlayerSession {
   private initResolve: (() => void) | null = null;
   private initReject: ((e: Error) => void) | null = null;
   private initTimer: number = -1;
+  private diagnosticStage: string = 'avplayer_initialization';
+  private diagnosticSource: string = 'local';
 
   async playFile(absPath: string, callbacks: PlaybackCallbacks): Promise<void> {
     await this.release();
     this.cb = callbacks;
+    this.diagnosticSource = 'local';
     const file = fileIo.openSync(absPath, fileIo.OpenMode.READ_ONLY);
     this.fd = file.fd;
     const stat = fileIo.statSync(absPath);
@@ -57,6 +66,7 @@ export class PlayerSession {
   async playUrl(url: string, callbacks: PlaybackCallbacks): Promise<void> {
     await this.release();
     this.cb = callbacks;
+    this.diagnosticSource = 'api-enhanced';
     const avp = await media.createAVPlayer();
     this.player = avp;
     avp.on('stateChange', (state: string) => {
@@ -69,10 +79,57 @@ export class PlayerSession {
     });
     callbacks.onStateChange(PlayerState.PREPARING);
     // 网络源: idle 状态设置 url → initialized → prepare → play
-    avp.url = url;
-    await this.waitInitialized();
-    await avp.prepare();
-    await avp.play();
+    const initializedAt = Date.now();
+    this.diagnosticStage = 'avplayer_initialization';
+    try {
+      avp.url = url;
+      await this.waitInitialized();
+      playbackDiagnostics.record({
+        source: this.diagnosticSource, capability: 'playback', stage: 'avplayer_initialization',
+        durationMs: Date.now() - initializedAt, ok: true
+      });
+    } catch (err) {
+      playbackDiagnostics.record({
+        source: this.diagnosticSource, capability: 'playback', stage: 'avplayer_initialization',
+        durationMs: Date.now() - initializedAt, ok: false,
+        errorCategory: DIAGNOSTIC_CATEGORY_AVPLAYER_INITIALIZATION_FAILURE
+      });
+      throw err;
+    }
+
+    const preparedAt = Date.now();
+    this.diagnosticStage = 'url_response';
+    try {
+      await avp.prepare();
+      playbackDiagnostics.record({
+        source: this.diagnosticSource, capability: 'playback', stage: 'url_response',
+        durationMs: Date.now() - preparedAt, ok: true
+      });
+    } catch (err) {
+      playbackDiagnostics.record({
+        source: this.diagnosticSource, capability: 'playback', stage: 'url_response',
+        durationMs: Date.now() - preparedAt, ok: false,
+        errorCategory: DIAGNOSTIC_CATEGORY_URL_EXPIRED_OR_UNREACHABLE
+      });
+      throw err;
+    }
+
+    const playingAt = Date.now();
+    this.diagnosticStage = 'playing';
+    try {
+      await avp.play();
+      playbackDiagnostics.record({
+        source: this.diagnosticSource, capability: 'playback', stage: 'playing',
+        durationMs: Date.now() - playingAt, ok: true
+      });
+    } catch (err) {
+      playbackDiagnostics.record({
+        source: this.diagnosticSource, capability: 'playback', stage: 'playing',
+        durationMs: Date.now() - playingAt, ok: false,
+        errorCategory: DIAGNOSTIC_CATEGORY_PLAYBACK_FAILURE
+      });
+      throw err;
+    }
   }
 
   private waitInitialized(): Promise<void> {
@@ -102,6 +159,7 @@ export class PlayerSession {
       return;
     }
     if (state === 'error') {
+      const wasPlaying = this.diagnosticStage === 'playing' && this.initReject === null;
       if (this.initTimer >= 0) {
         clearTimeout(this.initTimer);
         this.initTimer = -1;
@@ -111,6 +169,12 @@ export class PlayerSession {
       this.initReject = null;
       if (rj !== null) {
         rj(new Error('AVPlayer 初始化失败'));
+      }
+      if (wasPlaying) {
+        playbackDiagnostics.record({
+          source: this.diagnosticSource, capability: 'playback', stage: 'playing',
+          durationMs: 0, ok: false, errorCategory: DIAGNOSTIC_CATEGORY_PLAYBACK_FAILURE
+        });
       }
     }
     if (this.cb === null) {
@@ -212,5 +276,7 @@ export class PlayerSession {
       this.fd = -1;
     }
     this.cb = null;
+    this.diagnosticStage = 'avplayer_initialization';
+    this.diagnosticSource = 'local';
   }
 }

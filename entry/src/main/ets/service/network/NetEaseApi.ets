@@ -2,6 +2,12 @@ import { common } from '@kit.AbilityKit';
 import { ApiClient, ApiError, ApiJsonResult } from './ApiClient';
 import { DreamMusicAuth } from './DreamMusicAuth';
 import { OnlineSong } from '../../model/Entities';
+import {
+  classifyPlaybackError,
+  DIAGNOSTIC_CATEGORY_EMPTY_PLAYBACK_URL,
+  DIAGNOSTIC_CATEGORY_SOURCE_TIMEOUT,
+  playbackDiagnostics
+} from '../playback/PlaybackDiagnostics';
 
 const SEARCH_LIMIT = 30;
 /** 音质:exhigh(320k)。8/16 接入 DreamMusic 后走真实账号绑定,与网页端默认一致(此前匿名 standard 决策作废) */
@@ -181,14 +187,47 @@ export class NetEaseApi {
     params['id'] = String(id);
     params['level'] = QUALITY_LEVEL;
     params['randomCNIP'] = 'true';
-    const res: ApiJsonResult = await NetEaseApi.withQueryRetry<ApiJsonResult>(
-      () => DreamMusicAuth.withApiKey(context, (headers: Record<string, string>) => {
-        return ApiClient.getJson(base, '/song/url/v1', params, headers);
-      })
-    );
-    const wrapper = res.body as SongUrlResponse;
-    ensureUpstreamOk(wrapper);
-    return NetEaseApi.extractUrl(wrapper);
+    const startedAt = Date.now();
+    try {
+      const res: ApiJsonResult = await NetEaseApi.withQueryRetry<ApiJsonResult>(
+        () => DreamMusicAuth.withApiKey(context, (headers: Record<string, string>) => {
+          return ApiClient.getJson(base, '/song/url/v1', params, headers);
+        })
+      );
+      const wrapper = res.body as SongUrlResponse;
+      ensureUpstreamOk(wrapper);
+      playbackDiagnostics.record({
+        source: 'api-enhanced',
+        capability: 'media-resolution',
+        stage: 'source_resolution',
+        durationMs: Date.now() - startedAt,
+        ok: true
+      });
+      const url = NetEaseApi.extractUrl(wrapper);
+      playbackDiagnostics.record({
+        source: 'api-enhanced',
+        capability: 'media-resolution',
+        stage: 'url_response',
+        durationMs: Date.now() - startedAt,
+        ok: url !== '',
+        errorCategory: url === '' ? DIAGNOSTIC_CATEGORY_EMPTY_PLAYBACK_URL : undefined
+      });
+      return url;
+    } catch (err) {
+      const e = err as Error;
+      const category = err instanceof ApiError && err.code === 'TIMEOUT'
+        ? DIAGNOSTIC_CATEGORY_SOURCE_TIMEOUT
+        : classifyPlaybackError('source_resolution', e.message);
+      playbackDiagnostics.record({
+        source: 'api-enhanced',
+        capability: 'media-resolution',
+        stage: 'source_resolution',
+        durationMs: Date.now() - startedAt,
+        ok: false,
+        errorCategory: category
+      });
+      throw err;
+    }
   }
 
   /** 歌曲详情封面兜底(白名单 /song/detail;搜索未带 picUrl 时用) */

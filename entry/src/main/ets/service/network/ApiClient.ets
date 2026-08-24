@@ -64,6 +64,10 @@ export class ApiClient {
       }
       const e = err as Error;
       hilog.debug(DOMAIN, TAG, 'getJson failed: %{public}s', e.message);
+      const lower = e.message.toLowerCase();
+      if (lower.indexOf('timeout') >= 0 || lower.indexOf('timed out') >= 0 || lower.indexOf('超时') >= 0) {
+        throw new ApiError('TIMEOUT', '来源请求超时');
+      }
       throw new ApiError('NETWORK', '网络请求失败:' + e.message);
     } finally {
       client.destroy();

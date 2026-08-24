@@ -8,6 +8,7 @@ import healthStateMachineTest from './HealthStateMachine.test';
 import handwrittenLayoutTest from './HandwrittenLayout.test';
 import dateUtilTest from './DateUtil.test';
 import navigationTest from './Navigation.test';
+import playbackDiagnosticsTest from './PlaybackDiagnostics.test';
 
 export default function localUnitTest() {
   describe('localUnitTest', () => {
@@ -49,5 +50,6 @@ export default function localUnitTest() {
     handwrittenLayoutTest();
     dateUtilTest();
     navigationTest();
+    playbackDiagnosticsTest();
   });
 }
