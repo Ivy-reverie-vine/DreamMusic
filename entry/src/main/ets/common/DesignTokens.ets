@@ -39,3 +39,9 @@ export const MOTION_PRESS_MS = 150;     // 列表点击反馈
 // ---- 封面缩略图 ----
 export const COVER_THUMB_SIZE = 44;
 export const COVER_THUMB_RADIUS = 11;
+
+// ---- 播控/队列触摸 ----
+export const CONTROL_HIT_SIZE = 48;
+export const QUEUE_DRAG_EDGE = 36;
+export const QUEUE_DRAG_SCROLL_STEP = 12;
+export const QUEUE_DRAG_SCROLL_MS = 60;

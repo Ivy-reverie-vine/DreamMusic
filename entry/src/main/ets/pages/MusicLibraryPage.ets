@@ -1,4 +1,5 @@
 import { ThemeService } from '../service/theme/ThemeService';
+import { BackDispatcher } from '../model/Navigation';
 import { ImportService } from '../service/library/ImportService';
 import { LibraryViewModel } from '../viewmodel/LibraryViewModel';
 import { QueueViewModel, queueViewModel } from '../viewmodel/QueueViewModel';
@@ -11,7 +12,7 @@ import { EmptyState } from '../components/EmptyState';
 import { OnlineSearchView } from '../components/OnlineSearchView';
 import {
   FONT_TITLE, FONT_BODY, FONT_LABEL, RADIUS_CARD, RADIUS_CAPSULE, RADIUS_CONTROL,
-  SHADOW_CARD_RADIUS, SHADOW_CARD_COLOR, SHADOW_CARD_OFFSET_Y
+  SHADOW_CARD_RADIUS, SHADOW_CARD_OFFSET_Y
 } from '../common/DesignTokens';
 
 /**
@@ -22,6 +23,7 @@ import {
  */
 @Component
 export struct MusicLibraryPage {
+  backDispatcher: BackDispatcher = new BackDispatcher();
   @State theme: ThemeService = ThemeService.getInstance();
   /** 跳转设置 tab(登录/绑定引导,阶段 v2.1) */
   onGoSettings: () => void = () => {
@@ -90,7 +92,30 @@ export struct MusicLibraryPage {
   }
 
   aboutToAppear(): void {
+    this.backDispatcher.register('library', 20, () => this.handleBack());
     this.vm.load();
+  }
+
+  aboutToDisappear(): void {
+    this.backDispatcher.unregister('library');
+  }
+
+  private handleBack(): boolean {
+    if (this.showSheet) {
+      this.showSheet = false;
+      this.sheetMode = 0;
+      return true;
+    }
+    if (this.detailAlbum !== null || this.detailArtist !== null) {
+      this.closeDetail();
+      return true;
+    }
+    if (this.showSearch) {
+      this.showSearch = false;
+      this.vm.load();
+      return true;
+    }
+    return false;
   }
 
   private ctx(): common.UIAbilityContext {
@@ -107,15 +132,12 @@ export struct MusicLibraryPage {
     if (t === undefined) {
       return;
     }
-    if (t.missing) {
-      this.importStatus = '该文件缺失,请重新导入';
-      return;
-    }
-    this.importStatus = `播放中:${t.title !== '' ? t.title : t.path}`;
-    await queueViewModel.playFromList(tracks, index, this.ctx());
-    if (this.pvm.errorText !== '') {
-      this.importStatus = `播放失败:${this.pvm.errorText}`;
-    }
+    this.importStatus = '正在加载音乐…';
+    const playback = queueViewModel.playFromList(tracks, index, this.ctx());
+    const request = this.pvm.requestId;
+    await playback;
+    if (!this.pvm.isCurrentRequest(request)) { return; }
+    this.importStatus = this.pvm.statusText;
   }
 
   private openAlbum(a: Album): void {
@@ -192,7 +214,7 @@ export struct MusicLibraryPage {
           .textOverflow({ overflow: TextOverflow.Ellipsis })
         Text(`${t.artist}${t.album !== '' ? ' · ' + t.album : ''}${t.missing ? ' · 文件缺失' : ''}`)
           .fontSize(FONT_LABEL)
-          .fontColor(t.missing ? this.theme.secondary : this.theme.muted)
+          .fontColor(t.missing ? this.theme.secondaryText : this.theme.muted)
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
       }
@@ -201,7 +223,7 @@ export struct MusicLibraryPage {
 
       SymbolGlyph(this.vm.favoriteIds.has(t.id) ? $r('sys.symbol.heart_fill') : $r('sys.symbol.heart'))
         .fontSize(20)
-        .fontColor([this.vm.favoriteIds.has(t.id) ? this.theme.primary : this.theme.muted])
+        .fontColor([this.vm.favoriteIds.has(t.id) ? this.theme.primaryText : this.theme.muted])
         .padding(4)
         .onClick(() => {
           this.vm.toggleFavorite(t.id);
@@ -226,7 +248,7 @@ export struct MusicLibraryPage {
       width: this.qvm.currentId === t.id && !t.missing ? 1 : 0,
       color: ThemeService.alpha(this.theme.primary, 0.5)
     })
-    .shadow({ radius: SHADOW_CARD_RADIUS, color: SHADOW_CARD_COLOR, offsetX: 0, offsetY: SHADOW_CARD_OFFSET_Y })
+    .shadow({ radius: SHADOW_CARD_RADIUS, color: this.theme.shadowColor, offsetX: 0, offsetY: SHADOW_CARD_OFFSET_Y })
     .stateStyles({
       pressed: { .backgroundColor(ThemeService.alpha(this.theme.primary, 0.1)) }
     })
@@ -288,7 +310,7 @@ export struct MusicLibraryPage {
           .padding(12)
           .borderRadius(RADIUS_CARD)
           .backgroundColor(this.theme.card)
-          .shadow({ radius: SHADOW_CARD_RADIUS, color: SHADOW_CARD_COLOR, offsetX: 0, offsetY: SHADOW_CARD_OFFSET_Y })
+          .shadow({ radius: SHADOW_CARD_RADIUS, color: this.theme.shadowColor, offsetX: 0, offsetY: SHADOW_CARD_OFFSET_Y })
           .stateStyles({
             pressed: { .backgroundColor(ThemeService.alpha(this.theme.primary, 0.1)) }
           })
@@ -340,7 +362,7 @@ export struct MusicLibraryPage {
           .padding(12)
           .borderRadius(RADIUS_CARD)
           .backgroundColor(this.theme.card)
-          .shadow({ radius: SHADOW_CARD_RADIUS, color: SHADOW_CARD_COLOR, offsetX: 0, offsetY: SHADOW_CARD_OFFSET_Y })
+          .shadow({ radius: SHADOW_CARD_RADIUS, color: this.theme.shadowColor, offsetX: 0, offsetY: SHADOW_CARD_OFFSET_Y })
           .stateStyles({
             pressed: { .backgroundColor(ThemeService.alpha(this.theme.primary, 0.1)) }
           })
@@ -414,10 +436,10 @@ export struct MusicLibraryPage {
     Row({ space: 12 }) {
       SymbolGlyph(icon)
         .fontSize(18)
-        .fontColor([danger ? this.theme.secondary : this.theme.muted])
+        .fontColor([danger ? this.theme.secondaryText : this.theme.muted])
       Text(text)
         .fontSize(FONT_BODY)
-        .fontColor(danger ? this.theme.secondary : this.theme.ink)
+        .fontColor(danger ? this.theme.secondaryText : this.theme.ink)
     }
     .width('100%')
     .padding({ left: 20, right: 20, top: 14, bottom: 14 })
@@ -578,7 +600,7 @@ export struct MusicLibraryPage {
             Text(item)
               .fontSize(14)
               .fontWeight(index === this.tab ? FontWeight.Medium : FontWeight.Normal)
-              .fontColor(index === this.tab ? this.theme.primary : this.theme.muted)
+              .fontColor(index === this.tab ? this.theme.primaryText : this.theme.muted)
             Circle()
               .width(4)
               .height(4)
@@ -640,7 +662,12 @@ export struct MusicLibraryPage {
           .maxLines(2)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
 
-        if (this.tab === 0) {
+        if (this.vm.loading) {
+          Text('正在读取本机音乐库…').fontSize(FONT_LABEL).fontColor(this.theme.muted)
+        } else if (this.vm.loadError !== '') {
+          Text(this.vm.loadError + ' · 点击重试').fontSize(FONT_LABEL).fontColor(this.theme.errorColor)
+            .onClick(() => { this.vm.load(); })
+        } else if (this.tab === 0) {
           if (this.vm.tracks.length === 0) {
             EmptyState({
               symbol: $r('sys.symbol.music_note_list'),

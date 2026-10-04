@@ -16,6 +16,10 @@ export class AccountViewModel {
   messageRemaining: number = 3;
   announcements: Announcement[] = [];
   pointLogs: DreamPointLog[] = [];
+  announcementsLoading: boolean = false;
+  announcementsError: string = '';
+  pointLogsLoading: boolean = false;
+  pointLogsError: string = '';
   loading: boolean = false;
   action: string = '';
   statusText: string = '';
@@ -62,11 +66,14 @@ export class AccountViewModel {
   }
 
   async loadAnnouncements(context: common.UIAbilityContext): Promise<void> {
+    this.announcementsLoading = true;
+    this.announcementsError = '';
     try {
       this.announcements = await DreamMusicAuth.announcements(context);
     } catch (err) {
-      this.statusText = '公告暂时无法加载';
-      this.announcements = [];
+      this.announcementsError = '公告暂时无法加载';
+    } finally {
+      this.announcementsLoading = false;
     }
   }
 
@@ -130,11 +137,14 @@ export class AccountViewModel {
     if (!this.loggedIn) {
       return;
     }
+    this.pointLogsLoading = true;
+    this.pointLogsError = '';
     try {
       this.pointLogs = await DreamMusicAuth.pointLogs(context);
     } catch (err) {
-      this.statusText = '梦点流水暂时无法加载';
-      this.pointLogs = [];
+      this.pointLogsError = '梦点流水暂时无法加载';
+    } finally {
+      this.pointLogsLoading = false;
     }
   }
 }

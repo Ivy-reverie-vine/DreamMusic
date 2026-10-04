@@ -9,6 +9,8 @@ import { PlayerState } from '../model/Playback';
 import { Track } from '../model/Entities';
 import { DreamMusicAuth } from '../service/network/DreamMusicAuth';
 import { SleepTimer, SleepTimerSnapshot } from '../service/playback/SleepTimer';
+import { NetEaseApi } from '../service/network/NetEaseApi';
+import { ApiError } from '../service/network/ApiClient';
 
 const DOMAIN = 0x0000;
 const TAG = 'PlayerViewModel';
@@ -16,12 +18,112 @@ const TAG = 'PlayerViewModel';
 /** 播放状态容器(全局单例,音乐库页与正在播放页共享;队列域经钩子接管切歌) */
 @Observed
 export class PlayerViewModel {
+  /** 状态/元数据变化及进度心跳；只用于卡片展示投影。 */
+  playbackChangedHandler: (() => void) | null = null;
   currentTrack: Track | null = null;
   state: PlayerState = PlayerState.IDLE;
   positionMs: number = 0;
   durationMs: number = 0;
   volume: number = 0.8;
   errorText: string = '';
+  errorCode: string = '';
+  recoveryAction: string = '';
+  private requestVersion: number = 0;
+  private playbackReadyHandler: ((request: number) => void) | null = null;
+
+  get statusText(): string {
+    switch (this.state) {
+      case PlayerState.PREPARING: return '正在加载音乐…';
+      case PlayerState.PLAYING: return '正在播放';
+      case PlayerState.PAUSED: return '已暂停';
+      case PlayerState.COMPLETED: return '播放已结束';
+      case PlayerState.ERROR: return this.errorText !== '' ? this.errorText : '播放失败，请重试';
+      default: return '请选择音乐';
+    }
+  }
+
+  get requestId(): number { return this.requestVersion; }
+
+  get playbackSourceText(): string {
+    const source = this.currentTrack?.playbackSource;
+    if (source === 'api-enhanced') { return '网易云'; }
+    if (source === 'meting-tencent') { return '腾讯 / QQ'; }
+    if (source === 'meting-kugou') { return '酷狗'; }
+    if (source === 'meting-kuwo') { return '酷我'; }
+    return source !== undefined ? source : '';
+  }
+
+  isCurrentRequest(request: number): boolean { return request === this.requestVersion; }
+
+  /** 在本地查找/在线解析前即选择音轨，取消旧会话并显示准备状态。 */
+  beginTrack(track: Track, context: common.Context,
+    onReady: ((request: number) => void) | null = null): number {
+    if (this.sleepTimer.consumeIfDue()) {
+      this.clearSleepTimerHandle();
+      this.notifySleepTimerChanged();
+    }
+    const request = ++this.requestVersion;
+    const previous = this.session;
+    this.session = new PlayerSession();
+    previous.release().catch(() => {});
+    this.lastContext = context;
+    this.currentTrack = track;
+    this.playbackReadyHandler = onReady;
+    this.errorText = '';
+    this.errorCode = '';
+    this.recoveryAction = '';
+    this.state = PlayerState.PREPARING;
+    this.positionMs = 0;
+    this.durationMs = Math.max(0, track.durationMs);
+    this.sleepTimerPausePending = false;
+    this.notifyTrackMetadata(track);
+    this.syncBackground(true);
+    return request;
+  }
+
+  private notifyTrackMetadata(track: Track): void {
+    try {
+      if (this.trackChangeHandler !== null) { this.trackChangeHandler(track); }
+    } catch (err) {
+      // 歌词失败由歌词域展示，不改变音频播放状态。
+    }
+    try {
+      if (this.coverColorHandler !== null) { this.coverColorHandler(track); }
+    } catch (err) {
+      // 封面/取色失败使用自身回退，不改变音频播放状态。
+    }
+  }
+
+  failRequest(request: number, code: string = ''): void {
+    if (!this.isCurrentRequest(request)) { return; }
+    this.errorCode = code;
+    this.recoveryAction = code === 'FILE_MISSING' ? 'library' : 'retry';
+    if (code === 'FILE_MISSING') {
+      this.errorText = '音频文件已不在设备上，请到音乐库重新导入';
+    } else if (code === 'NEED_LOGIN' || code === 'UNAUTHORIZED' || code === 'FORBIDDEN' || code === 'BIND_INVALID') {
+      this.errorText = '在线播放需要登录并绑定账号，请到设置完成后重试';
+      this.recoveryAction = 'settings';
+    } else if (code === 'EMPTY_URL') {
+      this.errorText = '暂时没有可播放的音频，可能受版权或会员限制，请稍后重试';
+    } else if (code === 'NETWORK' || code === 'TIMEOUT' || code === 'UPSTREAM_DOWN') {
+      this.errorText = '音乐暂时加载失败，请检查网络后重试';
+    } else {
+      this.errorText = '这首音乐暂时无法播放，请重试';
+    }
+    this.state = PlayerState.ERROR;
+    this.syncBackground(true);
+  }
+
+  async retry(): Promise<void> {
+    if (this.state !== PlayerState.ERROR || this.recoveryAction === 'library' ||
+      this.currentTrack === null || this.lastContext === null) { return; }
+    const track = this.currentTrack;
+    const context = this.lastContext;
+    const position = this.positionMs;
+    const ready = this.playbackReadyHandler;
+    const request = this.beginTrack(track, context, ready);
+    await this.playTrack(track, context, position, request);
+  }
   /** 播放模式由队列域持有,此处镜像供后台会话同步 */
   playMode: PlayMode = PlayMode.SEQUENTIAL;
   /** issue-06 队列域钩子:单曲自然播完 */
@@ -86,8 +188,9 @@ export class PlayerViewModel {
     this.clearSleepTimerHandle();
     this.notifySleepTimerChanged();
     if (this.state === PlayerState.PLAYING) {
+      const request = this.requestVersion;
       this.pause().catch((err: Error) => {
-        this.setSleepTimerPauseError(err);
+        if (this.isCurrentRequest(request)) { this.setSleepTimerPauseError(err); }
       });
     } else if (this.state === PlayerState.PREPARING) {
       this.sleepTimerPausePending = true;
@@ -127,37 +230,67 @@ export class PlayerViewModel {
     }, remaining);
   }
 
+  /** 会话就绪和前台恢复时使用同一快照重同步系统状态与长时任务。 */
+  refreshBackground(): void {
+    this.checkSleepTimer();
+    this.syncBackground(true);
+  }
+
   private syncBackground(force: boolean): void {
+    try { this.playbackChangedHandler?.(); } catch (err) {}
     const bp = BackgroundPlayback.getInstance();
     bp.sync(this.currentTrack, this.state, this.positionMs, this.durationMs, this.playMode, force);
     if (this.state === PlayerState.PLAYING) {
       bp.startLongTask();
     } else if (this.state === PlayerState.PAUSED || this.state === PlayerState.COMPLETED ||
-      this.state === PlayerState.IDLE) {
+      this.state === PlayerState.IDLE || this.state === PlayerState.ERROR || this.state === PlayerState.PREPARING) {
       bp.stopLongTask();
     }
   }
 
-  async playTrack(track: Track, context: common.Context, startMs: number = 0): Promise<void> {
-    if (this.sleepTimer.consumeIfDue()) {
-      this.clearSleepTimerHandle();
-      this.notifySleepTimerChanged();
-    }
-    this.sleepTimerPausePending = false;
+  async playTrack(track: Track, context: common.Context, startMs: number = 0,
+    expectedRequest: number = -1): Promise<void> {
+    const request = expectedRequest < 0 ? this.beginTrack(track, context) : expectedRequest;
+    if (!this.isCurrentRequest(request)) { return; }
+    const session = this.session;
     this.lastContext = context;
-    this.currentTrack = track;
+    if (this.currentTrack !== track) {
+      this.currentTrack = track;
+      this.notifyTrackMetadata(track);
+    }
     this.errorText = '';
     this.positionMs = startMs;
     this.lastStatsReportedMs = startMs;
     this.durationMs = track.durationMs > 0 ? track.durationMs : 0;
-    if (this.trackChangeHandler !== null) {
-      this.trackChangeHandler(track);
-    }
-    if (this.coverColorHandler !== null) {
-      this.coverColorHandler(track);
-    }
     // 瞬态在线音轨:直链流式播放(阶段 v2.3),不检查本地文件
-    const streaming = track.streamUrl !== undefined && track.streamUrl !== '';
+    const streaming = track.id < 0 || (track.streamUrl !== undefined && track.streamUrl !== '');
+    let streamUrl = track.streamUrl !== undefined ? track.streamUrl : '';
+    if (streaming) {
+      try {
+        const playbackRef = track.playbackRef !== undefined ? track.playbackRef :
+          (track.mediaRef !== undefined ? track.mediaRef : '');
+        if (track.catalogRef !== undefined && track.catalogRef !== '') {
+          const resolution = await NetEaseApi.resolvePlayback(context, track.neteaseId, playbackRef);
+          if (!this.isCurrentRequest(request)) { return; }
+          if (resolution.catalogRef !== track.catalogRef) {
+            this.failRequest(request, 'IDENTITY_MISMATCH'); return;
+          }
+          streamUrl = resolution.url;
+          track.playbackRef = resolution.playbackRef;
+          track.lyricsRef = resolution.lyricsRef;
+          track.playbackSource = resolution.playbackSource;
+          track.lyricsSource = resolution.lyricsSource;
+        } else {
+          streamUrl = await NetEaseApi.resolveUrl(context, track.neteaseId, playbackRef);
+        }
+        if (!this.isCurrentRequest(request)) { return; }
+        if (streamUrl === '') { this.failRequest(request, 'EMPTY_URL'); return; }
+        track.streamUrl = streamUrl;
+      } catch (err) {
+        this.failRequest(request, err instanceof ApiError ? err.code : 'RESOLUTION');
+        return;
+      }
+    }
     let abs = context.filesDir + '/' + track.path;
     if (!streaming) {
       // 播放前检查文件存在(issue-14:旧数据文件缺失时给出友好提示;兼容无 music/ 前缀的历史路径)
@@ -173,26 +306,29 @@ export class PlayerViewModel {
       }
       try {
         if (!fileIo.accessSync(abs)) {
-          this.errorText = '文件缺失,请重新导入这首歌';
-          this.state = PlayerState.ERROR;
+          this.failRequest(request, 'FILE_MISSING');
           return;
         }
       } catch (err) {
-        this.errorText = '文件缺失,请重新导入这首歌';
-        this.state = PlayerState.ERROR;
+        this.failRequest(request, 'FILE_MISSING');
         return;
       }
     }
     const callbacks: PlaybackCallbacks = {
       onStateChange: (s: PlayerState): void => {
+        if (!this.isCurrentRequest(request)) { return; }
         this.state = s;
+        if (s === PlayerState.PLAYING || s === PlayerState.PAUSED) {
+          this.errorText = ''; this.errorCode = ''; this.recoveryAction = '';
+        }
         this.syncBackground(true);
       },
       onPositionUpdate: (ms: number): void => {
+        if (!this.isCurrentRequest(request)) { return; }
         this.positionMs = ms;
         this.checkSleepTimer();
         if (this.durationMs <= 0) {
-          this.durationMs = this.session.getDuration();
+          this.durationMs = session.getDuration();
         }
         if (this.positionTickHandler !== null) {
           this.positionTickHandler(ms);
@@ -203,24 +339,27 @@ export class PlayerViewModel {
         this.syncBackground(false);
       },
       onTrackEnded: (): void => {
+        if (!this.isCurrentRequest(request)) { return; }
         this.state = PlayerState.COMPLETED;
+        this.syncBackground(true);
         if (this.endedHandler !== null) {
           this.endedHandler();
         }
       },
       onError: (msg: string): void => {
-        this.errorText = msg;
+        this.failRequest(request);
       }
     };
     try {
       if (streaming) {
-        await this.session.playUrl(track.streamUrl!, callbacks);
+        await session.playUrl(streamUrl, callbacks);
       } else {
-        await this.session.playFile(abs, callbacks);
+        await session.playFile(abs, callbacks);
       }
-      this.session.setVolume(this.volume);
+      if (!this.isCurrentRequest(request) || this.state === PlayerState.ERROR) { return; }
+      session.setVolume(this.volume);
       if (startMs > 0) {
-        this.session.seekTo(startMs);
+        session.seekTo(startMs);
       }
       this.syncBackground(true);
       if (this.sleepTimerPausePending) {
@@ -228,24 +367,32 @@ export class PlayerViewModel {
         try {
           await this.pause();
         } catch (err) {
-          this.setSleepTimerPauseError(err as Error);
+          if (this.isCurrentRequest(request)) { this.setSleepTimerPauseError(err as Error); }
         }
       }
+      if (!this.isCurrentRequest(request)) { return; }
       // 播放历史自动记录(issue-09,500 条滚动淘汰)
       // 普通在线播放是瞬态负 ID，不写入本地播放历史；本地音轨才进入历史。
       if (track.id > 0) {
         LibraryStore.getInstance().insertHistory(track.id).catch(() => {
         });
       }
+      if (this.isCurrentRequest(request) && this.playbackReadyHandler !== null) {
+        try {
+          this.playbackReadyHandler(request);
+        } catch (err) {
+          // 后台下载/封面补齐不影响已开始的音频播放。
+        }
+      }
     } catch (err) {
-      const e = err as Error;
-      this.errorText = e.message;
-      this.state = PlayerState.ERROR;
+      this.failRequest(request);
+      await session.release();
     }
   }
 
   /** 仅上报在线歌曲;本地导入歌曲不上传播放行为。 */
   private reportOnlineStats(positionMs: number): void {
+    const request = this.requestVersion;
     const track = this.currentTrack;
     const context = this.lastContext;
     if (track === null || context === null || track.neteaseId <= 0 || this.statsReporting) {
@@ -259,7 +406,7 @@ export class PlayerViewModel {
     this.statsReporting = true;
     DreamMusicAuth.reportStats(context, seconds, track.neteaseId)
       .then(() => {
-        this.lastStatsReportedMs += seconds * 1000;
+        if (this.isCurrentRequest(request)) { this.lastStatsReportedMs += seconds * 1000; }
       })
       .catch(() => {
         // 统计失败不打断播放;下一个 30 秒窗口继续尝试。
@@ -271,6 +418,12 @@ export class PlayerViewModel {
 
   /** 启动恢复:只还原界面状态与进度,不打开文件;按播放时从断点续播 */
   restorePaused(track: Track, positionMs: number, context: common.Context): void {
+    this.requestVersion++;
+    this.session.release().catch(() => {});
+    this.session = new PlayerSession();
+    this.playbackReadyHandler = null;
+    this.errorCode = '';
+    this.recoveryAction = '';
     this.lastContext = context;
     this.currentTrack = track;
     this.positionMs = positionMs;
@@ -286,11 +439,14 @@ export class PlayerViewModel {
     if (this.positionTickHandler !== null) {
       this.positionTickHandler(positionMs);
     }
+    this.syncBackground(true);
   }
 
   async togglePause(): Promise<void> {
+    const request = this.requestVersion;
     if (this.state === PlayerState.PLAYING) {
       await this.session.togglePause();
+      if (!this.isCurrentRequest(request)) { return; }
       if (this.pausePositionHandler !== null) {
         this.pausePositionHandler(this.positionMs);
       }
@@ -308,10 +464,12 @@ export class PlayerViewModel {
   }
 
   async pause(): Promise<void> {
+    const request = this.requestVersion;
     if (this.state !== PlayerState.PLAYING && !this.session.isPlaying) {
       return;
     }
     await this.session.pause();
+    if (!this.isCurrentRequest(request)) { return; }
     if (this.pausePositionHandler !== null) {
       this.pausePositionHandler(this.positionMs);
     }
@@ -319,8 +477,17 @@ export class PlayerViewModel {
   }
 
   seekTo(ms: number): void {
-    this.session.seekTo(ms);
-    this.positionMs = ms;
+    if (!Number.isFinite(ms) || this.currentTrack === null ||
+      (this.state !== PlayerState.PLAYING && this.state !== PlayerState.PAUSED &&
+        this.state !== PlayerState.COMPLETED)) { return; }
+    const position = Math.max(0, Math.min(ms, this.durationMs > 0 ? this.durationMs : ms));
+    this.session.seekTo(position);
+    this.positionMs = position;
+    if (this.positionTickHandler !== null) { this.positionTickHandler(position); }
+    this.syncBackground(true);
+    if (this.state !== PlayerState.PLAYING && this.pausePositionHandler !== null) {
+      this.pausePositionHandler(position);
+    }
   }
 
   setVolume(v: number): void {

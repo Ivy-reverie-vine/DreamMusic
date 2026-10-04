@@ -187,6 +187,20 @@ export class QueueEngine {
     this.buildShuffle();
   }
 
+  /** 原子提交有效排列，保留当前音轨及随机模式已走过的洗牌序。 */
+  reorder(ids: number[]): boolean {
+    if (ids.length !== this.tracks.length || ids.some((id: number, index: number) =>
+      this.tracks.indexOf(id) < 0 || ids.indexOf(id) !== index)) {
+      return false;
+    }
+    const current = this.current();
+    const shuffleIds: number[] = this.shuffleOrder.map((index: number) => this.tracks[index]);
+    this.tracks = ids.slice();
+    this.currentIndex = ids.indexOf(current);
+    this.shuffleOrder = shuffleIds.map((id: number) => ids.indexOf(id));
+    return true;
+  }
+
   removeAt(index: number): void {
     const n = this.tracks.length;
     if (n === 0 || index < 0 || index >= n) {

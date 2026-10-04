@@ -1,43 +1,54 @@
+import { common } from '@kit.AbilityKit';
+import { image } from '@kit.ImageKit';
 import { ThemeService } from '../service/theme/ThemeService';
+import { CoverLoadState } from '../service/cover/CoverLoadState';
 
-/**
- * 封面缩略图(issue-12):有封面显示圆角图,无封面显示主色渐变占位 + 音乐符号。
- * uri 为完整 file:// 路径;为空串视为无封面。
- */
+/** 三个应用入口和系统播控共用封面缓存及同一品牌渐变音乐占位图。 */
 @Component
 export struct CoverThumb {
   @State theme: ThemeService = ThemeService.getInstance();
-  @Prop uri: string = '';
+  @Prop @Watch('reload') uri: string = '';
+  @Prop @Watch('reload') identity: string = '';
   @Prop thumbSize: number = 44;
+  @Prop decodeSize: number = 96;
+  @Prop circular: boolean = false;
+  @Prop withShadow: boolean = true;
+  @State pixels: image.PixelMap | null = null;
+  private loader: CoverLoadState = new CoverLoadState();
+  private visible: boolean = false;
+  private displayedIdentity: string = '';
+
+  aboutToAppear(): void {
+    this.visible = true;
+    this.reload();
+  }
+
+  aboutToDisappear(): void {
+    this.visible = false;
+    this.pixels = null;
+    this.loader.clear();
+  }
+
+  private reload(): void {
+    if (!this.visible) {
+      return;
+    }
+    const context = this.getUIContext().getHostContext() as common.Context;
+    const keepCurrent = this.identity !== '' && this.identity === this.displayedIdentity;
+    this.displayedIdentity = this.identity;
+    this.loader.load(context, this.uri, this.decodeSize, (pixels: image.PixelMap | null) => {
+      this.pixels = pixels;
+    }, keepCurrent);
+  }
 
   build() {
-    Stack() {
-      if (this.uri !== '') {
-        Image(this.uri)
-          .width(this.thumbSize)
-          .height(this.thumbSize)
-          .objectFit(ImageFit.Cover)
-          .borderRadius(this.thumbSize * 0.25)
-      } else {
-        // 占位:primary→secondary 渐变 + 音乐符号(DESIGN.md 蒙层保底:只做强调)
-        Column()
-          .width(this.thumbSize)
-          .height(this.thumbSize)
-          .borderRadius(this.thumbSize * 0.25)
-          .linearGradient({
-            angle: 135,
-            colors: [
-              [ThemeService.alpha(this.theme.primary, 0.5), 0.0],
-              [ThemeService.alpha(this.theme.secondary, 0.32), 1.0]
-            ]
-          })
-        SymbolGlyph($r('sys.symbol.music_note_list'))
-          .fontSize(this.thumbSize * 0.38)
-          .fontColor([ThemeService.alpha(this.theme.ink, 0.85)])
-      }
-    }
-    .width(this.thumbSize)
-    .height(this.thumbSize)
-    .shadow({ radius: 10, color: ThemeService.alpha('#000000', 0.28), offsetX: 0, offsetY: 4 })
+    Image(this.pixels !== null ? this.pixels : $r('app.media.cover_placeholder'))
+      .width(this.thumbSize)
+      .height(this.thumbSize)
+      .objectFit(ImageFit.Cover)
+      .borderRadius(this.circular ? this.thumbSize / 2 : this.thumbSize * 0.25)
+      .shadow({ radius: this.withShadow ? 10 : 0,
+        color: this.theme.isDark ? ThemeService.alpha('#000000', 0.28) : this.theme.shadowColor,
+        offsetX: 0, offsetY: this.withShadow ? 4 : 0 })
   }
 }

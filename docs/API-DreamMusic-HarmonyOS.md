@@ -15,7 +15,7 @@ NightDream 中间层（公网入口）
   - 会话/API Key 校验
   - 用户封禁校验
   - 网易云绑定校验
-  - 精确白名单
+  - 精确白名单与统一来源调度
   - IP 限流
   - 注入服务端网易云 Cookie
         │
@@ -267,7 +267,9 @@ NightDream 会根据 API Key 找到当前 DreamMusic 用户，并自动注入该
 
 不要假设所有转发接口都有 `data` 字段。
 
-## 6. 当前默认白名单
+## 6. 当前默认白名单与来源调度
+
+以下接口是 NightDream 对客户端暴露的统一入口。客户端不直接访问 api-enhanced、网易云、YouTube 或其他来源；来源选择、解灰/替代源策略、失败降级和响应兼容由 NightDream 服务端负责。当前客户端实际使用的来源是 api-enhanced。
 
 以下是 NightDream 当前源码默认开放的精确路径：
 
@@ -278,7 +280,7 @@ NightDream 会根据 API Key 找到当前 DreamMusic 用户，并自动注入该
 | `search` | 搜索歌曲 |
 | `song/detail` | 批量歌曲详情、封面和歌手信息 |
 | `song/url/v1` | 获取播放链接 |
-| `song/url/match` | 无版权时的换源 |
+| `song/url/match` | 服务端可用的替代源能力；客户端不直接调用 |
 | `lyric/new` | 获取歌词，优先 yrc、退化 lrc |
 
 ### 个人音乐库
@@ -313,9 +315,11 @@ NightDream 会根据 API Key 找到当前 DreamMusic 用户，并自动注入该
 search
   → song/url/v1
   → lyric/new
-  → url 为空时 song/url/match
+  → url 为空时由 NightDream 统一来源策略处理
   → 播放
 ```
+
+客户端不自行调用 `song/url/match`，也不自行解灰或切换来源。
 
 ### 7.2 我的歌单
 
@@ -440,3 +444,10 @@ likelist?uid=<neteaseUid>
 - 鸿蒙认证调用：`DreamMusic/entry/src/main/ets/service/network/DreamMusicAuth.ets`
 - 鸿蒙网络封装：`DreamMusic/entry/src/main/ets/service/network/ApiClient.ets`
 - 鸿蒙网易云转发调用：`DreamMusic/entry/src/main/ets/service/network/NetEaseApi.ets`
+## T01 来源身份扩展（2026-10-04）
+
+NightDream `/dreammusic/api/v2` 兼容增加 `catalogRef`（目录）、`playbackRef`（音频）、`lyricsRef`（歌词）及 `playbackSource` / `lyricsSource`。原有具体资源 `mediaRef` 不改含义；当前单来源切片的三个引用均指向原资源，自动跨源解析尚未实现。
+
+客户端从目录引用请求 `/song/detail?mediaRef=...`，从音频引用请求 `/song/url/v1?mediaRef=...`，从歌词引用请求 `/lyric/new?mediaRef=...`。旧服务端缺少新字段时沿用 `mediaRef`；旧 v1 数字 ID 调用保留。播放器消费实际解析身份并显示来源，原目录标题、歌手、已有封面保持稳定；非网易实际音频不得进入网易数字 ID 入库链。
+
+完整契约见 `NightDream/docs/media-ref-v2.md`，本轮实现与证据边界见 [Issue #20 验收记录](research/issue-20-validation.md)。

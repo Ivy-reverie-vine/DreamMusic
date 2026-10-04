@@ -8,6 +8,7 @@ import { ThemeService } from '../service/theme/ThemeService';
 export struct BubblePauseButton {
   @State theme: ThemeService = ThemeService.getInstance();
   @Prop isPlaying: boolean;
+  @Prop loading: boolean = false;
   onToggle: () => void = () => {
   };
 
@@ -19,10 +20,14 @@ export struct BubblePauseButton {
         .borderRadius(32)
         .backgroundColor(this.theme.controlGray)
 
-      SymbolGlyph(this.isPlaying ? $r('sys.symbol.pause_fill') : $r('sys.symbol.play_fill'))
-        .fontSize(28)
-        .fontColor([this.theme.ink])
-        .offset({ x: this.isPlaying ? 0 : 2, y: 0 })
+      if (this.loading) {
+        LoadingProgress().width(28).height(28).color(this.theme.ink)
+      } else {
+        SymbolGlyph(this.isPlaying ? $r('sys.symbol.pause_fill') : $r('sys.symbol.play_fill'))
+          .fontSize(28)
+          .fontColor([this.theme.ink])
+          .offset({ x: this.isPlaying ? 0 : 2, y: 0 })
+      }
     }
     .width(72)
     .height(72)

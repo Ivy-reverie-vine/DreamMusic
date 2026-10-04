@@ -1,7 +1,8 @@
 # DreamMusic 普通在线播放代理 — 实现笔记
 
-> 记录 IvyReverieMusic 接入 DreamMusic 中间层后的普通在线播放链路、关键决策与真机注意事项。
-> 关联: `API-DreamMusic.md`(D:\Blog\docs)、`docs/adr/0003`、`docs/PRD-v2.1` / `PRD-v2.2`。
+> 记录 IvyReverieMusic 接入 NightDream 中间层后的普通在线播放链路、关键决策与真机注意事项。
+> 当前在线来源为 api-enhanced；未来新增来源由 NightDream 统一调度，客户端不直接接入来源。
+> 关联: `docs/API-DreamMusic-HarmonyOS.md`、`docs/adr/0003`、`docs/adr/0005`。
 
 ## 1. 链路与角色
 

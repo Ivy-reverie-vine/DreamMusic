@@ -19,10 +19,15 @@ export interface Track {
   neteaseId: number;
   /** 瞬态在线音轨的普通播放直链(不落盘) */
   streamUrl?: string;
-  /** 瞬态在线音轨的远程封面 URL(不落盘,仅正在播放页显示) */
+  /** 在线封面 URL；封面服务缓存到 cacheDir，转本地时暂留作封面缺失回退，不写数据库。 */
   streamCoverUrl?: string;
   /** v2 版本化来源引用;不包含可直接播放的 URL */
   mediaRef?: string;
+  catalogRef?: string;
+  playbackRef?: string;
+  lyricsRef?: string;
+  playbackSource?: string;
+  lyricsSource?: string;
 }
 
 /** 在线搜索结果(v2 mediaRef 或 v1 api-enhanced;非数据库实体) */
@@ -39,6 +44,11 @@ export interface OnlineSong {
   mediaRef?: string;
   source?: string;
   sourceId?: string;
+  catalogRef?: string;
+  playbackRef?: string;
+  lyricsRef?: string;
+  playbackSource?: string;
+  lyricsSource?: string;
 }
 
 export interface Album {

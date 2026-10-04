@@ -9,6 +9,11 @@ import { RADIUS_CARD, RADIUS_CAPSULE, FONT_BODY, FONT_LABEL, FONT_TITLE } from '
 import { OnlineMusicViewModel, onlineMusicViewModel } from '../viewmodel/OnlineMusicViewModel';
 import { OnlinePlaylistSummary } from '../service/network/OnlineMusicService';
 import { DreamMusicAuth } from '../service/network/DreamMusicAuth';
+import { BackDispatcher } from '../model/Navigation';
+import { AddFormMenuItem } from '@kit.ArkUI';
+import { PlaylistFormStore } from '../service/form/PlaylistFormStore';
+import { playlistCardSnapshot, PLAYLIST_FORM_NAME, PLAYLIST_FORM_ABILITY } from '../model/PlaylistCard';
+import { CARD_BG, CARD_INK, CARD_MUTED } from '../model/MusicCard';
 
 /**
  * 歌单页(issue-09 + issue-13 视觉):
@@ -17,6 +22,12 @@ import { DreamMusicAuth } from '../service/network/DreamMusicAuth';
  */
 @Component
 export struct PlaylistsPage {
+  @Prop @Watch('consumePlaylistRequest') playlistRequest: string = '';
+  onPlaylistRequestConsumed: () => void = () => {};
+  @State showCardPreview: boolean = false;
+  @State cardStatus: string = '';
+  private mounted: boolean = false;
+  backDispatcher: BackDispatcher = new BackDispatcher();
   @State theme: ThemeService = ThemeService.getInstance();
   onBack: () => void = () => {
   };
@@ -28,11 +39,81 @@ export struct PlaylistsPage {
   @State onlineVm: OnlineMusicViewModel = onlineMusicViewModel;
   /** 0=列表, 1=我喜欢, 2=在线歌单详情, 3=全部在线歌单 */
   @State onlineDetailMode: number = 0;
+  private onlineParentMode: number = 0;
   @State onlineStatus: string = '';
 
   aboutToAppear(): void {
-    this.vm.load();
-    this.onlineVm.prefetch(this.ctx());
+    this.mounted = true;
+    this.vm.selected = null;
+    this.vm.selectedTracks = [];
+    this.backDispatcher.register('playlists', 30, () => this.handleBack());
+    if (this.playlistRequest !== '') {
+      this.consumePlaylistRequest();
+    } else {
+      this.vm.load();
+      this.onlineVm.prefetch(this.ctx());
+    }
+  }
+
+  aboutToDisappear(): void {
+    this.mounted = false;
+    this.vm.cancelOpen();
+    this.backDispatcher.unregister('playlists');
+    this.vm.selected = null;
+    this.vm.selectedTracks = [];
+  }
+
+  private consumePlaylistRequest(): void {
+    if (!this.mounted || this.playlistRequest === '') { return; }
+    const request = this.playlistRequest;
+    this.vm.cancelOpen();
+    this.vm.selected = null;
+    this.vm.selectedTracks = [];
+    this.showRename = false;
+    this.showCardPreview = false;
+    this.onlineDetailMode = 0;
+    this.onlineParentMode = 0;
+    this.onPlaylistRequestConsumed();
+    this.vm.openPlaylistId(Number(request.split(':')[0]), this.ctx());
+  }
+
+  @Builder
+  AddPlaylistCard(dimension: number, label: string) {
+    AddFormMenuItem({ bundleName: this.ctx().abilityInfo.bundleName, abilityName: PLAYLIST_FORM_ABILITY,
+      parameters: { 'ohos.extra.param.key.form_dimension': dimension,
+        'ohos.extra.param.key.form_name': PLAYLIST_FORM_NAME, 'ohos.extra.param.key.module_name': 'entry',
+        'dreammusic.playlistId': this.vm.selected?.id ?? 0 } }, 'playlist-card-preview', {
+      formBindingData: PlaylistFormStore.binding(playlistCardSnapshot(this.vm.selected?.id ?? 0,
+        this.vm.selected, this.vm.selectedTracks)),
+      style: { options: { content: label } },
+      callback: (error, formId) => {
+        this.cardStatus = error?.code === 0 ? '已添加到桌面' : '未能添加，请重试';
+        if (error?.code === 0) { this.showCardPreview = false; }
+      }
+    })
+  }
+
+  @Builder
+  CardPreview() {
+    Column({ space: 16 }) {
+      Text('添加歌单到桌面').fontSize(FONT_TITLE).fontColor(this.theme.ink)
+      Column({ space: 8 }) {
+        Text(this.vm.selected?.name ?? '').fontSize(15).fontWeight(FontWeight.Medium)
+          .fontColor(CARD_INK).maxLines(2).textOverflow({ overflow: TextOverflow.Ellipsis }).width('100%')
+        Text(playlistCardSnapshot(this.vm.selected?.id ?? 0, this.vm.selected, this.vm.selectedTracks).summary)
+          .fontSize(12).fontColor(CARD_MUTED).maxLines(3).textOverflow({ overflow: TextOverflow.Ellipsis })
+          .width('100%').layoutWeight(1)
+        Text('打开歌单 ›').fontSize(12).fontColor(CARD_INK).width('100%').height(44)
+      }.width(180).height(180).padding(12).backgroundColor(CARD_BG).borderRadius(16)
+        .id('playlist-card-preview').alignItems(HorizontalAlign.Start)
+      Menu() {
+        this.AddPlaylistCard(2, '添加 2×2 卡片')
+        this.AddPlaylistCard(3, '添加 2×4 卡片')
+      }
+      if (this.cardStatus !== '') {
+        Text(this.cardStatus).fontSize(FONT_LABEL).fontColor(this.theme.muted)
+      }
+    }.width('100%').padding(20)
   }
 
   private ctx(): common.UIAbilityContext {
@@ -66,14 +147,21 @@ export struct PlaylistsPage {
   }
 
   private closeOnlineDetail(): void {
-    this.onlineDetailMode = 0;
+    this.onlineDetailMode = this.onlineParentMode;
+    this.onlineParentMode = 0;
     this.onlineVm.selectedPlaylist = null;
     this.onlineVm.selectedSongs = [];
     this.onlineStatus = '';
   }
 
   /** 子页先收起在线/本地歌单详情，再把返回交给“我的”父页。 */
-  onBackPress(): boolean {
+  private handleBack(): boolean {
+    this.vm.cancelOpen();
+    if (this.showCardPreview) { this.showCardPreview = false; return true; }
+    if (this.showRename) {
+      this.showRename = false;
+      return true;
+    }
     if (this.vm.selected !== null) {
       this.vm.selected = null;
       this.vm.selectedTracks = [];
@@ -83,8 +171,7 @@ export struct PlaylistsPage {
       this.closeOnlineDetail();
       return true;
     }
-    this.onBack();
-    return true;
+    return false;
   }
 
   @Builder
@@ -196,7 +283,7 @@ export struct PlaylistsPage {
         Row({ space: 8 }) {
           SymbolGlyph($r('sys.symbol.heart_fill'))
             .fontSize(15)
-            .fontColor([this.theme.primary])
+            .fontColor([this.theme.primaryText])
           Text('我喜欢的音乐')
             .fontSize(13)
             .fontColor(this.theme.ink)
@@ -346,6 +433,7 @@ export struct PlaylistsPage {
                 .borderRadius(RADIUS_CARD)
                 .backgroundColor(this.theme.card)
                 .onClick(() => {
+                  this.onlineParentMode = 3;
                   this.onlineDetailMode = 2;
                   this.onlineVm.openPlaylist(this.ctx(), playlist);
                 })
@@ -409,7 +497,7 @@ export struct PlaylistsPage {
             Row({ space: 12 }) {
               SymbolGlyph(p.systemReserved ? $r('sys.symbol.heart_fill') : $r('sys.symbol.rectangle_stack'))
                 .fontSize(18)
-                .fontColor([p.systemReserved ? this.theme.primary : this.theme.muted])
+                .fontColor([p.systemReserved ? this.theme.primaryText : this.theme.muted])
               Text(p.name)
                 .fontSize(FONT_BODY)
                 .fontColor(this.theme.ink)
@@ -485,6 +573,12 @@ export struct PlaylistsPage {
       }
       .width('100%')
 
+      Button('添加到桌面').fontSize(FONT_LABEL).fontColor(this.theme.primaryText)
+        .backgroundColor(this.theme.card).constraintSize({ minHeight: 48 })
+        .onClick(() => { this.cardStatus = ''; this.showCardPreview = true; })
+        .bindSheet($$this.showCardPreview, this.CardPreview(), { height: SheetSize.FIT_CONTENT,
+          backgroundColor: this.theme.bg })
+
       if (this.vm.selected !== null && this.vm.selectedTracks.length === 0) {
         EmptyState({
           symbol: $r('sys.symbol.heart'),
@@ -511,18 +605,20 @@ export struct PlaylistsPage {
   build() {
     Stack({ alignContent: Alignment.TopStart }) {
       Column({ space: 16 }) {
-        Text('歌单')
-          .fontSize(FONT_TITLE)
-          .fontWeight(FontWeight.Medium)
-          .fontColor(this.theme.ink)
-          .width('100%')
+        Row({ space: 12 }) {
+          Text('返回').fontSize(FONT_LABEL).fontColor(this.theme.primaryText)
+            .constraintSize({ minWidth: 48, minHeight: 48 })
+            .onClick(() => { if (!this.handleBack()) { this.onBack(); } })
+          Text('歌单').fontSize(FONT_TITLE).fontWeight(FontWeight.Medium)
+            .fontColor(this.theme.ink).layoutWeight(1)
+        }.width('100%')
 
         if (this.vm.selected === null && this.onlineDetailMode === 0) {
-          this.PlaylistList()
+          Column() { this.PlaylistList() }.width('100%').layoutWeight(1)
         } else if (this.vm.selected === null) {
-          this.OnlineDetail()
+          Column() { this.OnlineDetail() }.width('100%').layoutWeight(1)
         } else {
-          this.PlaylistDetail()
+          Column() { this.PlaylistDetail() }.width('100%').layoutWeight(1)
         }
       }
       .padding(20)

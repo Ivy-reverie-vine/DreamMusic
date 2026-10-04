@@ -36,47 +36,57 @@ export class PlayerSession {
   private initTimer: number = -1;
   private diagnosticStage: string = 'avplayer_initialization';
   private diagnosticSource: string = 'local';
+  private cancelled: boolean = false;
+
+  private async createPlayer(): Promise<media.AVPlayer> {
+    if (this.cancelled) { throw new Error('播放请求已取消'); }
+    const avp = await media.createAVPlayer();
+    if (this.cancelled) {
+      await avp.release();
+      throw new Error('播放请求已取消');
+    }
+    this.player = avp;
+    avp.on('stateChange', (state: string) => {
+      if (this.player === avp && !this.cancelled) { this.handleState(state); }
+    });
+    avp.on('error', () => {
+      if (this.player === avp && !this.cancelled) { this.handleState('error'); }
+    });
+    avp.on('timeUpdate', (ms: number) => {
+      if (this.player === avp && !this.cancelled && this.cb !== null) { this.cb.onPositionUpdate(ms); }
+    });
+    return avp;
+  }
+
+  private checkActive(): void {
+    if (this.cancelled) { throw new Error('播放请求已取消'); }
+  }
 
   async playFile(absPath: string, callbacks: PlaybackCallbacks): Promise<void> {
-    await this.release();
+    this.checkActive();
     this.cb = callbacks;
     this.diagnosticSource = 'local';
     const file = fileIo.openSync(absPath, fileIo.OpenMode.READ_ONLY);
     this.fd = file.fd;
     const stat = fileIo.statSync(absPath);
-    const avp = await media.createAVPlayer();
-    this.player = avp;
-    avp.on('stateChange', (state: string) => {
-      this.handleState(state);
-    });
-    avp.on('timeUpdate', (ms: number) => {
-      if (this.cb !== null) {
-        this.cb.onPositionUpdate(ms);
-      }
-    });
+    const avp = await this.createPlayer();
     callbacks.onStateChange(PlayerState.PREPARING);
     avp.fdSrc = { fd: this.fd, offset: 0, length: stat.size };
     // 必须等状态到 initialized 才能 prepare,否则报 unsupported prepare operation
     await this.waitInitialized();
+    this.checkActive();
     await avp.prepare();
+    this.checkActive();
     await avp.play();
+    this.checkActive();
   }
 
   /** 网络直链流式播放：只交给 AVPlayer，不落盘。 */
   async playUrl(url: string, callbacks: PlaybackCallbacks): Promise<void> {
-    await this.release();
+    this.checkActive();
     this.cb = callbacks;
     this.diagnosticSource = 'api-enhanced';
-    const avp = await media.createAVPlayer();
-    this.player = avp;
-    avp.on('stateChange', (state: string) => {
-      this.handleState(state);
-    });
-    avp.on('timeUpdate', (ms: number) => {
-      if (this.cb !== null) {
-        this.cb.onPositionUpdate(ms);
-      }
-    });
+    const avp = await this.createPlayer();
     callbacks.onStateChange(PlayerState.PREPARING);
     // 网络源: idle 状态设置 url → initialized → prepare → play
     const initializedAt = Date.now();
@@ -84,6 +94,7 @@ export class PlayerSession {
     try {
       avp.url = url;
       await this.waitInitialized();
+      this.checkActive();
       playbackDiagnostics.record({
         source: this.diagnosticSource, capability: 'playback', stage: 'avplayer_initialization',
         durationMs: Date.now() - initializedAt, ok: true
@@ -104,6 +115,7 @@ export class PlayerSession {
     this.diagnosticStage = 'url_response';
     try {
       await avp.prepare();
+      this.checkActive();
       playbackDiagnostics.record({
         source: this.diagnosticSource, capability: 'playback', stage: 'url_response',
         durationMs: Date.now() - preparedAt, ok: true
@@ -124,6 +136,7 @@ export class PlayerSession {
     this.diagnosticStage = 'playing';
     try {
       await avp.play();
+      this.checkActive();
       playbackDiagnostics.record({
         source: this.diagnosticSource, capability: 'playback', stage: 'playing',
         durationMs: Date.now() - playingAt, ok: true
@@ -142,10 +155,16 @@ export class PlayerSession {
   }
 
   private waitInitialized(): Promise<void> {
+    this.checkActive();
+    if (this.player !== null && this.player.state === 'initialized') { return Promise.resolve(); }
+    if (this.player !== null && this.player.state === 'error') {
+      return Promise.reject(new Error('AVPlayer 初始化失败'));
+    }
     return new Promise<void>((resolve, reject) => {
       this.initResolve = resolve;
       this.initReject = reject;
       this.initTimer = setTimeout(() => {
+        this.initTimer = -1;
         this.initResolve = null;
         this.initReject = null;
         reject(new Error('AVPlayer 初始化超时'));
@@ -216,7 +235,7 @@ export class PlayerSession {
     }
     if (p.state === 'playing') {
       await p.pause();
-    } else if (p.state === 'paused') {
+    } else if (p.state === 'paused' || p.state === 'completed') {
       await p.play();
     }
   }
@@ -259,14 +278,20 @@ export class PlayerSession {
   }
 
   async release(): Promise<void> {
+    this.cancelled = true;
     if (this.initTimer >= 0) {
       clearTimeout(this.initTimer);
       this.initTimer = -1;
     }
+    const reject = this.initReject;
     this.initResolve = null;
     this.initReject = null;
+    if (reject !== null) { reject(new Error('播放请求已取消')); }
     const p = this.player;
+    const fd = this.fd;
     this.player = null;
+    this.fd = -1;
+    this.cb = null;
     if (p !== null) {
       try {
         await p.release();
@@ -275,9 +300,9 @@ export class PlayerSession {
         hilog.warn(DOMAIN, TAG, 'release failed: %{public}s', e.message);
       }
     }
-    if (this.fd >= 0) {
+    if (fd >= 0) {
       try {
-        fileIo.closeSync(this.fd);
+        fileIo.closeSync(fd);
       } catch (err) {
         const e = err as Error;
         hilog.warn(DOMAIN, TAG, 'close fd failed: %{public}s', e.message);

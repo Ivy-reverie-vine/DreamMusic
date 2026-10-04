@@ -1,5 +1,6 @@
 import { LibraryStore } from '../service/library/LibraryStore';
 import { Track, Playlist, PlayHistoryEntry } from '../model/Entities';
+import { common } from '@kit.AbilityKit';
 
 /** 歌单/收藏/历史状态容器(issue-09) */
 @Observed
@@ -10,6 +11,37 @@ export class PlaylistsViewModel {
   historyTracks: Track[] = [];
   statusText: string = '';
   private byIdCache: Map<number, Track> = new Map<number, Track>();
+  private openVersion: number = 0;
+
+  cancelOpen(): void { this.openVersion++; }
+
+  async openPlaylistId(id: number, context: common.Context): Promise<void> {
+    const version = ++this.openVersion;
+    this.selected = null;
+    this.selectedTracks = [];
+    this.statusText = '正在读取本地歌单';
+    try {
+      await this.store().init(context);
+      if (version !== this.openVersion) { return; }
+      const playlists = await this.store().listPlaylists();
+      const target = playlists.find((p: Playlist) => id === 0 ? p.systemReserved : p.id === id);
+      const all = await this.store().listTracks();
+      const ids = target === undefined ? [] : await this.store().listPlaylistTracks(target);
+      if (version !== this.openVersion) { return; }
+      this.playlists = playlists;
+      this.byIdCache.clear();
+      all.forEach((track: Track) => this.byIdCache.set(track.id, track));
+      if (target === undefined) {
+        this.statusText = '该本地歌单已删除，请选择其他歌单';
+        return;
+      }
+      this.selected = target;
+      this.selectedTracks = this.resolve(ids);
+      this.statusText = '';
+    } catch (err) {
+      if (version === this.openVersion) { this.statusText = '暂时无法读取本地歌单，请重新打开重试'; }
+    }
+  }
 
   private store(): LibraryStore {
     return LibraryStore.getInstance();
@@ -35,8 +67,11 @@ export class PlaylistsViewModel {
   }
 
   async load(): Promise<void> {
+    const version = this.openVersion;
     await this.refreshCache();
-    this.playlists = await this.store().listPlaylists();
+    const playlists = await this.store().listPlaylists();
+    if (version !== this.openVersion) { return; }
+    this.playlists = playlists;
     if (this.selected !== null) {
       const cur = this.playlists.find((p: Playlist) => p.id === this.selected!.id);
       if (cur !== undefined) {
@@ -50,8 +85,10 @@ export class PlaylistsViewModel {
   }
 
   async openPlaylist(p: Playlist): Promise<void> {
+    this.cancelOpen();
     this.selected = p;
     const ids = await this.store().listPlaylistTracks(p);
+    if (this.selected !== p) { return; }
     this.selectedTracks = this.resolve(ids);
   }
 

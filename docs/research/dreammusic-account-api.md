@@ -1,7 +1,7 @@
-# DreamMusic 账户/积分/下载/公告 API 调研(与 D:\Blog 中间层对齐)
+# DreamMusic 账户/积分/下载/公告 API 调研(NightDream 中间层)
 
-> 依据: D:\Blog\server\{auth,downloadManager,downloadSource,rateLimit,config,db}.js + D:\Blog\src\dreammusic\api.ts(代码为准)。
-> 注意: `D:\Blog\docs\API-DreamMusic.md` 已落后于实现(缺少 downloads/redeem/announcements/password/avatar 等),本文件以代码为准。
+> 依据: `D:\DreamMusic\NightDream` 当前服务端源码。本文记录 NightDream 可提供的账户/积分/下载/公告能力；不等同于 HarmonyOS 客户端当前已调用的接口。
+> 当前客户端只使用统一入口的普通播放直链并客户端下载入库；NightDream 负责未来新增来源的调度，客户端不直接选择来源。
 
 ## 0. 鉴权(重要变化)
 
@@ -103,6 +103,6 @@
 | 梦点/签到 | 设置页账户区显示 `dreamPoints` + 「每日签到 +10」按钮(已签置灰);X-API-Key 调 `/auth/checkin` | 小 |
 | 兑换码 | 设置页「兑换码」输入 → `/auth/redeem` → 刷新余额 | 小 |
 | 公告 | 登录页或设置页拉 `/auth/announcements` 展示(level 区分样式) | 小 |
-| 下载扣点 | **已拍板 ②**: 切到中间层下载管理器(扣 1 梦点、失败退款、带解灰换源,文件经 `/auth/downloads/:id/file` 取);已实现并编译通过 | 中 |
+| 下载扣点 | 服务端可提供下载管理器(扣点、失败退款、替代源和任务文件);当前 HarmonyOS 客户端未调用该入口，客户端下载仍使用 `/song/url/v1` 返回的普通直链 | 中 |
 | 播放统计 | 播放中每 30s 上报 `/auth/stats`(对齐网页) | 小 |
 | 402 映射 | ApiClient 补 `RATE_LIMIT` 已有,再补 `INSUFFICIENT_POINTS(402)` 与登录锁定 429 文案 | 小 |

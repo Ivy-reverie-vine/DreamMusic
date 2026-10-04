@@ -13,6 +13,7 @@
     "abilities": [
       {
         "name": "EntryAbility",
+        "launchType": "singleton",
         "srcEntry": "./ets/entryability/EntryAbility.ets",
         "description": "$string:EntryAbility_desc",
         "icon": "$media:logo",
@@ -36,6 +37,28 @@
       }
     ],
     "extensionAbilities": [
+      {
+        "name": "PlaylistFormAbility",
+        "srcEntry": "./ets/entryformability/PlaylistFormAbility.ets",
+        "type": "form",
+        "exported": true,
+        "label": "$string:playlist_card_name",
+        "description": "$string:playlist_card_description",
+        "metadata": [
+          { "name": "ohos.extension.form", "resource": "$profile:playlist_form_config" }
+        ]
+      },
+      {
+        "name": "MusicFormAbility",
+        "srcEntry": "./ets/entryformability/MusicFormAbility.ets",
+        "type": "form",
+        "exported": true,
+        "label": "$string:music_card_name",
+        "description": "$string:music_card_description",
+        "metadata": [
+          { "name": "ohos.extension.form", "resource": "$profile:music_form_config" }
+        ]
+      },
       {
         "name": "EntryBackupAbility",
         "srcEntry": "./ets/entrybackupability/EntryBackupAbility.ets",

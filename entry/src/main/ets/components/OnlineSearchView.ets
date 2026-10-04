@@ -1,11 +1,10 @@
 import { ThemeService } from '../service/theme/ThemeService';
 import { common } from '@kit.AbilityKit';
-import { OnlineSong, Track } from '../model/Entities';
+import { OnlineSong } from '../model/Entities';
 import { NetEaseApi } from '../service/network/NetEaseApi';
 import { ApiError } from '../service/network/ApiClient';
 import { DreamMusicAuth } from '../service/network/DreamMusicAuth';
-import { OnlineDownloadService } from '../service/network/OnlineDownloadService';
-import { queueViewModel } from '../viewmodel/QueueViewModel';
+import { onlineMusicViewModel } from '../viewmodel/OnlineMusicViewModel';
 import { playerViewModel } from '../viewmodel/PlayerViewModel';
 import { networkViewModel } from '../viewmodel/NetworkViewModel';
 import { FONT_BODY, FONT_LABEL, RADIUS_CARD } from '../common/DesignTokens';
@@ -100,88 +99,30 @@ export struct OnlineSearchView {
   }
 
   private async streamAndPlay(song: OnlineSong): Promise<void> {
-    if (song.id > 0) {
-      const local = await OnlineDownloadService.findLocal(this.ctx(), song.id);
-      if (local !== null) {
-        this.errorText = '';
-        this.errorCode = '';
-        await queueViewModel.playFromList([local], 0, this.ctx());
-        return;
-      }
-    }
-    if (this.busyId !== -1 || this.busyRef !== '') {
-      return;
-    }
+    if (this.busyId !== -1 || this.busyRef !== '') { return; }
     this.busyId = song.id;
     this.busyRef = song.mediaRef !== undefined ? song.mediaRef : '';
-    this.progressText = '获取播放链接…';
+    this.progressText = '正在加载音乐…';
     this.errorText = '';
     this.errorCode = '';
+    const playback = onlineMusicViewModel.playSong(this.ctx(), song);
+    const request = playerViewModel.requestId;
     try {
-      const mediaRef = song.mediaRef !== undefined ? song.mediaRef : '';
-      const url = await NetEaseApi.resolveUrl(this.ctx(), song.id, mediaRef);
-      if (url === '') {
-        this.errorText = '无版权或需要会员,无法播放';
-        this.busyId = -1;
-        this.busyRef = '';
-        return;
+      await playback;
+      if (playerViewModel.isCurrentRequest(request)) {
+        this.progressText = '播放已开始';
+        networkViewModel.markOnline();
+      } else {
+        this.progressText = '';
       }
-      // 搜索结果偶尔不带专辑图；用详情接口补齐，避免播放页退化成无封面。
-      let coverUrl = song.coverUrl;
-      if (coverUrl === '') {
-        coverUrl = await NetEaseApi.songDetailCover(this.ctx(), song.id, mediaRef).catch(() => '');
-      }
-      const transient: Track = {
-        id: song.id > 0 ? -song.id : -1,
-        path: 'music/online-stream.mp3',
-        title: song.name,
-        artist: song.artist,
-        album: song.album,
-        durationMs: song.durationMs,
-        coverPath: '',
-        importedAt: Date.now(),
-        missing: false,
-        neteaseId: song.id > 0 ? song.id : 0,
-        streamUrl: url,
-        streamCoverUrl: coverUrl,
-        mediaRef: mediaRef
-      };
-      // 先在线播放，下载失败不打断当前播放。
-      await queueViewModel.playFromList([transient], 0, this.ctx());
-      if (playerViewModel.errorText !== '') {
-        this.errorText = '播放失败:' + playerViewModel.errorText;
-        this.busyId = -1;
-        this.busyRef = '';
-        return;
-      }
-      networkViewModel.markOnline();
-      if (song.id <= 0) {
-        this.progressText = '在线播放中';
-        this.busyId = -1;
-        this.busyRef = '';
-        return;
-      }
-      this.progressText = '播放中 · 下载中 0%';
-      OnlineDownloadService.ensureLocal(this.ctx(), song, (pct: number): void => {
-        this.progressText = '播放中 · 下载中 ' + pct + '%';
-      }).then((track: Track) => {
-        this.progressText = '已下载，可离线播放';
-        const current = playerViewModel.currentTrack;
-        if (current !== null && current.neteaseId === song.id &&
-          current.streamUrl !== undefined && current.streamUrl !== '') {
-          queueViewModel.swapCurrentWithLocal(track);
-        }
-        this.busyId = -1;
-        this.busyRef = '';
-      }).catch((err: Error) => {
-        this.progressText = '在线播放中 · 下载失败:' + err.message;
-        this.busyId = -1;
-        this.busyRef = '';
-      });
     } catch (err) {
-      OnlineSearchView.reportConnectivity(err as Error);
-      this.errorText = (err as Error).message;
-      this.errorCode = err instanceof ApiError ? err.code : '';
+      if (playerViewModel.isCurrentRequest(request)) {
+        OnlineSearchView.reportConnectivity(err as Error);
+        this.progressText = '';
+        this.errorText = playerViewModel.errorText;
+        this.errorCode = playerViewModel.errorCode;
+      }
+    } finally {
       this.busyId = -1;
       this.busyRef = '';
     }

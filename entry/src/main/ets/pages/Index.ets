@@ -17,6 +17,7 @@ import { ApiError } from '../service/network/ApiClient';
 import { OnlineMusicService } from '../service/network/OnlineMusicService';
 import { MiniPlayerBar } from '../components/MiniPlayerBar';
 import { PlayerState } from '../model/Playback';
+import { MOTION_THEME_FADE_MS } from '../common/DesignTokens';
 
 const RIPPLE_DIAMETER = 64;
 
@@ -67,7 +68,16 @@ struct Index {
     // issue-12 修复:恢复前先接线,使启动恢复时歌词/封面取色立即生效
     lyricsViewModel.setContext(ctx);
     playerViewModel.coverColorHandler = (t) => {
-      BackgroundAdapter.applyCoverColors(ctx, this.theme, t);
+      BackgroundAdapter.applyCoverColors(ctx, this.theme, t, () => playerViewModel.currentTrack === t,
+        (colors) => {
+          if (accessibility.isAnimationReduceEnabledSync()) {
+            this.theme.applyExtracted(colors.primary, colors.secondary);
+          } else {
+            animateTo({ duration: MOTION_THEME_FADE_MS, curve: Curve.EaseOut }, () => {
+              this.theme.applyExtracted(colors.primary, colors.secondary);
+            });
+          }
+        });
     };
     // 断点续播恢复(issue-06):还原队列/当前曲/进度为暂停态
     queueViewModel.restore(ctx);
@@ -206,11 +216,11 @@ struct Index {
           onOpen: (): void => {
             this.current = 1;
           },
-          onToggle: (): void => {
-            this.player.togglePause();
+          onToggle: (): Promise<void> => {
+            return this.player.togglePause();
           },
-          onNext: (): void => {
-            queueViewModel.playNext();
+          onNext: (): Promise<void> => {
+            return queueViewModel.playNext();
           }
         })
       }

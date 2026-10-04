@@ -37,6 +37,12 @@ export class LibraryStore {
   private static instance: LibraryStore | null = null;
   private store: relationalStore.RdbStore | null = null;
   private initPromise: Promise<void> | null = null;
+  onPlaylistContentChanged: (() => void) | null = null;
+
+  private playlistContentChanged(): void {
+    // 展示刷新失败不能让已成功的本地写入失败。
+    try { this.onPlaylistContentChanged?.(); } catch (err) {}
+  }
 
   static getInstance(): LibraryStore {
     if (LibraryStore.instance === null) {
@@ -299,6 +305,7 @@ export class LibraryStore {
     const pred = new relationalStore.RdbPredicates('tracks');
     pred.equalTo('id', id);
     await this.db().delete(pred);
+    this.playlistContentChanged();
   }
 
   /**
@@ -336,6 +343,7 @@ export class LibraryStore {
       // 专辑行的作者标签跟随最新编辑(专辑名不变)
       await this.db().executeSql('UPDATE albums SET artist = ? WHERE name = ?', [artist, old.album]);
     }
+    this.playlistContentChanged();
   }
 
   private rowToTrack(rs: relationalStore.ResultSet): Track {
@@ -473,7 +481,9 @@ export class LibraryStore {
       'system_reserved': 0,
       'created_at': Date.now()
     };
-    return await this.db().insert('playlists', values);
+    const id = await this.db().insert('playlists', values);
+    this.playlistContentChanged();
+    return id;
   }
 
   async renamePlaylist(id: number, name: string): Promise<void> {
@@ -482,6 +492,7 @@ export class LibraryStore {
     pred.equalTo('system_reserved', 0); // 系统保留歌单不可重命名
     const values: relationalStore.ValuesBucket = { 'name': name };
     await this.db().update(values, pred);
+    this.playlistContentChanged();
   }
 
   async deletePlaylist(id: number): Promise<void> {
@@ -489,6 +500,7 @@ export class LibraryStore {
     pred.equalTo('id', id);
     pred.equalTo('system_reserved', 0); // 系统保留歌单不可删除
     await this.db().delete(pred);
+    this.playlistContentChanged();
   }
 
   async listPlaylists(): Promise<Playlist[]> {
@@ -521,6 +533,7 @@ export class LibraryStore {
       'position': pos
     };
     await this.db().insert('playlist_tracks', values);
+    this.playlistContentChanged();
   }
 
   async removeTrackFromPlaylist(playlistId: number, trackId: number): Promise<void> {
@@ -528,6 +541,7 @@ export class LibraryStore {
     pred.equalTo('playlist_id', playlistId);
     pred.equalTo('track_id', trackId);
     await this.db().delete(pred);
+    this.playlistContentChanged();
   }
 
   /** 收藏音轨 id(按收藏时间倒序)——"我喜欢的音乐"聚合来源 */
@@ -566,6 +580,7 @@ export class LibraryStore {
     rs.close();
     if (exists) {
       await this.db().delete(pred);
+      this.playlistContentChanged();
       return false;
     }
     const values: relationalStore.ValuesBucket = {
@@ -573,6 +588,7 @@ export class LibraryStore {
       'created_at': Date.now()
     };
     await this.db().insert('favorites', values);
+    this.playlistContentChanged();
     return true;
   }
 

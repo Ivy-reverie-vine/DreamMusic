@@ -10,6 +10,8 @@ import { OutlineButton } from '../components/OutlineButton';
 import { QrBindView } from '../components/QrBindView';
 import { RADIUS_CARD, RADIUS_CAPSULE, FONT_LABEL, FONT_TITLE } from '../common/DesignTokens';
 import { PlayerViewModel, playerViewModel } from '../viewmodel/PlayerViewModel';
+import { BackDispatcher } from '../model/Navigation';
+import { DesktopLyricsViewModel, desktopLyricsViewModel } from '../viewmodel/DesktopLyricsViewModel';
 
 interface SleepTimerOption {
   label: string;
@@ -40,8 +42,10 @@ const THEME_MODES: ThemeModeOption[] = [
  */
 @Component
 export struct SettingsPage {
+  backDispatcher: BackDispatcher = new BackDispatcher();
   @State theme: ThemeService = ThemeService.getInstance();
   @State player: PlayerViewModel = playerViewModel;
+  @State desktopLyrics: DesktopLyricsViewModel = desktopLyricsViewModel;
   onAccountChanged: () => void = () => {
   };
   @State scanStatus: string = '';
@@ -62,6 +66,7 @@ export struct SettingsPage {
   private sleepTimerTick: number = -1;
 
   aboutToAppear(): void {
+    this.backDispatcher.register('settings', 30, () => this.handleBack());
     this.net.load();
     this.refreshAccountStatus();
     this.refreshSleepTimer();
@@ -71,6 +76,7 @@ export struct SettingsPage {
   }
 
   aboutToDisappear(): void {
+    this.backDispatcher.unregister('settings');
     if (this.sleepTimerTick >= 0) {
       clearInterval(this.sleepTimerTick);
       this.sleepTimerTick = -1;
@@ -79,6 +85,13 @@ export struct SettingsPage {
 
   private ctx(): common.UIAbilityContext {
     return this.getUIContext().getHostContext() as common.UIAbilityContext;
+  }
+
+  private handleBack(): boolean {
+    if (!this.showSheet) { return false; }
+    this.showSheet = false;
+    this.sheetMode = 0;
+    return true;
   }
 
   private refreshSleepTimer(): void {
@@ -226,16 +239,23 @@ export struct SettingsPage {
   applyBg(index: number): void {
     // 切预设 = 放弃自定义背景(持久化同步)
     this.theme.applyPresetBg(index);
+    const backgroundStamp = this.theme.bgStamp;
     ThemeService.saveBgIndex(this.ctx(), index);
     ThemeService.saveCustomBg(this.ctx(), '');
     this.bgStatus = `已应用背景 ${index + 1} · 取色中…`;
     BackgroundAdapter.extractPresetColors(this.ctx(), BG_PRESETS[index].res)
       .then((colors) => {
-        this.theme.applyExtracted(colors.primary, colors.secondary);
+        if (this.theme.bgStamp !== backgroundStamp) {
+          return;
+        }
+        this.theme.applyBackgroundColors(colors);
         this.bgStatus = `已应用背景 ${index + 1}`;
       })
       .catch(() => {
-        this.bgStatus = `已应用背景 ${index + 1}(取色失败,保持当前颜色)`;
+        if (this.theme.bgStamp === backgroundStamp) {
+          this.theme.restoreBackgroundColors();
+          this.bgStatus = `已应用背景 ${index + 1}(取色失败,使用默认主题色)`;
+        }
       });
   }
 
@@ -308,6 +328,49 @@ export struct SettingsPage {
     .borderRadius(RADIUS_CARD)
     .backgroundColor(this.theme.card)
     .onClick(onTap)
+  }
+
+  @Builder
+  DesktopLyricsToggle(title: string, value: boolean, available: boolean, onChange: (value: boolean) => void) {
+    Row({ space: 12 }) {
+      Text(title)
+        .fontSize(15)
+        .fontColor(this.theme.ink)
+        .layoutWeight(1)
+      Toggle({ type: ToggleType.Switch, isOn: value })
+        .selectedColor(this.theme.primary)
+        .enabled(available && !this.desktopLyrics.busy)
+        .accessibilityText(title)
+        .onChange(onChange)
+    }
+    .width('100%')
+    .constraintSize({ minHeight: 48 })
+    .padding({ left: 12, right: 12, top: 8, bottom: 8 })
+  }
+
+  @Builder
+  DesktopLyricsSection() {
+    Column({ space: 4 }) {
+      this.DesktopLyricsToggle('系统桌面歌词', this.desktopLyrics.enabled, this.desktopLyrics.supported,
+        (value: boolean): void => this.desktopLyrics.setEnabled(value))
+      Text(this.desktopLyrics.status)
+        .fontSize(FONT_LABEL)
+        .fontColor(this.theme.muted)
+        .width('100%')
+        .padding({ left: 12, right: 12, bottom: 8 })
+      if (this.desktopLyrics.enabled && this.desktopLyrics.supported) {
+        this.DesktopLyricsToggle('显示歌词', this.desktopLyrics.visible, true,
+          (value: boolean): void => this.desktopLyrics.setVisible(value))
+        this.DesktopLyricsToggle('锁定歌词位置', this.desktopLyrics.locked, true,
+          (value: boolean): void => this.desktopLyrics.setLocked(value))
+      }
+      if (this.desktopLyrics.canRetry) {
+        OutlineButton({ text: '重试桌面歌词', onTap: (): void => this.desktopLyrics.retry() })
+      }
+    }
+    .width('100%')
+    .borderRadius(RADIUS_CARD)
+    .backgroundColor(this.theme.card)
   }
 
   @Builder
@@ -656,6 +719,8 @@ export struct SettingsPage {
           this.sheetMode = 3;
           this.showSheet = true;
         })
+
+        this.DesktopLyricsSection()
 
         this.SectionTitle('账户')
         // 账户(DreamMusic 中间层:登录/注册 + QR 绑定 + 退出)

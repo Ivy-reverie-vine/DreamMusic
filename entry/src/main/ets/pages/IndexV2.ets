@@ -1,3 +1,4 @@
+import { playbackRuntime } from '../viewmodel/PlaybackRuntime';
 import { ThemeService } from '../service/theme/ThemeService';
 import { BackgroundAdapter } from '../service/theme/BackgroundAdapter';
 import { queueViewModel } from '../viewmodel/QueueViewModel';
@@ -18,9 +19,11 @@ import { OnlineMusicService } from '../service/network/OnlineMusicService';
 import { MiniPlayerBar } from '../components/MiniPlayerBar';
 import { PlayerState } from '../model/Playback';
 import { accountViewModel } from '../viewmodel/AccountViewModel';
+import { MOTION_THEME_FADE_MS } from '../common/DesignTokens';
 import { playbackStatsViewModel } from '../viewmodel/PlaybackStatsViewModel';
+import { playbackLaunch, ExternalDestination, PLAYLIST_DESTINATION } from '../model/PlaybackLaunch';
 import {
-  BackAction, MySubpage, RootTab, NavigationState, openMyPage, resolveBack, selectRoot
+  BackAction, BackDispatcher, MySubpage, RootTab, NavigationState, openMyPage, resolveBack, selectRoot
 } from '../model/Navigation';
 
 const RIPPLE_DIAMETER = 64;
@@ -38,6 +41,8 @@ struct IndexV2 {
   @State current: RootTab = RootTab.LIBRARY;
   @State myPage: MySubpage = MySubpage.HOME;
   @State sourceRoot: RootTab = RootTab.MY;
+  @State playlistRequest: string = '';
+  private externalSequence: number = 0;
   @State player: PlayerViewModel = playerViewModel;
   @State booting: boolean = true;
   @State loggedIn: boolean = false;
@@ -49,6 +54,8 @@ struct IndexV2 {
   @State rippleY: number = 0;
   @State rippleRelease: boolean = false;
   private rippleHideTimer: number = -1;
+  private playbackEntry: boolean = false;
+  private childBack: BackDispatcher = new BackDispatcher();
   private tabs: NavTab[] = [
     { label: '音乐库', icon: $r('sys.symbol.music_note_list') },
     { label: '正在播放', icon: $r('sys.symbol.play_circle') },
@@ -78,6 +85,7 @@ struct IndexV2 {
       }
       return true;
     }
+    if (this.childBack.handle()) { return true; }
     if (action === BackAction.MY_HOME) {
       this.myPage = MySubpage.HOME;
       this.sourceRoot = RootTab.MY;
@@ -93,18 +101,42 @@ struct IndexV2 {
   }
 
   aboutToAppear(): void {
+    playbackLaunch.attach((target: ExternalDestination) => this.openExternalEntry(target));
     const ctx = this.ctx();
     lyricsViewModel.setContext(ctx);
     playerViewModel.coverColorHandler = (t) => {
-      BackgroundAdapter.applyCoverColors(ctx, this.theme, t);
+      BackgroundAdapter.applyCoverColors(ctx, this.theme, t, () => playerViewModel.currentTrack === t,
+        (colors) => {
+          if (accessibility.isAnimationReduceEnabledSync()) {
+            this.theme.applyExtracted(colors.primary, colors.secondary);
+          } else {
+            animateTo({ duration: MOTION_THEME_FADE_MS, curve: Curve.EaseOut }, () => {
+              this.theme.applyExtracted(colors.primary, colors.secondary);
+            });
+          }
+        });
     };
-    queueViewModel.restore(ctx);
+    playbackRuntime.ensureReady(ctx).then(() => {
+      // 卡片可能已在后台恢复/播放，页面挂载只补 UI 派生数据，绝不重新恢复队列。
+      lyricsViewModel.setContext(ctx);
+      const track = playerViewModel.currentTrack;
+      if (track !== null) { playerViewModel.coverColorHandler?.(track); }
+    }).catch(() => {});
     this.checkGate();
+  }
+
+  aboutToDisappear(): void {
+    playbackLaunch.detach();
+    if (this.rippleHideTimer >= 0) {
+      clearTimeout(this.rippleHideTimer);
+      this.rippleHideTimer = -1;
+    }
   }
 
   private async checkGate(): Promise<void> {
     const ctx = this.ctx();
     await DreamMusicAuth.initialize(ctx);
+    if (this.playbackEntry) { this.booting = false; return; }
     if (!DreamMusicAuth.isLoggedIn(ctx)) {
       this.booting = false;
       this.loggedIn = false;
@@ -113,6 +145,7 @@ struct IndexV2 {
     }
     try {
       const user = await DreamMusicAuth.me(ctx);
+      if (this.playbackEntry) { this.booting = false; return; }
       if (user === null) {
         this.booting = false;
         this.loggedIn = false;
@@ -127,10 +160,12 @@ struct IndexV2 {
         });
       }
     } catch (err) {
+      if (this.playbackEntry) { this.booting = false; return; }
       if (err instanceof ApiError && err.code === 'UNAUTHORIZED') {
         await DreamMusicAuth.logout(ctx);
         OnlineMusicService.clearCache(ctx);
         this.loggedIn = false;
+        if (this.playbackEntry) { this.booting = false; return; }
         this.loginPromptVisible = true;
       } else {
         this.loggedIn = true;
@@ -190,26 +225,55 @@ struct IndexV2 {
   }
 
   private selectTab(index: number): void {
+    this.playlistRequest = '';
     const next = selectRoot(this.navigation(), index as RootTab);
     this.current = next.root;
     this.myPage = next.myPage;
     this.sourceRoot = next.sourceRoot;
   }
 
+  private openPlaybackEntry(): void {
+    this.playbackEntry = true;
+    this.showLoginOverlay = false;
+    this.showBindAtStart = false;
+    this.loginPromptVisible = false;
+    this.booting = false;
+    this.selectTab(RootTab.NOW_PLAYING);
+  }
+
+  private openExternalEntry(target: ExternalDestination): void {
+    this.openPlaybackEntry();
+    if (target.destination === PLAYLIST_DESTINATION) {
+      this.externalSequence++;
+      this.playlistRequest = `${target.playlistId}:${this.externalSequence}`;
+      this.current = RootTab.MY;
+      this.myPage = MySubpage.PLAYLISTS;
+      this.sourceRoot = RootTab.MY;
+    }
+  }
+
   @Builder
   PageContent() {
     if (this.current === RootTab.LIBRARY) {
       MusicLibraryPage({
+        backDispatcher: this.childBack,
         onGoSettings: () => { this.openMyPage(MySubpage.SETTINGS, RootTab.LIBRARY); },
         onGoLogin: () => { this.showLoginOverlay = true; }
       })
     } else if (this.current === RootTab.NOW_PLAYING) {
-      NowPlayingPage()
+      NowPlayingPage({
+        onGoLibrary: () => { this.selectTab(RootTab.LIBRARY); },
+        onGoSettings: () => { this.openMyPage(MySubpage.SETTINGS, RootTab.NOW_PLAYING); }
+      })
     } else if (this.current === RootTab.QUEUE) {
       QueuePage()
     } else {
       MyPageV2({
         page: this.myPage,
+        playlistRequest: this.playlistRequest,
+        onPlaylistRequestConsumed: () => { this.playlistRequest = ''; },
+        backDispatcher: this.childBack,
+        onBack: () => { this.onBackPress(); },
         onNavigate: (page: MySubpage) => { this.openMyPage(page, RootTab.MY); },
         onLogin: () => { this.showLoginOverlay = true; }
       })
@@ -222,10 +286,12 @@ struct IndexV2 {
       Column() {
         MiniPlayerBar({
           track: this.player.currentTrack,
+          onGoLibrary: () => { this.selectTab(RootTab.LIBRARY); },
+          onGoSettings: () => { this.openMyPage(MySubpage.SETTINGS, this.current); },
           playing: this.player.state === PlayerState.PLAYING,
           onOpen: (): void => { this.selectTab(RootTab.NOW_PLAYING); },
-          onToggle: (): void => { this.player.togglePause(); },
-          onNext: (): void => { queueViewModel.playNext(); }
+          onToggle: (): Promise<void> => { return this.player.togglePause(); },
+          onNext: (): Promise<void> => { return queueViewModel.playNext(); }
         })
       }
       .width('100%')
@@ -265,7 +331,8 @@ struct IndexV2 {
                   .fontColor(index === this.current ? this.theme.primaryText : this.theme.muted)
                   .fontWeight(index === this.current ? FontWeight.Medium : FontWeight.Normal)
               }
-              .layoutWeight(1).padding({ top: 10, bottom: 10 }).borderRadius(20)
+              .layoutWeight(1).constraintSize({ minHeight: 48 })
+              .padding({ top: 10, bottom: 10 }).borderRadius(20)
               .backgroundColor(index === this.current
                 ? ThemeService.alpha(this.theme.primary, 0.14) : this.theme.transparent)
               .onClick(() => { this.selectTab(index); })
@@ -291,7 +358,7 @@ struct IndexV2 {
               colors: this.theme.isDark
                 ? [['#80FFFFFF', 0.0], ['#00FFFFFF', 1.0]]
                 : [['#26000000', 0.0], ['#00000000', 1.0]] })
-            .zIndex(20)
+            .zIndex(20).hitTestBehavior(HitTestMode.None)
         }
         if (this.showLoginOverlay) {
           LoginView({ onLoggedIn: () => { this.login(); }, onSkip: () => { this.showLoginOverlay = false; } })

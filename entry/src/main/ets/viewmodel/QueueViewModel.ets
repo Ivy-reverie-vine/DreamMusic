@@ -50,30 +50,30 @@ export class QueueViewModel {
     }, PERSIST_INTERVAL_MS);
     // 系统播控命令(锁屏/控制中心/耳机键)→ 队列域(issue-07)
     const bp = BackgroundPlayback.getInstance();
-    bp.onPlayCommand = (): void => {
+    bp.onPlayCommand = async (): Promise<void> => {
       if (playerViewModel.state === PlayerState.PAUSED || playerViewModel.state === PlayerState.COMPLETED) {
         if (playerViewModel.checkSleepTimer()) {
           return;
         }
-        playerViewModel.togglePause();
+        await playerViewModel.togglePause();
       }
     };
-    bp.onPauseCommand = (): void => {
+    bp.onPauseCommand = async (): Promise<void> => {
       if (playerViewModel.state === PlayerState.PLAYING) {
-        playerViewModel.togglePause();
+        await playerViewModel.pause();
       }
     };
-    bp.onNextCommand = (): void => {
+    bp.onNextCommand = async (): Promise<void> => {
       if (playerViewModel.checkSleepTimer()) {
         return;
       }
-      this.playNext();
+      await this.playNext();
     };
-    bp.onPrevCommand = (): void => {
+    bp.onPrevCommand = async (): Promise<void> => {
       if (playerViewModel.checkSleepTimer()) {
         return;
       }
-      this.playPrev();
+      await this.playPrev();
     };
     bp.onSeekCommand = (ms: number): void => {
       playerViewModel.seekTo(ms);
@@ -114,7 +114,9 @@ export class QueueViewModel {
   }
 
   /** 点歌:来源列表成为队列,从 startIndex 开始播 */
-  async playFromList(tracks: Track[], startIndex: number, context: common.Context): Promise<void> {
+  async playFromList(tracks: Track[], startIndex: number, context: common.Context,
+    expectedRequest: number = -1): Promise<void> {
+    if (expectedRequest >= 0 && !playerViewModel.isCurrentRequest(expectedRequest)) { return; }
     this.context = context;
     this.trackCache = tracks.slice();
     const ids: number[] = [];
@@ -123,10 +125,10 @@ export class QueueViewModel {
     });
     this.engine.setQueue(ids, startIndex, this.mode);
     this.syncDisplay();
-    await this.playCurrent(0);
+    await this.playCurrent(0, expectedRequest);
   }
 
-  private async playCurrent(seekMs: number): Promise<void> {
+  private async playCurrent(seekMs: number, expectedRequest: number = -1): Promise<void> {
     if (this.context === null) {
       return;
     }
@@ -135,10 +137,10 @@ export class QueueViewModel {
     if (t === null) {
       return;
     }
-    await playerViewModel.playTrack(t, this.context);
-    if (seekMs > 0) {
-      playerViewModel.seekTo(seekMs);
-    }
+    const playback = playerViewModel.playTrack(t, this.context, seekMs, expectedRequest);
+    const request = playerViewModel.requestId;
+    await playback;
+    if (!playerViewModel.isCurrentRequest(request) || this.engine.current() !== id) { return; }
     this.currentId = id;
     this.persist(seekMs);
   }
@@ -221,15 +223,13 @@ export class QueueViewModel {
   }
 
   /** 按拖拽后的 id 顺序重建引擎并落盘(8/16 修复:拖拽在页面本地数组上进行,松手统一提交) */
-  reorder(ids: number[]): void {
-    if (ids.length !== this.engine.queueLength) {
-      return;
+  reorder(ids: number[]): boolean {
+    if (!this.engine.reorder(ids)) {
+      return false;
     }
-    const cur = this.engine.current();
-    const curIdx = ids.indexOf(cur);
-    this.engine.setQueue(ids, Math.max(0, curIdx), this.mode);
     this.syncDisplay();
     this.persist(playerViewModel.positionMs);
+    return true;
   }
 
   /**
@@ -238,6 +238,25 @@ export class QueueViewModel {
    */
   swapCurrentWithLocal(track: Track): void {
     const oldId = this.engine.current();
+    const previous = playerViewModel.currentTrack;
+    // 本地封面优先；下载失败/文件缺失时继续使用已缓存的同音轨在线封面。
+    if (previous !== null && previous.id === oldId && previous.neteaseId === track.neteaseId) {
+      track.streamCoverUrl = previous.streamCoverUrl;
+      track.mediaRef = previous.mediaRef;
+      track.catalogRef = previous.catalogRef;
+      track.playbackRef = previous.playbackRef;
+      track.lyricsRef = previous.lyricsRef;
+      track.playbackSource = previous.playbackSource;
+      track.lyricsSource = previous.lyricsSource;
+      if (previous.catalogRef !== undefined) {
+        track.title = previous.title;
+        track.artist = previous.artist;
+        track.album = previous.album;
+        if (previous.streamCoverUrl !== undefined && previous.streamCoverUrl !== '') {
+          track.coverPath = '';
+        }
+      }
+    }
     if (oldId >= 0 || !this.engine.replaceTrackId(oldId, track.id)) {
       return;
     }
@@ -259,7 +278,34 @@ export class QueueViewModel {
     if (playerViewModel.coverColorHandler !== null) {
       playerViewModel.coverColorHandler(track);
     }
+    BackgroundPlayback.getInstance().sync(track, playerViewModel.state, playerViewModel.positionMs,
+      playerViewModel.durationMs, this.mode, true);
+    playerViewModel.playbackChangedHandler?.();
     this.persist(playerViewModel.positionMs);
+  }
+
+  /** 在线封面补齐不等待音频，且只更新请求发起时的同一瞬态音轨。 */
+  updateCurrentCover(expected: Track, url: string): void {
+    if (url === '' || playerViewModel.currentTrack !== expected || this.engine.current() !== expected.id) {
+      return;
+    }
+    const updated: Track = {
+      id: expected.id, path: expected.path, title: expected.title, artist: expected.artist,
+      album: expected.album, durationMs: expected.durationMs, coverPath: expected.coverPath,
+      importedAt: expected.importedAt, missing: expected.missing, neteaseId: expected.neteaseId,
+      streamUrl: expected.streamUrl, streamCoverUrl: url, mediaRef: expected.mediaRef,
+      catalogRef: expected.catalogRef, playbackRef: expected.playbackRef, lyricsRef: expected.lyricsRef,
+      playbackSource: expected.playbackSource, lyricsSource: expected.lyricsSource
+    };
+    this.trackCache = this.trackCache.map((t: Track) => t === expected ? updated : t);
+    this.syncDisplay();
+    playerViewModel.currentTrack = updated;
+    if (playerViewModel.coverColorHandler !== null) {
+      playerViewModel.coverColorHandler(updated);
+    }
+    BackgroundPlayback.getInstance().sync(updated, playerViewModel.state, playerViewModel.positionMs,
+      playerViewModel.durationMs, this.mode, true);
+    playerViewModel.playbackChangedHandler?.();
   }
 
   removeAt(index: number): void {
@@ -371,6 +417,7 @@ export class QueueViewModel {
       this.engine.fromSnapshot(snap);
       this.trackCache = all;
       this.syncDisplay();
+      playerViewModel.playMode = this.mode;
       const t = this.trackById(this.engine.current());
       if (t !== null) {
         playerViewModel.restorePaused(t, state.positionMs, context);

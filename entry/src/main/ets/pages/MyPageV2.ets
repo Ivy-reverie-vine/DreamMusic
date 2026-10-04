@@ -5,7 +5,7 @@ import { playbackStatsViewModel, PlaybackStatsViewModel } from '../viewmodel/Pla
 import { playlistsViewModel, PlaylistsViewModel } from '../viewmodel/PlaylistsViewModel';
 import { queueViewModel } from '../viewmodel/QueueViewModel';
 import { Playlist, Track } from '../model/Entities';
-import { MySubpage } from '../model/Navigation';
+import { BackDispatcher, MySubpage } from '../model/Navigation';
 import { common } from '@kit.AbilityKit';
 import { CoverThumb } from '../components/CoverThumb';
 import { EmptyState } from '../components/EmptyState';
@@ -16,7 +16,11 @@ import { FONT_BODY, FONT_LABEL, FONT_TITLE, RADIUS_CARD, RADIUS_CAPSULE } from '
 /** “我的”内容中心：账户、统计、歌单、历史、公告消息和设置均为全页状态。 */
 @Component
 export struct MyPageV2 {
-  @Prop page: MySubpage = MySubpage.HOME;
+  @Prop @Watch('pageChanged') page: MySubpage = MySubpage.HOME;
+  @Prop playlistRequest: string = '';
+  onPlaylistRequestConsumed: () => void = () => {};
+  backDispatcher: BackDispatcher = new BackDispatcher();
+  onBack: () => void = () => {};
   onNavigate: (page: MySubpage) => void = () => {
   };
   onLogin: () => void = () => {
@@ -31,11 +35,37 @@ export struct MyPageV2 {
   @State messageExpanded: boolean = false;
 
   aboutToAppear(): void {
+    this.backDispatcher.register('my', 20, () => this.handleBack());
+    // 外部本地歌单入口自行等待数据库初始化，不启动账户/在线加载。
+    if (this.page === MySubpage.PLAYLISTS) { return; }
+    this.loadHome();
+  }
+
+  private loadHome(): void {
     const ctx = this.ctx();
     this.account.refresh(ctx);
     this.account.loadAnnouncements(ctx);
     this.stats.load(ctx);
     this.playlists.load();
+    this.playlists.loadHistory();
+  }
+
+  aboutToDisappear(): void {
+    this.backDispatcher.unregister('my');
+  }
+
+  private pageChanged(): void {
+    this.messageExpanded = false;
+    if (this.page === MySubpage.HOME) { this.loadHome(); }
+    if (this.page === MySubpage.STATS) { this.stats.load(this.ctx()); }
+  }
+
+  private handleBack(): boolean {
+    if (this.page === MySubpage.ANNOUNCEMENTS && this.messageExpanded) {
+      this.messageExpanded = false;
+      return true;
+    }
+    return false;
   }
 
   private ctx(): common.UIAbilityContext {
@@ -71,8 +101,8 @@ export struct MyPageV2 {
         Text('返回')
           .fontSize(FONT_LABEL)
           .fontColor(this.theme.primaryText)
-          .padding(6)
-          .onClick(() => { this.open(MySubpage.HOME); })
+          .constraintSize({ minWidth: 48, minHeight: 48 })
+          .onClick(() => { this.onBack(); })
       }
       Text(title)
         .fontSize(FONT_TITLE)
@@ -147,16 +177,16 @@ export struct MyPageV2 {
           .fontColor(this.theme.ink).layoutWeight(1)
         Text('详情').fontSize(FONT_LABEL).fontColor(this.theme.primaryText)
       }.width('100%').onClick(() => { this.open(MySubpage.STATS); })
-      Row({ space: 8 }) {
-        Text('账号 ' + this.stats.account.playedSongCount + ' 首')
+      Column({ space: 4 }) {
+        Text(this.stats.hasAccountData ? '账号 ' + this.stats.account.playedSongCount + ' 首'
+          : '账号统计：' + this.stats.accountStatusLabel)
           .fontSize(FONT_LABEL).fontColor(this.theme.muted)
         Text('本机记录 ' + this.stats.local.playRecordCount + ' 次')
           .fontSize(FONT_LABEL).fontColor(this.theme.muted)
         Text('歌单 ' + this.stats.local.customPlaylistCount)
           .fontSize(FONT_LABEL).fontColor(this.theme.muted)
       }.width('100%')
-      Text(this.stats.accountState === 'unauthenticated' ? '账号统计：登录后同步 · 本机数据独立可用'
-        : (this.stats.accountState === 'stale' ? '账号统计：暂时离线，显示上次成功数据' : '账号统计 / 本机统计已分开显示'))
+      Text('账号统计：' + this.stats.accountStatusLabel + ' · 本机数据独立可用')
         .fontSize(FONT_LABEL).fontColor(this.theme.muted).width('100%')
     }.width('100%').padding(14).borderRadius(RADIUS_CARD).backgroundColor(this.theme.card)
   }
@@ -175,7 +205,7 @@ export struct MyPageV2 {
         ForEach(this.playlists.playlists.slice(0, 3), (p: Playlist) => {
           Row({ space: 8 }) {
             SymbolGlyph(p.systemReserved ? $r('sys.symbol.heart_fill') : $r('sys.symbol.rectangle_stack'))
-              .fontSize(15).fontColor([p.systemReserved ? this.theme.primary : this.theme.muted])
+              .fontSize(15).fontColor([p.systemReserved ? this.theme.primaryText : this.theme.muted])
             Text(p.name).fontSize(FONT_LABEL).fontColor(this.theme.ink).layoutWeight(1)
           }.width('100%')
         })
@@ -217,7 +247,7 @@ export struct MyPageV2 {
         Row({ space: 8 }) {
           Text('设置').fontSize(FONT_BODY).fontColor(this.theme.ink).layoutWeight(1)
           Text('账户、绑定、主题、背景、服务器与诊断')
-            .fontSize(FONT_LABEL).fontColor(this.theme.muted)
+            .fontSize(FONT_LABEL).fontColor(this.theme.muted).layoutWeight(2)
         }.width('100%').padding(14).borderRadius(RADIUS_CARD).backgroundColor(this.theme.card)
           .onClick(() => { this.open(MySubpage.SETTINGS); })
       }.width('100%').padding(20)
@@ -240,6 +270,7 @@ export struct MyPageV2 {
                 Text(track.title !== '' ? track.title : track.path).fontSize(FONT_BODY)
                   .fontColor(this.theme.ink).maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
                 Text(track.artist).fontSize(FONT_LABEL).fontColor(this.theme.muted)
+                  .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
               }.alignItems(HorizontalAlign.Start).layoutWeight(1)
             }.width('100%').padding(10).borderRadius(RADIUS_CARD).backgroundColor(this.theme.card)
               .onClick(() => { if (!track.missing) { queueViewModel.playFromList(this.playlists.historyTracks, index, this.ctx()); } })
@@ -256,8 +287,9 @@ export struct MyPageV2 {
     Scroll() {
       Column({ space: 12 }) {
         Row({ space: 8 }) {
-          this.Header('播放统计')
+          Column() { this.Header('播放统计') }.layoutWeight(1)
           Text('刷新').fontSize(FONT_LABEL).fontColor(this.theme.primaryText)
+            .constraintSize({ minWidth: 48, minHeight: 48 })
             .onClick(() => { this.stats.refresh(this.ctx()); })
         }.width('100%')
         Column({ space: 8 }) {
@@ -267,6 +299,9 @@ export struct MyPageV2 {
               .fontSize(FONT_LABEL).fontColor(this.theme.muted)
           } else if (this.stats.accountState === 'loading') {
             Text('正在同步账户统计…').fontSize(FONT_LABEL).fontColor(this.theme.muted)
+          } else if (this.stats.accountState === 'unavailable') {
+            Text('账户统计暂时不可用，请点击刷新重试')
+              .fontSize(FONT_LABEL).fontColor(this.theme.errorColor)
           } else {
             Text('累计播放时长 ' + Math.floor(this.stats.account.playSeconds / 60) + ' 分钟')
               .fontSize(FONT_LABEL).fontColor(this.theme.muted)
@@ -274,8 +309,8 @@ export struct MyPageV2 {
               .fontSize(FONT_LABEL).fontColor(this.theme.muted)
             Text('来源：账户 · 同步于 ' + new Date(this.stats.account.syncedAt).toLocaleString())
               .fontSize(FONT_LABEL).fontColor(this.theme.muted)
-            if (this.stats.accountState === 'stale' || this.stats.accountState === 'unavailable') {
-              Text(this.stats.accountState === 'stale' ? '暂时离线，以上为上次成功数据' : '账户统计暂时不可用')
+            if (this.stats.accountState === 'stale') {
+              Text('暂时无法更新，以上为上次成功数据')
                 .fontSize(FONT_LABEL).fontColor(this.theme.errorColor)
             }
           }
@@ -312,7 +347,13 @@ export struct MyPageV2 {
               .padding(8).onClick(() => { this.account.redeem(this.ctx(), this.redeemCode); })
           }.width('100%')
           Text('最近梦点流水').fontSize(FONT_BODY).fontColor(this.theme.ink)
-          if (this.account.pointLogs.length === 0) {
+          if (this.account.pointLogsLoading) {
+            Text('正在加载流水…').fontSize(FONT_LABEL).fontColor(this.theme.muted)
+          } else if (this.account.pointLogsError !== '') {
+            Text(this.account.pointLogsError + ' · 点击重试')
+              .fontSize(FONT_LABEL).fontColor(this.theme.errorColor)
+              .onClick(() => { this.account.loadPointLogs(this.ctx()); })
+          } else if (this.account.pointLogs.length === 0) {
             Text('暂无流水').fontSize(FONT_LABEL).fontColor(this.theme.muted)
           } else {
             ForEach(this.account.pointLogs.slice(0, 10), (log: DreamPointLog) => {
@@ -335,8 +376,14 @@ export struct MyPageV2 {
       Column({ space: 12 }) {
         this.Header('公告与消息')
         Text('公告').fontSize(FONT_BODY).fontWeight(FontWeight.Medium).fontColor(this.theme.ink)
-        if (this.account.announcements.length === 0) {
-          Text('暂无公告或暂时无法加载').fontSize(FONT_LABEL).fontColor(this.theme.muted)
+        if (this.account.announcementsLoading) {
+          Text('正在加载公告…').fontSize(FONT_LABEL).fontColor(this.theme.muted)
+        } else if (this.account.announcementsError !== '') {
+          Text(this.account.announcementsError + ' · 点击重试')
+            .fontSize(FONT_LABEL).fontColor(this.theme.errorColor)
+            .onClick(() => { this.account.loadAnnouncements(this.ctx()); })
+        } else if (this.account.announcements.length === 0) {
+          Text('暂无公告').fontSize(FONT_LABEL).fontColor(this.theme.muted)
         } else {
           ForEach(this.account.announcements, (a: Announcement) => {
             Column({ space: 5 }) {
@@ -360,8 +407,10 @@ export struct MyPageV2 {
         if (this.messageExpanded && this.account.loggedIn) {
           Column({ space: 8 }) {
             TextInput({ placeholder: '标题（≤40字）', text: this.msgTitle })
+              .maxLength(40)
               .fontSize(FONT_LABEL).onChange((v: string) => { this.msgTitle = v; })
             TextInput({ placeholder: '内容（≤200字）', text: this.msgContent })
+              .maxLength(200)
               .fontSize(FONT_LABEL).onChange((v: string) => { this.msgContent = v; })
             Text(this.account.action === 'message' ? '发送中…' : '发送（消耗 1 梦点）')
               .fontSize(FONT_LABEL).fontColor(this.theme.primaryText).padding(8)
@@ -381,7 +430,8 @@ export struct MyPageV2 {
     if (this.page === MySubpage.HOME) {
       this.Home()
     } else if (this.page === MySubpage.PLAYLISTS) {
-      PlaylistsPage({ onBack: () => { this.open(MySubpage.HOME); } })
+      PlaylistsPage({ backDispatcher: this.backDispatcher, onBack: this.onBack,
+        playlistRequest: this.playlistRequest, onPlaylistRequestConsumed: this.onPlaylistRequestConsumed })
     } else if (this.page === MySubpage.HISTORY) {
       this.History()
     } else if (this.page === MySubpage.STATS) {
@@ -393,13 +443,14 @@ export struct MyPageV2 {
     } else {
       Column() {
         this.Header('设置')
-        SettingsPage({
+        Column() { SettingsPage({
+          backDispatcher: this.backDispatcher,
           onAccountChanged: () => {
             this.account.refresh(this.ctx());
             this.account.loadAnnouncements(this.ctx());
             this.stats.load(this.ctx());
           }
-        })
+        }) }.width('100%').layoutWeight(1)
       }.width('100%').height('100%')
     }
   }

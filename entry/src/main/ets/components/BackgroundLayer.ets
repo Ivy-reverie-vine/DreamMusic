@@ -7,7 +7,7 @@ import { ThemeService } from '../service/theme/ThemeService';
 @Component
 export struct BackgroundLayer {
   @State theme: ThemeService = ThemeService.getInstance();
-  /** true = 正在播放页蒙层(0.45);false = 列表/登录页蒙层(0.65) */
+  /** 蒙层强度与 TextContrast 的最终背景范围共用常量。 */
   @Prop nowPlaying: boolean = false;
 
   build() {

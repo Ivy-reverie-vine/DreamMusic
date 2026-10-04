@@ -14,18 +14,27 @@ export class LibraryViewModel {
   artists: Artist[] = [];
   favoriteIds: Set<number> = new Set<number>();
   loading: boolean = false;
+  loadError: string = '';
   statusText: string = '';
 
   async load(): Promise<void> {
     this.loading = true;
-    const store = LibraryStore.getInstance();
-    this.tracks = await store.listTracks();
-    this.albums = await store.listAlbums();
-    this.artists = await store.listArtists();
-    const favIds = await store.listFavoritesTrackIds();
-    // issue-14 修复:整体赋值新 Set(原地 clear/add 不触发 @Observed 刷新)
-    this.favoriteIds = new Set<number>(favIds);
-    this.loading = false;
+    this.loadError = '';
+    try {
+      const store = LibraryStore.getInstance();
+      const tracks = await store.listTracks();
+      const albums = await store.listAlbums();
+      const artists = await store.listArtists();
+      const favIds = await store.listFavoritesTrackIds();
+      this.tracks = tracks;
+      this.albums = albums;
+      this.artists = artists;
+      this.favoriteIds = new Set<number>(favIds);
+    } catch (err) {
+      this.loadError = '音乐库暂时无法读取，请重试';
+    } finally {
+      this.loading = false;
+    }
   }
 
   async toggleFavorite(trackId: number): Promise<void> {

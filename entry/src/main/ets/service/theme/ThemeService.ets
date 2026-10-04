@@ -1,6 +1,7 @@
 import { oklchToRgb, ExtractedColors } from '../color/ColorExtract';
 import { preferences } from '@kit.ArkData';
 import { common } from '@kit.AbilityKit';
+import { readableText, LIST_SCRIM, NOW_PLAYING_SCRIM, COVER_GLOW_ALPHA } from '../color/TextContrast';
 
 /**
  * 动态主题服务 —— DESIGN.md「取色于景」的唯一 token 落地(issue-00)。
@@ -49,22 +50,6 @@ function toHex(rgb: number[]): string {
 export const SEED_PRIMARY_HEX: string = toHex(oklchToRgb(SEED_L, SEED_C, SEED_H));
 export const SEED_SECONDARY_HEX: string = toHex(oklchToRgb(SEED_L, SEED_C, (SEED_H + 120.0) % 360.0));
 
-/** '#RRGGBB' 与另一色线性混合,t∈[0,1] */
-function mixHex(hex: string, other: string, t: number): string {
-  const p = (h: string): number[] => [
-    parseInt(h.substring(1, 3), 16),
-    parseInt(h.substring(3, 5), 16),
-    parseInt(h.substring(5, 7), 16)
-  ];
-  const a = p(hex);
-  const b = p(other);
-  const c: number[] = [];
-  for (let i = 0; i < 3; i++) {
-    c.push(Math.round(a[i] + (b[i] - a[i]) * t));
-  }
-  return '#' + c.map((v: number) => v.toString(16).toUpperCase().padStart(2, '0')).join('');
-}
-
 @Observed
 export class ThemeService {
   // DESIGN.md Roles(深浅两套,跟随系统)
@@ -73,25 +58,25 @@ export class ThemeService {
   mode: ThemeMode = ThemeMode.DARK;
   bg: string = '#0D0F10';        // 近黑底(oklch L≈0.06, C=0)
   ink: string = '#F2F5F6';       // 正文白
-  muted: string = '#A8B0B3';     // 弱文字
+  muted: string = readableText('#A8B0B3', true); // 辅助文字也有 4.5:1 保底
   trackColor: string = '#33FFFFFF'; // Slider 轨道(深色=白 20%)
   overlayDim: string = '#B0000000'; // 弹层/遮罩半透明黑(code-review 后 token 化)
   transparent: string = '#00000000';
   primary: string = SEED_PRIMARY_HEX;
   secondary: string = SEED_SECONDARY_HEX;
-  /**
-   * 用于文字/图标的强调色(issue-14 修复:取色后部分字体看不清)。
-   * 深色主题自动向白提亮,浅色主题自动向 ink 加深,保证文字对比度。
-   */
-  primaryText: string = mixHex(SEED_PRIMARY_HEX, '#FFFFFF', 0.38);
-  scrimList: number = 0.65;      // 列表页蒙层不透明度(0-1)
-  scrimNowPlaying: number = 0.45; // 正在播放页蒙层不透明度(issue-12 起真正启用)
+  /** 文字角色通过最终叠加背景范围校验；primary/secondary 保留装饰取色。 */
+  primaryText: string = readableText(SEED_PRIMARY_HEX, true);
+  secondaryText: string = readableText(SEED_SECONDARY_HEX, true);
+  scrimList: number = LIST_SCRIM;
+  scrimNowPlaying: number = NOW_PLAYING_SCRIM;
+  coverGlowAlpha: number = COVER_GLOW_ALPHA;
   card: string = '#12FFFFFF';    // 卡片底色(半透明白,叠于蒙层之上,PRD-v1.1)
   barBg: string = '#59000000';   // 玻璃底栏底色(半透明黑)
+  shadowColor: string = '#33000000'; // 浅色阴影强度纳入最终背景范围
   /** 播放页按钮固定灰(issue-14 用户定稿:不随取色) */
   controlGray: string = '#8A9096';
   /** 错误/警告文案色(深浅主题均保证可读;timeout 等提示用) */
-  errorColor: string = '#FF8A80';
+  errorColor: string = readableText('#FF8A80', true);
   hasBackground: boolean = false;
   /**
    * 当前背景图源:内置预设为 Resource,自定义背景为 'file://' + 沙箱绝对路径。
@@ -104,6 +89,18 @@ export class ThemeService {
   bgStamp: number = 0;
   /** 当前预设索引,-1 = 无背景 */
   bgPresetIndex: number = -1;
+  private backgroundPrimary: string = SEED_PRIMARY_HEX;
+  private backgroundSecondary: string = SEED_SECONDARY_HEX;
+  private coverRequest: number = 0;
+  coverIdentity: string = '';
+
+  beginCoverRequest(): number {
+    return ++this.coverRequest;
+  }
+
+  isCurrentCoverRequest(request: number, backgroundStamp: number): boolean {
+    return request === this.coverRequest && backgroundStamp === this.bgStamp;
+  }
 
   private static instance: ThemeService | null = null;
 
@@ -120,24 +117,31 @@ export class ThemeService {
     if (dark) {
       this.bg = '#0D0F10';
       this.ink = '#F2F5F6';
-      this.muted = '#A8B0B3';
       this.trackColor = '#33FFFFFF';
       this.card = '#12FFFFFF';
       this.barBg = '#59000000';
+      this.shadowColor = '#33000000';
+      this.overlayDim = '#B0000000';
       this.controlGray = '#8A9096';
-      this.errorColor = '#FF8A80';
-      this.primaryText = mixHex(this.primary, '#FFFFFF', 0.38);
     } else {
       this.bg = '#F5F7F8';
       this.ink = '#1B2226';
-      this.muted = '#5F6A6E';
       this.trackColor = '#33000000';
       this.card = '#0A000000';
       this.barBg = '#59FFFFFF';
+      this.shadowColor = '#14000000';
+      this.overlayDim = '#B0FFFFFF';
       this.controlGray = '#6B757A';
-      this.errorColor = '#C62828';
-      this.primaryText = mixHex(this.primary, '#1B2226', 0.22);
     }
+    this.refreshTextRoles();
+  }
+
+  private refreshTextRoles(): void {
+    this.ink = readableText(this.isDark ? '#F2F5F6' : '#1B2226', this.isDark);
+    this.muted = readableText(this.isDark ? '#A8B0B3' : '#5F6A6E', this.isDark);
+    this.primaryText = readableText(this.primary, this.isDark);
+    this.secondaryText = readableText(this.secondary, this.isDark);
+    this.errorColor = readableText(this.isDark ? '#FF8A80' : '#C62828', this.isDark);
   }
 
   /** 应用主题模式(深/浅/跟随系统);SYSTEM 时按系统深浅实时跟随 */
@@ -173,17 +177,26 @@ export class ThemeService {
 
   /** 应用取色引擎结果(背景图/封面 → ExtractedColors) */
   applyExtracted(primary: string, secondary: string): void {
-    this.primary = primary;
-    this.secondary = secondary;
-    this.primaryText = this.isDark ? mixHex(primary, '#FFFFFF', 0.38) : mixHex(primary, '#1B2226', 0.22);
+    this.primary = /^#[0-9a-fA-F]{6}$/.test(primary) ? primary : SEED_PRIMARY_HEX;
+    this.secondary = /^#[0-9a-fA-F]{6}$/.test(secondary) ? secondary : SEED_SECONDARY_HEX;
+    this.refreshTextRoles();
   }
 
   /** 回退品牌种子主题(无背景图/无封面) */
   applyDefault(): void {
-    this.primary = SEED_PRIMARY_HEX;
-    this.secondary = SEED_SECONDARY_HEX;
-    this.primaryText = mixHex(SEED_PRIMARY_HEX, '#FFFFFF', 0.38);
-    this.hasBackground = false;
+    this.applyExtracted(SEED_PRIMARY_HEX, SEED_SECONDARY_HEX);
+  }
+
+  /** 封面缺失/取色失败时恢复背景图配色，保留背景图与当前深浅主题。 */
+  restoreBackgroundColors(): void {
+    this.applyExtracted(this.backgroundPrimary, this.backgroundSecondary);
+  }
+
+  /** 异步背景取色仅可提交到仍然选中的图片。 */
+  applyBackgroundColors(colors: ExtractedColors): void {
+    this.backgroundPrimary = colors.primary;
+    this.backgroundSecondary = colors.secondary;
+    this.restoreBackgroundColors();
   }
 
   /** 标记存在用户背景图(实际选图与持久化由适配层负责) */
@@ -191,21 +204,23 @@ export class ThemeService {
     this.hasBackground = has;
   }
 
-  /** 应用内置背景图预设(issue-14 定稿);colors 由调用方取色后传入,缺省不改颜色 */
+  /** 应用内置背景图预设；取色前先回退种子色。 */
   applyPresetBg(index: number, colors?: ExtractedColors): void {
     this.bgPresetIndex = index;
     if (index < 0 || index >= BG_PRESETS.length) {
       this.bgSrc = null;
       this.bgCustomPath = '';
       this.bgStamp++;
+      this.hasBackground = false;
+      this.backgroundPrimary = SEED_PRIMARY_HEX;
+      this.backgroundSecondary = SEED_SECONDARY_HEX;
       this.applyDefault();
       return;
     }
     this.bgSrc = BG_PRESETS[index].res;
     this.bgCustomPath = '';
-    if (colors !== undefined) {
-      this.applyExtracted(colors.primary, colors.secondary);
-    }
+    this.applyBackgroundColors(colors !== undefined ? colors :
+      { primary: SEED_PRIMARY_HEX, secondary: SEED_SECONDARY_HEX });
     this.hasBackground = true;
     this.bgStamp++;
   }
@@ -219,9 +234,8 @@ export class ThemeService {
     this.bgCustomPath = relPath;
     this.bgSrc = uri;
     this.hasBackground = true;
-    if (colors !== undefined) {
-      this.applyExtracted(colors.primary, colors.secondary);
-    }
+    this.applyBackgroundColors(colors !== undefined ? colors :
+      { primary: SEED_PRIMARY_HEX, secondary: SEED_SECONDARY_HEX });
     this.bgStamp++;
   }
 
@@ -262,6 +276,8 @@ export class ThemeService {
     this.bgCustomPath = '';
     this.hasBackground = false;
     this.bgStamp++;
+    this.backgroundPrimary = SEED_PRIMARY_HEX;
+    this.backgroundSecondary = SEED_SECONDARY_HEX;
     this.applyDefault();
   }
 

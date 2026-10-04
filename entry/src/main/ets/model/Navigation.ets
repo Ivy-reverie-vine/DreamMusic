@@ -29,6 +29,33 @@ export enum BackAction {
   DELEGATE_SYSTEM = 'delegate-system'
 }
 
+interface ChildBackHandler {
+  priority: number;
+  handle: () => boolean;
+}
+
+/** 只有 @Entry 接收系统返回；可见子组件显式注册，卸载时注销。 */
+export class BackDispatcher {
+  private handlers: Map<string, ChildBackHandler> = new Map<string, ChildBackHandler>();
+
+  register(owner: string, priority: number, handle: () => boolean): void {
+    this.handlers.set(owner, { priority: priority, handle: handle });
+  }
+
+  unregister(owner: string): void {
+    this.handlers.delete(owner);
+  }
+
+  handle(): boolean {
+    const ordered: ChildBackHandler[] = Array.from(this.handlers.values());
+    ordered.sort((a: ChildBackHandler, b: ChildBackHandler) => b.priority - a.priority);
+    for (const entry of ordered) {
+      if (entry.handle()) { return true; }
+    }
+    return false;
+  }
+}
+
 /** 纯逻辑返回策略，供入口事件和单元测试共同使用。 */
 export function resolveBack(state: NavigationState, overlayOpen: boolean): BackAction {
   if (overlayOpen) {
@@ -53,6 +80,7 @@ export function openMyPage(current: NavigationState, page: MySubpage,
   return {
     root: RootTab.MY,
     myPage: page,
-    sourceRoot: sourceRoot
+    sourceRoot: current.root === RootTab.MY && current.myPage !== MySubpage.HOME
+      ? current.sourceRoot : sourceRoot
   };
 }

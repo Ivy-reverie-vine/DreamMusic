@@ -68,7 +68,19 @@ interface MediaAlbum {
   pictureUrl?: string;
 }
 
-interface MediaSong {
+interface MediaIdentity {
+  catalogRef?: string;
+  playbackRef?: string;
+  lyricsRef?: string;
+  playbackSource?: string;
+  lyricsSource?: string;
+}
+
+export interface PlaybackResolution extends MediaIdentity {
+  url: string;
+}
+
+interface MediaSong extends MediaIdentity {
   mediaRef?: string;
   source?: string;
   sourceId?: string;
@@ -84,7 +96,7 @@ interface MediaSearchResponse extends UpstreamEnvelope {
   hasMore?: boolean;
 }
 
-interface MediaUrlResponse extends UpstreamEnvelope {
+interface MediaUrlResponse extends UpstreamEnvelope, MediaIdentity {
   data?: UrlEntry[];
   mediaRef?: string;
 }
@@ -106,7 +118,7 @@ interface LyricLrc {
   lyric?: string;
 }
 
-interface LyricNewResponse extends UpstreamEnvelope {
+interface LyricNewResponse extends UpstreamEnvelope, MediaIdentity {
   lrc?: LyricLrc;
   yrc?: LyricLrc;
 }
@@ -116,7 +128,7 @@ interface CacheEntry<T> {
   expiresAt: number;
 }
 
-export interface LyricPayload {
+export interface LyricPayload extends MediaIdentity {
   lrc: string;
   yrc: string;
 }
@@ -249,7 +261,7 @@ export class NetEaseApi {
       const artists = s.artists !== undefined ? s.artists : [];
       const album: MediaAlbum = s.album !== undefined ? s.album : {};
       songs.push({
-        id: s.legacyId !== undefined ? s.legacyId : 0,
+        id: s.source === 'api-enhanced' && s.legacyId !== undefined ? s.legacyId : 0,
         name: s.title !== undefined ? s.title : '',
         artist: artists.length > 0 ? artists[0] : '',
         album: album.name !== undefined ? album.name : '',
@@ -257,7 +269,12 @@ export class NetEaseApi {
         durationMs: s.durationMs !== undefined ? s.durationMs : 0,
         mediaRef: s.mediaRef,
         source: s.source,
-        sourceId: s.sourceId
+        sourceId: s.sourceId,
+        catalogRef: s.catalogRef !== undefined ? s.catalogRef : s.mediaRef,
+        playbackRef: s.playbackRef !== undefined ? s.playbackRef : s.mediaRef,
+        lyricsRef: s.lyricsRef !== undefined ? s.lyricsRef : s.mediaRef,
+        playbackSource: s.playbackSource,
+        lyricsSource: s.lyricsSource
       });
     }
     const page: SearchPage = { songs: songs, hasMore: wrapper.hasMore === true };
@@ -267,6 +284,11 @@ export class NetEaseApi {
 
   /** 普通在线播放直链(level=exhigh;不执行解灰) */
   static async resolveUrl(context: common.Context, id: number, mediaRef: string = ''): Promise<string> {
+    return (await NetEaseApi.resolvePlayback(context, id, mediaRef)).url;
+  }
+
+  /** 返回真实音频身份；旧调用仍可通过 resolveUrl 只取 URL。 */
+  static async resolvePlayback(context: common.Context, id: number, mediaRef: string = ''): Promise<PlaybackResolution> {
     const versioned = mediaRef !== '';
     const base = versioned ? await DreamMusicAuth.baseV2(context) : await DreamMusicAuth.base(context);
     const params: Record<string, string> = {};
@@ -302,7 +324,15 @@ export class NetEaseApi {
         ok: url !== '',
         errorCategory: url === '' ? DIAGNOSTIC_CATEGORY_EMPTY_PLAYBACK_URL : undefined
       });
-      return url;
+      const identity = res.body as MediaUrlResponse;
+      return {
+        url: url,
+        catalogRef: versioned ? (identity.catalogRef !== undefined ? identity.catalogRef : mediaRef) : undefined,
+        playbackRef: versioned ? (identity.playbackRef !== undefined ? identity.playbackRef : mediaRef) : undefined,
+        lyricsRef: versioned ? (identity.lyricsRef !== undefined ? identity.lyricsRef : mediaRef) : undefined,
+        playbackSource: identity.playbackSource,
+        lyricsSource: identity.lyricsSource
+      };
     } catch (err) {
       const e = err instanceof Error ? err : new Error('音乐源解析失败');
       const category = err instanceof ApiError && err.code === 'TIMEOUT'
@@ -324,7 +354,8 @@ export class NetEaseApi {
   static async songDetailCover(context: common.Context, id: number, mediaRef: string = ''): Promise<string> {
     const versioned = mediaRef !== '';
     const base = versioned ? await DreamMusicAuth.baseV2(context) : await DreamMusicAuth.base(context);
-    const cacheKey = 'cover|' + (versioned ? 'v2|' + mediaRef : base + '|' + id);
+    const cacheKey = 'cover|' + base + '|' + DreamMusicAuth.username(context) + '|' +
+      (versioned ? 'v2|' + mediaRef : String(id));
     const cached = NetEaseApi.getCache(NetEaseApi.coverCache, cacheKey);
     if (cached !== null) {
       return cached;
@@ -375,7 +406,8 @@ export class NetEaseApi {
   static async lyricRaw(context: common.Context, id: number, mediaRef: string = ''): Promise<LyricPayload> {
     const versioned = mediaRef !== '';
     const base = versioned ? await DreamMusicAuth.baseV2(context) : await DreamMusicAuth.base(context);
-    const cacheKey = 'lyric|' + (versioned ? 'v2|' + mediaRef : base + '|' + id);
+    const cacheKey = 'lyric|' + base + '|' + DreamMusicAuth.username(context) + '|' +
+      (versioned ? 'v2|' + mediaRef : String(id));
     const cached = NetEaseApi.getCache(NetEaseApi.lyricCache, cacheKey);
     if (cached !== null) {
       return cached;
@@ -404,7 +436,11 @@ export class NetEaseApi {
       wrapper.yrc.lyric !== undefined && wrapper.yrc.lyric !== null) {
       yrcText = wrapper.yrc.lyric;
     }
-    const payload: LyricPayload = { lrc: lrcText, yrc: yrcText };
+    const payload: LyricPayload = {
+      lrc: lrcText, yrc: yrcText,
+      lyricsRef: versioned ? (wrapper.lyricsRef !== undefined ? wrapper.lyricsRef : mediaRef) : undefined,
+      lyricsSource: wrapper.lyricsSource
+    };
     NetEaseApi.putCache(NetEaseApi.lyricCache, cacheKey, payload);
     return payload;
   }

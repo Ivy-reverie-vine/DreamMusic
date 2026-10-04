@@ -1,5 +1,9 @@
 {
   "string": [
+    { "name": "playlist_card_name", "value": "本地歌单" },
+    { "name": "playlist_card_description", "value": "直达我喜欢的音乐；在应用内选择本地歌单后，可从歌单详情添加专属卡片" },
+    { "name": "music_card_name", "value": "音乐播控" },
+    { "name": "music_card_description", "value": "查看当前音乐，播放、暂停或切换歌曲" },
     {
       "name": "module_desc",
       "value": "module description"

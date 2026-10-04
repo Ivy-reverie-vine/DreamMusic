@@ -23,6 +23,19 @@ export class PlaybackStatsViewModel {
   accountError: string = '';
   loadingLocal: boolean = false;
 
+  get hasAccountData(): boolean {
+    return this.accountState === 'success' || this.accountState === 'success-zero' ||
+      this.accountState === 'stale';
+  }
+
+  get accountStatusLabel(): string {
+    if (this.accountState === 'unauthenticated') { return '登录后同步'; }
+    if (this.accountState === 'loading') { return '正在同步'; }
+    if (this.accountState === 'unavailable') { return '暂时不可用，请刷新重试'; }
+    if (this.accountState === 'stale') { return '暂时无法更新，显示上次成功数据'; }
+    return '来自 DreamMusic 账户';
+  }
+
   async load(context: common.UIAbilityContext): Promise<void> {
     await this.loadLocal();
     await this.loadAccount(context);

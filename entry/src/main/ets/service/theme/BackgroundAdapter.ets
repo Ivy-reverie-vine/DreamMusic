@@ -7,6 +7,7 @@ import { extractColors, ExtractedColors } from '../color/ColorExtract';
 import { ThemeService } from './ThemeService';
 import { Track } from '../../model/Entities';
 import { copyFileRobust } from '../../common/FsUtil';
+import { CoverArtService } from '../cover/CoverArtService';
 
 const DOMAIN = 0x0000;
 const TAG = 'BackgroundAdapter';
@@ -43,14 +44,27 @@ export class BackgroundAdapter {
       // 先清旧自定义文件(固定名单份存储,避免旧文件残留导致切换不生效)
       BackgroundAdapter.removeBackgroundFiles(context);
       const destPath: string = BackgroundAdapter.copyToSandbox(context, uri);
-      const colors = await BackgroundAdapter.extractFromFile(destPath);
       const relPath = BG_DIR + '/' + destPath.substring(destPath.lastIndexOf('/') + 1);
-      theme.applyCustomBg(relPath, 'file://' + destPath, colors);
+      // 先应用新图片和种子色；解码/取色失败也不继承上一张图片的颜色。
+      theme.applyCustomBg(relPath, 'file://' + destPath);
       ThemeService.saveCustomBg(context, relPath);
+      const backgroundStamp = theme.bgStamp;
+      let colors: ExtractedColors;
+      try {
+        colors = await BackgroundAdapter.extractFromFile(destPath);
+      } catch (err) {
+        return theme.bgStamp === backgroundStamp ? '已应用自定义背景(取色失败,使用默认主题色)' : '';
+      }
+      if (theme.bgStamp !== backgroundStamp) {
+        return '';
+      }
+      theme.applyBackgroundColors(colors);
       return '';
     } catch (err) {
       const e = err as Error;
       hilog.error(DOMAIN, TAG, 'pickAndApply failed: %{public}s', e.message);
+      theme.clearBackground();
+      ThemeService.saveCustomBg(context, '');
       return '应用失败: ' + e.message;
     }
   }
@@ -88,9 +102,17 @@ export class BackgroundAdapter {
       for (const n of names) {
         if (n.startsWith(BG_FILE)) {
           const abs = dir + '/' + n;
-          const colors = await BackgroundAdapter.extractFromFile(abs);
-          theme.applyCustomBg(BG_DIR + '/' + n, 'file://' + abs, colors);
+          theme.applyCustomBg(BG_DIR + '/' + n, 'file://' + abs);
           ThemeService.saveCustomBg(context, BG_DIR + '/' + n);
+          const backgroundStamp = theme.bgStamp;
+          try {
+            const colors = await BackgroundAdapter.extractFromFile(abs);
+            if (theme.bgStamp === backgroundStamp) {
+              theme.applyBackgroundColors(colors);
+            }
+          } catch (err) {
+            // 图片缺失/损坏时以已应用的种子色和基底降级。
+          }
           return true;
         }
       }
@@ -122,38 +144,58 @@ export class BackgroundAdapter {
   static async extractPresetColors(context: common.Context, res: Resource): Promise<ExtractedColors> {
     const buf = await context.resourceManager.getMediaContent(res);
     const source: image.ImageSource = image.createImageSource(buf);
-    const pm: image.PixelMap = await source.createPixelMap({ desiredSize: { width: 64, height: 64 } });
-    const info: image.ImageInfo = await pm.getImageInfo();
-    const size: image.Size = info.size;
-    const buf2 = new ArrayBuffer(size.width * size.height * 4);
-    await pm.readPixelsToBuffer(buf2);
-    pm.release();
-    return extractColors(new Uint8Array(buf2), size.width, size.height);
+    return BackgroundAdapter.extractFromSource(source);
   }
 
   static async extractFromFile(path: string): Promise<ExtractedColors> {
     const source: image.ImageSource = image.createImageSource(path);
-    const pm: image.PixelMap = await source.createPixelMap({ desiredSize: { width: 64, height: 64 } });
-    const info: image.ImageInfo = await pm.getImageInfo();
-    const size: image.Size = info.size;
-    const buf = new ArrayBuffer(size.width * size.height * 4);
-    await pm.readPixelsToBuffer(buf);
-    const pixels = new Uint8Array(buf);
-    pm.release();
-    return extractColors(pixels, size.width, size.height);
+    return BackgroundAdapter.extractFromSource(source);
+  }
+
+  private static async extractFromSource(source: image.ImageSource): Promise<ExtractedColors> {
+    let pm: image.PixelMap | null = null;
+    try {
+      pm = await source.createPixelMap({ desiredSize: { width: 64, height: 64 },
+        desiredPixelFormat: image.PixelMapFormat.RGBA_8888 });
+      const info = await pm.getImageInfo();
+      const buf = new ArrayBuffer(info.size.width * info.size.height * 4);
+      await pm.readPixelsToBuffer(buf);
+      return extractColors(new Uint8Array(buf), info.size.width, info.size.height);
+    } finally {
+      if (pm !== null) {
+        await pm.release().catch(() => {});
+      }
+      await source.release().catch(() => {});
+    }
   }
 
   /** 从当前音轨封面取色并应用到主题(无动画;启动恢复场景,issue-12 修复) */
-  static async applyCoverColors(context: common.Context, theme: ThemeService, track: Track): Promise<void> {
-    if (track.coverPath === '') {
-      return;
+  static async applyCoverColors(context: common.Context, theme: ThemeService, track: Track,
+    isCurrent: () => boolean = () => true,
+    apply: ((colors: ExtractedColors) => void) | null = null): Promise<void> {
+    const request = theme.beginCoverRequest();
+    const backgroundStamp = theme.bgStamp;
+    // 不同音轨先清旧颜色；同音轨转本地时保留颜色直到新文件取色完成。
+    const identity = CoverArtService.identity(track);
+    if (identity === '' || identity !== theme.coverIdentity) {
+      theme.restoreBackgroundColors();
     }
+    theme.coverIdentity = identity;
     try {
-      const abs = context.filesDir + '/' + track.coverPath;
-      const colors = await BackgroundAdapter.extractFromFile(abs);
-      theme.applyExtracted(colors.primary, colors.secondary);
+      const colors = await CoverArtService.getInstance().colors(context, CoverArtService.resolve(context, track));
+      if (isCurrent() && theme.isCurrentCoverRequest(request, backgroundStamp)) {
+        if (colors === null) {
+          theme.restoreBackgroundColors();
+        } else if (apply !== null) {
+          apply(colors);
+        } else {
+          theme.applyExtracted(colors.primary, colors.secondary);
+        }
+      }
     } catch (err) {
-      // 封面取色失败静默,保持当前主题
+      if (isCurrent() && theme.isCurrentCoverRequest(request, backgroundStamp)) {
+        theme.restoreBackgroundColors();
+      }
     }
   }
 }
