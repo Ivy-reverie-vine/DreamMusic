@@ -74,7 +74,7 @@ export struct NowPlayingPage {
 
   /** 当前高亮行:直接由播放进度实时计算(不依赖间接状态,保证逐句切换) */
   private activeLineIndex(): number {
-    return findActiveLine(this.lrc.lines, this.vm.positionMs);
+    return this.lrc.timelineTrusted ? findActiveLine(this.lrc.lines, this.vm.positionMs) : -1;
   }
 
   private startLyricFollow(): void {
@@ -86,7 +86,7 @@ export struct NowPlayingPage {
   }
 
   private followActiveLine(): void {
-    if (this.lrc.lines.length === 0) {
+    if (this.lrc.lines.length === 0 || !this.lrc.timelineTrusted) {
       return;
     }
     const index = this.lyricFollow.nextIndex(this.activeLineIndex(), this.lrc.revision);
@@ -237,12 +237,20 @@ export struct NowPlayingPage {
     // 可滑动歌词列表:当前行实时高亮(按播放进度计算),自动跟随滚动;手动滑动时暂停跟随
     if (this.lrc.lines.length === 0) {
       Text(this.lrc.loadState === LyricsLoadState.LOADING ? '歌词加载中…' :
-        this.lrc.loadState === LyricsLoadState.ERROR ? '歌词暂时无法加载' : '这首歌暂无歌词')
+        this.lrc.loadState === LyricsLoadState.ERROR ? '原平台歌词暂时无法加载' :
+          this.lrc.loadState === LyricsLoadState.INSTRUMENTAL ? '纯音乐，无歌词' :
+            this.lrc.loadState === LyricsLoadState.UNSUPPORTED ? '原平台未提供歌词' :
+              this.lrc.loadState === LyricsLoadState.TIMEOUT ? '原平台歌词请求超时' : '这首歌暂无歌词')
         .fontSize(FONT_LABEL)
         .fontColor(this.theme.muted)
         .width('100%')
         .textAlign(TextAlign.Center)
     } else {
+      if (!this.lrc.timelineTrusted) {
+        Text('歌词时间轴未确认，静态显示')
+          .fontSize(FONT_LABEL)
+          .fontColor(this.theme.muted)
+      }
       List({ space: 4, scroller: this.lrcScroller }) {
         ForEach(this.lrc.lines, (line: LyricLine, index: number) => {
           ListItem() {

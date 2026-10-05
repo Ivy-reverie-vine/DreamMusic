@@ -168,6 +168,14 @@ interface LyricLrc {
 interface LyricNewResponse extends UpstreamEnvelope, MediaIdentity {
   lrc?: LyricLrc;
   yrc?: LyricLrc;
+  nolyric?: boolean;
+  lyrics?: CatalogLyricsState;
+}
+
+export interface CatalogLyricsState {
+  status: string;
+  timeline: string;
+  reason: string;
 }
 
 interface CacheEntry<T> {
@@ -178,6 +186,8 @@ interface CacheEntry<T> {
 export interface LyricPayload extends MediaIdentity {
   lrc: string;
   yrc: string;
+  nolyric?: boolean;
+  lyrics?: CatalogLyricsState;
 }
 
 /** 上游业务码非 200(460/503 等)→ 抛可读错误 */
@@ -530,11 +540,12 @@ export class NetEaseApi {
   }
 
   /** 新版歌词原文(lrc + yrc;阶段 v2.3:lrc 缺失时用 yrc 兜底) */
-  static async lyricRaw(context: common.Context, id: number, mediaRef: string = ''): Promise<LyricPayload> {
+  static async lyricRaw(context: common.Context, id: number, mediaRef: string = '', playbackRef: string = '',
+    registerCancel: ((cancel: () => void) => void) | null = null): Promise<LyricPayload> {
     const versioned = mediaRef !== '';
     const base = versioned ? await DreamMusicAuth.baseV2(context) : await DreamMusicAuth.base(context);
     const cacheKey = 'lyric|' + base + '|' + DreamMusicAuth.username(context) + '|' +
-      (versioned ? 'v2|' + mediaRef : String(id));
+      (versioned ? 'v2|' + mediaRef + '|' + (playbackRef !== '' ? playbackRef : mediaRef) : String(id));
     const cached = NetEaseApi.getCache(NetEaseApi.lyricCache, cacheKey);
     if (cached !== null) {
       return cached;
@@ -542,13 +553,15 @@ export class NetEaseApi {
     const params: Record<string, string> = {};
     if (versioned) {
       params['mediaRef'] = mediaRef;
+      params['catalogRef'] = mediaRef;
+      params['playbackRef'] = playbackRef !== '' ? playbackRef : mediaRef;
     } else {
       params['id'] = String(id);
     }
     params['randomCNIP'] = 'true';
     const res: ApiJsonResult = await NetEaseApi.withQueryRetry<ApiJsonResult>(
       () => DreamMusicAuth.withApiKey(context, (headers: Record<string, string>) => {
-        return ApiClient.getJson(base, '/lyric/new', params, headers);
+        return ApiClient.getJson(base, '/lyric/new', params, headers, registerCancel);
       })
     );
     const wrapper = res.body as LyricNewResponse;
@@ -566,9 +579,13 @@ export class NetEaseApi {
     const payload: LyricPayload = {
       lrc: lrcText, yrc: yrcText,
       lyricsRef: versioned ? (wrapper.lyricsRef !== undefined ? wrapper.lyricsRef : mediaRef) : undefined,
-      lyricsSource: wrapper.lyricsSource
+      lyricsSource: wrapper.lyricsSource,
+      nolyric: wrapper.nolyric, lyrics: wrapper.lyrics
     };
-    NetEaseApi.putCache(NetEaseApi.lyricCache, cacheKey, payload);
+    if (wrapper.lyrics === undefined || wrapper.lyrics.status === 'available' ||
+      wrapper.lyrics.status === 'instrumental') {
+      NetEaseApi.putCache(NetEaseApi.lyricCache, cacheKey, payload);
+    }
     return payload;
   }
 

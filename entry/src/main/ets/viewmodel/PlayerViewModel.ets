@@ -394,6 +394,7 @@ export class PlayerViewModel {
         if (resolution.audioIntegrity?.status !== 'full') {
           this.failRequest(request, 'AUDIO_' + (resolution.audioIntegrity?.status ?? 'unknown').toUpperCase()); return;
         }
+        const previousPlaybackRef = track.playbackRef;
         track.playbackRef = resolution.playbackRef;
         track.lyricsRef = resolution.lyricsRef;
         track.playbackSource = resolution.playbackSource;
@@ -401,7 +402,9 @@ export class PlayerViewModel {
         if (!this.isCurrentRequest(request)) { return; }
         if (streamUrl === '') { this.failRequest(request, 'EMPTY_URL'); return; }
         track.streamUrl = streamUrl;
-        if (manual) { this.notifyTrackMetadata(track); }
+        // Automatic fallback/re-resolution can change audio after catalog lyrics started.
+        // Invalidate that timing result just as a manual source change does.
+        if (manual || previousPlaybackRef !== track.playbackRef) { this.notifyTrackMetadata(track); }
       } catch (err) {
         this.failRequest(request, err instanceof ApiError ? err.code : 'RESOLUTION');
         return;

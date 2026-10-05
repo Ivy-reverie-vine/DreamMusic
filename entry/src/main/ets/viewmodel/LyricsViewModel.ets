@@ -10,7 +10,11 @@ export enum LyricsLoadState {
   LOADING = 'loading',
   READY = 'ready',
   EMPTY = 'empty',
-  ERROR = 'error'
+  ERROR = 'error',
+  STATIC = 'static',
+  INSTRUMENTAL = 'instrumental',
+  UNSUPPORTED = 'unsupported',
+  TIMEOUT = 'timeout'
 }
 
 /** 歌词状态容器(issue-08):当前曲目歌词 + 随播放高亮行 */
@@ -22,6 +26,8 @@ export class LyricsViewModel {
   revision: number = 0;
   lyricsRef: string = '';
   lyricsSource: string = '';
+  timelineTrusted: boolean = false;
+  private cancelRequest: (() => void) | null = null;
   /** 系统歌词只消费已解析结果，不重复取数。 */
   lyricsChangedHandler: (() => void) | null = null;
   private context: common.Context | null = null;
@@ -45,6 +51,7 @@ export class LyricsViewModel {
           if (loaded !== null && loaded.length > 0) {
             this.lines = loaded;
             this.loadState = LyricsLoadState.READY;
+            this.timelineTrusted = true;
             this.reloadChecked = true;
             this.lyricsChangedHandler?.();
           } else {
@@ -53,16 +60,19 @@ export class LyricsViewModel {
           }
         }
       }
-      this.activeIndex = findActiveLine(this.lines, ms);
+      this.activeIndex = this.timelineTrusted ? findActiveLine(this.lines, ms) : -1;
     };
   }
 
   private onTrackChanged(t: Track): void {
     const token = this.changeToken + 1;
     this.changeToken = token;
+    this.cancelRequest?.();
+    this.cancelRequest = null;
     this.revision = token;
     this.lyricsRef = '';
     this.lyricsSource = '';
+    this.timelineTrusted = false;
     this.lines = [];
     this.activeIndex = -1;
     this.loadState = LyricsLoadState.LOADING;
@@ -90,6 +100,7 @@ export class LyricsViewModel {
     this.lines = loaded !== null ? loaded : [];
     this.activeIndex = -1;
     this.loadState = this.lines.length > 0 ? LyricsLoadState.READY : LyricsLoadState.EMPTY;
+    this.timelineTrusted = this.lines.length > 0;
     this.reloadChecked = loaded !== null && loaded.length > 0;
     this.lyricsChangedHandler?.();
   }
@@ -100,27 +111,50 @@ export class LyricsViewModel {
       if (context === null) {
         return;
       }
-      const mediaRef = t.lyricsRef !== undefined ? t.lyricsRef :
+      const mediaRef = t.catalogRef !== undefined ? t.catalogRef :
         (t.mediaRef !== undefined ? t.mediaRef : '');
-      const payload = await NetEaseApi.lyricRaw(context, t.neteaseId, mediaRef);
+      const playbackRef = t.playbackRef !== undefined ? t.playbackRef : mediaRef;
+      const payload = await NetEaseApi.lyricRaw(context, t.neteaseId, mediaRef, playbackRef,
+        (cancel: () => void): void => {
+          if (token === this.changeToken) { this.cancelRequest = cancel; } else { cancel(); }
+        });
       if (token !== this.changeToken) {
         return;
       }
+      this.cancelRequest = null;
       let lines: LyricLine[] = [];
       if (payload.lrc !== '') {
         lines = parseLrc(payload.lrc);
       } else if (payload.yrc !== '') {
         lines = parseYrc(payload.yrc);
       }
+      if (payload.nolyric === true) { lines = []; }
+      // Legacy/local behavior remains timed. Versioned audio requires explicit timing evidence.
+      this.timelineTrusted = payload.lyrics !== undefined ? payload.lyrics.timeline === 'trusted' : mediaRef === '';
+      if (lines.length === 0 && !this.timelineTrusted && payload.nolyric !== true) {
+        const text = payload.lrc !== '' ? payload.lrc : payload.yrc;
+        for (const raw of text.split(/\r?\n/)) {
+          const body = raw.replace(/\[[^\]]*\]|\(\d+,\d+,\d+\)/g, '').trim();
+          if (body !== '') { lines.push({ timeMs: 0, text: body }); }
+        }
+      }
+      if (!this.timelineTrusted) {
+        lines = lines.map((line: LyricLine): LyricLine => { return { timeMs: 0, text: line.text }; });
+      }
       this.lines = lines;
       this.lyricsRef = payload.lyricsRef !== undefined ? payload.lyricsRef : mediaRef;
       this.lyricsSource = payload.lyricsSource !== undefined ? payload.lyricsSource : '';
-      this.activeIndex = findActiveLine(lines, playerViewModel.positionMs);
-      this.loadState = lines.length > 0 ? LyricsLoadState.READY : LyricsLoadState.EMPTY;
+      this.activeIndex = this.timelineTrusted ? findActiveLine(lines, playerViewModel.positionMs) : -1;
+      const status = payload.lyrics !== undefined ? payload.lyrics.status : '';
+      this.loadState = payload.nolyric === true || status === 'instrumental' ? LyricsLoadState.INSTRUMENTAL :
+        status === 'unsupported' ? LyricsLoadState.UNSUPPORTED : status === 'timeout' ? LyricsLoadState.TIMEOUT :
+          status === 'failed' || status === 'unavailable' ? LyricsLoadState.ERROR :
+            lines.length > 0 ? this.timelineTrusted ? LyricsLoadState.READY : LyricsLoadState.STATIC : LyricsLoadState.EMPTY;
       this.lyricsChangedHandler?.();
     } catch (err) {
       if (token === this.changeToken) {
         this.lines = [];
+        this.timelineTrusted = false;
         this.activeIndex = -1;
         this.loadState = LyricsLoadState.ERROR;
         this.lyricsChangedHandler?.();

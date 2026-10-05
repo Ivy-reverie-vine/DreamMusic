@@ -28,13 +28,15 @@ export class PlaybackRuntime {
 
   private async initialize(context: common.Context): Promise<void> {
     lyricsViewModel.lyricsChangedHandler = () => {
-      BackgroundPlayback.getInstance().setLyrics(playerViewModel.currentTrack, desktopLrc(lyricsViewModel.lines));
+      BackgroundPlayback.getInstance().setLyrics(playerViewModel.currentTrack,
+        lyricsViewModel.timelineTrusted ? desktopLrc(lyricsViewModel.lines) : '');
       playerViewModel.refreshBackground();
     };
     lyricsViewModel.setContext(context);
     await queueViewModel.restore(context);
     await BackgroundPlayback.getInstance().init(context);
-    BackgroundPlayback.getInstance().setLyrics(playerViewModel.currentTrack, desktopLrc(lyricsViewModel.lines));
+    BackgroundPlayback.getInstance().setLyrics(playerViewModel.currentTrack,
+      lyricsViewModel.timelineTrusted ? desktopLrc(lyricsViewModel.lines) : '');
     playerViewModel.refreshBackground();
   }
 
