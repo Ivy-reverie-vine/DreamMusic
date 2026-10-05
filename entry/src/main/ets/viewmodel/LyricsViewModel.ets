@@ -185,6 +185,18 @@ export class LyricsViewModel {
       this.onTrackChanged(playerViewModel.currentTrack);
     }
   }
+
+  dispose(): void {
+    this.changeToken++;
+    this.cancelRequest?.();
+    this.cancelRequest = null;
+    this.context = null;
+    this.reloadChecked = true;
+    this.lines = []; this.activeIndex = -1;
+    this.lyricsRef = ''; this.lyricsSource = '';
+    this.timelineTrusted = false; this.retryable = false;
+    this.loadState = LyricsLoadState.IDLE;
+  }
 }
 
 export const lyricsViewModel: LyricsViewModel = new LyricsViewModel();

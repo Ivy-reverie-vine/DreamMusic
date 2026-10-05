@@ -1,6 +1,7 @@
 import { ThemeService } from '../service/theme/ThemeService';
 import { playlistsViewModel, PlaylistsViewModel } from '../viewmodel/PlaylistsViewModel';
 import { queueViewModel } from '../viewmodel/QueueViewModel';
+import { playerViewModel } from '../viewmodel/PlayerViewModel';
 import { Playlist, Track, OnlineSong } from '../model/Entities';
 import { common } from '@kit.AbilityKit';
 import { CoverThumb } from '../components/CoverThumb';
@@ -244,15 +245,20 @@ export struct PlaylistsPage {
       pressed: { .backgroundColor(ThemeService.alpha(this.theme.primary, 0.1)) }
     })
     .onClick(() => {
-      this.onlineStatus = '正在打开「' + song.name + '」…';
-      this.onlineVm.playSong(this.ctx(), song)
-        .then(() => {
-          this.onlineStatus = '正在播放「' + song.name + '」';
-        })
-        .catch((err: Error) => {
-          this.onlineStatus = '播放失败: ' + err.message;
-        });
+      this.playOnlineSong(song);
     })
+  }
+
+  private async playOnlineSong(song: OnlineSong): Promise<void> {
+    this.onlineStatus = '正在打开「' + song.name + '」…';
+    const playback = this.onlineVm.playSong(this.ctx(), song);
+    const request = playerViewModel.requestId;
+    try {
+      await playback;
+      if (playerViewModel.isCurrentRequest(request)) { this.onlineStatus = '正在播放「' + song.name + '」'; }
+    } catch (err) {
+      if (playerViewModel.isCurrentRequest(request)) { this.onlineStatus = '播放失败: ' + (err as Error).message; }
+    }
   }
 
   @Builder

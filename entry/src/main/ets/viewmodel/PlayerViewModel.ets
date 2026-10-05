@@ -275,8 +275,11 @@ export class PlayerViewModel {
           if (!this.isCurrentRequest(request)) { return; }
           if (resolution.playbackRef !== selectedRef || resolution.catalogRef !== track.catalogRef ||
             resolution.lyricsRef !== track.lyricsRef) { this.failRequest(request, 'IDENTITY_MISMATCH'); return; }
-          track.lyricsRevision = (track.lyricsRevision ?? 0) + 1;
-          await this.playTrack(track, context, position, request, resolution);
+          // Cover/download completion may replace the view object while HTTP is pending.
+          const current = this.currentTrack;
+          if (current === null || current.playbackRef !== selectedRef) { return; }
+          current.lyricsRevision = (current.lyricsRevision ?? 0) + 1;
+          await this.playTrack(current, context, position, request, resolution);
           if (!this.isCurrentRequest(request) || !this.hasPlaybackError()) { return; }
           if (this.errorCode === 'AUDIO_PREVIEW' || this.errorCode === 'AUDIO_UNKNOWN' || this.errorCode === 'IDENTITY_MISMATCH') { return; }
         } catch (err) {
@@ -430,7 +433,7 @@ export class PlayerViewModel {
     this.lastStatsReportedMs = startMs;
     this.durationMs = track.durationMs > 0 ? track.durationMs : 0;
     // 瞬态在线音轨:直链流式播放(阶段 v2.3),不检查本地文件
-    const streaming = track.manualPlaybackRef !== undefined || track.id < 0 ||
+    const streaming = (this.recoveryRunning && prepared !== null && prepared.url !== '') || track.manualPlaybackRef !== undefined || track.id < 0 ||
       (track.streamUrl !== undefined && track.streamUrl !== '');
     let streamUrl = track.streamUrl !== undefined ? track.streamUrl : '';
     if (streaming) {
@@ -562,6 +565,8 @@ export class PlayerViewModel {
         await session.playFile(abs, callbacks);
       }
       if (!this.isCurrentRequest(request) || session !== this.session || this.state === PlayerState.ERROR) { return; }
+      // A downloaded queue entry replays its local file, even if its old stream needed recovery.
+      if (streaming && track.id > 0 && track.manualPlaybackRef === undefined) { track.streamUrl = ''; }
       session.setVolume(this.volume);
       if (startMs > 0) {
         session.seekTo(startMs);
@@ -707,6 +712,26 @@ export class PlayerViewModel {
   setVolume(v: number): void {
     this.volume = v;
     this.session.setVolume(v);
+  }
+
+  /** Ability teardown revokes HTTP, media and download callbacks before awaiting native release. */
+  async dispose(): Promise<void> {
+    this.requestVersion++;
+    this.resolutionCancel?.();
+    this.resolutionCancel = null;
+    this.clearRecoveryTimer();
+    this.clearSleepTimerHandle();
+    this.recoveryRunning = false;
+    this.playbackReadyHandler = null;
+    this.lastContext = null;
+    this.currentTrack = null;
+    this.state = PlayerState.IDLE;
+    this.positionMs = 0;
+    this.durationMs = 0;
+    this.errorText = ''; this.errorCode = ''; this.recoveryAction = '';
+    const previous = this.session;
+    this.session = new PlayerSession();
+    await previous.release();
   }
 
   get isPlaying(): boolean {

@@ -219,7 +219,7 @@ store.loadPlayerState = async () => {
 };
 store.listTracks = async () => [a, track(2)];
 const { PlaybackRuntime } = load('viewmodel/PlaybackRuntime.ets', ['PlaybackRuntime'], {
-  lyricsViewModel: { lines: [], setContext() {} }, desktopLrc: () => '',
+  lyricsViewModel: { lines: [], setContext() {}, dispose() {} }, desktopLrc: () => '',
   playerViewModel: player, queueViewModel: queue, PlayerState, BackgroundPlayback, ...cardModel,
   MusicFormPublisher: class { sync(track, state, status, canPlay) { projections.push({ track, state, status, canPlay }); }
     async dispose() {} }
@@ -257,6 +257,16 @@ assert.equal(metadataNotifications, 1);
 player.currentTrack = null;
 await runtime.dispatch(ctx, 'next'); assert.equal(projections.at(-1).canPlay, false);
 await runtime.dispose(); await bp.release();
+assert.equal(player.currentTrack, null); assert.equal(player.state, PlayerState.IDLE);
+// Closing while a cold restore is waiting must revoke queued card commands and late paused state.
+restoreGate = deferred();
+const coldRuntime = new PlaybackRuntime();
+const pendingCard = coldRuntime.dispatch(ctx, 'play'); await flush();
+const closingRuntime = coldRuntime.dispose();
+restoreGate.resolve(); restoreGate = null;
+await Promise.all([pendingCard, closingRuntime]);
+assert.equal(player.currentTrack, null); assert.equal(player.state, PlayerState.IDLE);
+await bp.release();
 // EntryAbility IPC adapter: registered method -> parsed command -> same runtime, malformed input ignored.
 let calleeHandler, received = [];
 const { EntryAbility: CardAbility } = load('entryability/EntryAbility.ets', ['EntryAbility'], {

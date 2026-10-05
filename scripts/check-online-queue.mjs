@@ -29,7 +29,7 @@ const context = { filesDir: '/sandbox' };
 const files = new Set(['/sandbox/music/offline.mp3']);
 const resolutions = [], downloads = [], reads = [], inserts = [], deletions = [], history = [];
 const favorites = new Set([70]);
-let stored = null, downloadGate = null;
+let stored = null, downloadGate = null, downloadFailure = false;
 let response = ref => ({ audioIntegrity: { status: 'full', reason: 'controlled_full', catalogDurationMs: 90000, resourceDurationMs: 90000, evidence: ['controlled'] }, url: 'https://audio/current.mp3', catalogRef: ref, playbackRef: ref,
   lyricsRef: ref, playbackSource: ref === refs.netease ? 'api-enhanced' : 'meting-tencent', lyricsSource: 'api-enhanced' });
 const api = {
@@ -58,6 +58,7 @@ const { OnlineDownloadService } = load('service/network/OnlineDownloadService.et
   ApiClient: { async download(url, path) {
     downloads.push({ url, path });
     if (downloadGate && path.includes('/music/')) await downloadGate.promise;
+    if (downloadFailure && path.includes('/music/')) throw new Error('controlled transport failure');
     files.add(path);
   } }
 });
@@ -65,7 +66,7 @@ const sessions = [];
 class Session {
   constructor() { sessions.push(this); }
   async release() { this.isLoaded = false; }
-  async playUrl(url, cb) { this.url = url; this.isLoaded = true; this.isPlaying = true; cb.onStateChange(PlayerState.PLAYING); }
+  async playUrl(url, cb) { this.url = url; this.callbacks = cb; this.isLoaded = true; this.isPlaying = true; cb.onStateChange(PlayerState.PLAYING); }
   async playFile(path, cb) { this.file = path; return this.playUrl(path, cb); }
   setVolume() {} getDuration() { return 90000; } seekTo() {}
 }
@@ -81,6 +82,12 @@ const queue = new QueueViewModel();
 const { onlineMusicViewModel: online } = load('viewmodel/OnlineMusicViewModel.ets', ['onlineMusicViewModel'], {
   ...deps, playerViewModel: player, queueViewModel: queue
 });
+// Online favorites and playlist rows share this production handler.
+const pageSource = readFileSync(new URL('pages/PlaylistsPage.ets', root), 'utf8');
+const pageMethod = pageSource.match(/private async playOnlineSong\([\s\S]*?\n  }/)[0].replace(/^private /, '');
+const page = runInNewContext(stripTypeScriptTypes(`class Page { ${pageMethod} }\nnew Page()`, { mode: 'transform' }),
+  { playerViewModel: player, Error });
+page.ctx = () => context; page.onlineVm = online;
 
 // Same numeric IDs across platforms, opaque string IDs, repeated selections and zero-ID entries coexist.
 const selections = [original, song('meting-tencent', 123, refs.qq),
@@ -110,7 +117,7 @@ for (const selected of [original, { ...original, mediaRef: undefined, catalogRef
   const oldResolve = api.resolvePlayback;
   if (!selected.mediaRef) api.resolvePlayback = async () => ({ ...response(undefined), catalogRef: undefined });
   const counts = [reads.length, downloads.length, inserts.length, deletions.length];
-  await online.playSong(context, selected); await flush();
+  await page.playOnlineSong(selected); await flush();
   assert.equal(player.state, PlayerState.PLAYING);
   assert.equal(player.currentTrack.playbackSource, 'meting-tencent');
   assert.equal(player.currentTrack.title, original.name);
@@ -118,6 +125,17 @@ for (const selected of [original, { ...original, mediaRef: undefined, catalogRef
   assert.deepEqual([reads.length, downloads.length, inserts.length, deletions.length], counts);
   api.resolvePlayback = oldResolve;
 }
+
+// A late result from an old row cannot overwrite the currently selected row's feedback.
+const rowResolve = api.resolvePlayback, lateRow = deferred(); let firstRow = true;
+api.resolvePlayback = async () => { if (firstRow) { firstRow = false; return lateRow.promise; } return response(refs.netease); };
+const oldRow = page.playOnlineSong({ ...original, name: '旧点播' });
+await page.playOnlineSong({ ...original, name: '新点播' });
+lateRow.resolve(response(refs.netease)); await oldRow; await flush();
+assert.equal(player.currentTrack.title, '新点播');
+assert.equal(page.onlineStatus, '正在播放「新点播」');
+assert.equal(downloads.length, 0);
+api.resolvePlayback = rowResolve;
 
 // Defense at the download boundary rejects cross-source data before any SQLite/file action.
 const cross = { ...player.currentTrack };
@@ -137,6 +155,7 @@ assert.notEqual(independent.id, favored.id); assert.equal(favorites.has(independ
 
 // Real NetEase path writes the resolved audio URL, then replaces only its matching transient selection.
 response = ref => ({ audioIntegrity: { status: 'full', reason: 'controlled_full', catalogDurationMs: 90000, resourceDurationMs: 90000, evidence: ['controlled'] }, url: 'https://audio/resolved-full.flac?token=controlled', catalogRef: ref,
+  recoveryToken: 'netease-recovery',
   playbackRef: ref, lyricsRef: ref, playbackSource: 'api-enhanced', lyricsSource: 'api-enhanced' });
 stored = null; files.delete('/sandbox/music/123.mp3'); downloadGate = deferred();
 const count = resolutions.length;
@@ -151,13 +170,47 @@ assert.equal(player.currentTrack.title, original.name); assert.equal(player.posi
 assert.equal(player.state, PlayerState.PLAYING); assert.equal(favorites.has(70), true);
 assert.equal(inserts.at(-1).neteaseId, 123); assert.equal(inserts.at(-1).path, 'music/123.flac');
 const current = player.currentTrack;
+assert.equal(current.recoveryToken, pendingTrack.recoveryToken);
+assert.equal(current.recoveryToken, 'netease-recovery');
 queue.swapCurrentWithLocal(local(), pendingTrack, request, refs.netease, response(refs.netease).url);
 assert.equal(player.currentTrack, current, 'duplicate completion has no effect');
+// Download completion changes the queue's database identity while its open stream still owns errors.
+const activeStream = sessions.at(-1), recoveryCount = resolutions.length, downloadedId = current.id;
+activeStream.callbacks.onError('controlled media failure'); await flush();
+assert.equal(player.state, PlayerState.PLAYING);
+assert.equal(player.currentTrack, current); assert.equal(queue.currentId, downloadedId);
+assert.equal(resolutions.length, recoveryCount + 1);
+assert.equal(sessions.at(-1).url, response(refs.netease).url);
+assert.equal(player.positionMs, 2345);
+assert.equal(current.streamUrl, '', 'recovered downloaded entries retain local replay semantics');
 
 // Existing cached record remains the favored ID after confirming actual NetEase audio.
 await online.playSong(context, original); await flush();
 assert.equal(player.currentTrack.id, 70); assert.equal(player.currentTrack.title, original.name);
 assert.equal(favorites.has(70), true); assert.equal(sessions.at(-1).file, '/sandbox/music/123.flac');
+
+// Repeated point plays of the same NetEase resource share one actual file/SQLite job.
+stored = null; downloadGate = deferred();
+const beforeRepeated = [downloads.length, inserts.length];
+await online.playSong(context, original); await flush();
+const superseded = player.currentTrack;
+await online.playSong(context, original); await flush();
+assert.notEqual(player.currentTrack.id, superseded.id);
+assert.equal(downloads.length, beforeRepeated[0] + 1);
+downloadGate.resolve(); downloadGate = null; await flush();
+assert.equal(inserts.length, beforeRepeated[1] + 1);
+assert.equal(player.currentTrack.id, 70); assert.equal(queue.currentId, 70);
+assert.equal(player.currentTrack.title, original.name);
+
+// A failed shared job releases ownership so an explicit later selection can retry.
+stored = null; downloadGate = deferred(); downloadFailure = true;
+await online.playSong(context, original); await flush();
+await online.playSong(context, original); await flush();
+downloadGate.resolve(); downloadGate = null; await flush();
+assert.ok(player.currentTrack.id < 0); assert.equal(player.state, PlayerState.PLAYING);
+downloadFailure = false;
+await online.playSong(context, original); await flush();
+assert.equal(player.currentTrack.id, 70);
 
 // A different recording/selection and a same-catalog source switch both revoke an old completion.
 for (const switchSource of [false, true]) {
@@ -190,9 +243,15 @@ downloadGate.resolve(); downloadGate = null; await flush();
 assert.equal(player.currentTrack, previous); assert.ok(previous.id < -1);
 stored = null; downloadGate = deferred();
 await online.playSong(context, original); await flush();
+player.currentTrack.recoveryToken = 'selected-recovery'; player.currentTrack.lyricsRevision = 2;
 queue.updateCurrentCover(player.currentTrack, 'https://cover/late-success');
+assert.equal(player.currentTrack.recoveryToken, 'selected-recovery');
+assert.equal(player.currentTrack.lyricsRevision, 2);
 downloadGate.resolve(); downloadGate = null; await flush();
 assert.equal(player.currentTrack.id, 70); assert.equal(player.currentTrack.streamCoverUrl, 'https://cover/late-success');
+assert.equal(player.currentTrack.recoveryToken, 'selected-recovery');
+assert.equal(player.currentTrack.lyricsRevision, 2);
+assert.equal(player.currentTrack.streamUrl, undefined, 'subsequent queue playback uses the downloaded local file');
 
 // Legacy real NetEase response preserves old ID-based download; local offline playback needs no network.
 stored = null;
@@ -202,8 +261,17 @@ assert.equal(player.currentTrack.id, 70); assert.equal(inserts.at(-1).neteaseId,
 assert.equal(downloads.findLast(d => d.path.endsWith('.mp3')).url, 'https://audio/legacy.mp3');
 const offline = { ...local(8), path: 'music/offline.mp3', neteaseId: 0 };
 const resolutionCount = resolutions.length;
+const onlineResolve = api.resolvePlayback;
 api.resolvePlayback = async () => { throw new Error('offline'); };
 await queue.playFromList([offline], 0, context); await flush();
 assert.equal(player.currentTrack.id, 8); assert.equal(player.state, PlayerState.PLAYING);
 assert.equal(resolutions.length, resolutionCount); assert.equal(history.at(-1), 8);
+// A real in-flight download may finish after Ability teardown, but cannot reactivate a selection.
+api.resolvePlayback = onlineResolve; stored = null; downloadGate = deferred();
+await online.playSong(context, original); await flush();
+const closingRequest = player.requestId;
+await player.dispose();
+downloadGate.resolve(); downloadGate = null; await flush();
+assert.equal(player.isCurrentRequest(closingRequest), false);
+assert.equal(player.currentTrack, null); assert.equal(player.state, PlayerState.IDLE);
 console.log('PASS: isolated online selections, stable catalog/favorites, actual-source cache/download guards, real NetEase write path, stale/duplicate/source-change completion rejection and local offline playback. Kit/SQLite/HTTP are controlled boundaries.');

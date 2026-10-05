@@ -21,6 +21,7 @@ export type DownloadProgressFn = (pct: number) => void;
  * 下载前确保父目录存在；否则新安装且音乐库为空时，文件无法创建，后续也无记录可恢复。
  */
 export class OnlineDownloadService {
+  private static pending: Map<string, Promise<Track>> = new Map<string, Promise<Track>>();
   /** 查询已入库且文件可用的本地音轨；命中后后台补齐缺失的封面/歌词。 */
   static async findLocal(context: common.Context, neteaseId: number): Promise<Track | null> {
     const track = await LibraryStore.getInstance().getTrackByNeteaseId(neteaseId);
@@ -39,8 +40,26 @@ export class OnlineDownloadService {
       audio.streamUrl === undefined || audio.streamUrl === '') {
       throw new Error('当前音频不能进入网易下载入库');
     }
+    // Repeated selections share the file/SQLite job, but keep separate queue owners.
+    const key = context.filesDir + '/' + song.id;
+    let task = OnlineDownloadService.pending.get(key);
+    if (task === undefined) {
+      task = OnlineDownloadService.downloadLocal(context, song, onProgress, audio);
+      OnlineDownloadService.pending.set(key, task);
+    }
+    try {
+      const track = await task;
+      onProgress(100);
+      return track;
+    } finally {
+      if (OnlineDownloadService.pending.get(key) === task) { OnlineDownloadService.pending.delete(key); }
+    }
+  }
+
+  private static async downloadLocal(context: common.Context, song: OnlineSong,
+    onProgress: DownloadProgressFn, audio: Track): Promise<Track> {
     // Use the exact playback result, never re-resolve the catalog's numeric ID.
-    const url = audio.streamUrl;
+    const url = audio.streamUrl ?? '';
     const store = LibraryStore.getInstance();
     const existing = await store.getTrackByNeteaseId(song.id);
     if (existing !== null && OnlineDownloadService.fileUsable(context, existing)) {

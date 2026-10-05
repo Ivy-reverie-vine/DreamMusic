@@ -71,8 +71,14 @@ export class PlaybackRuntime {
 
   async dispose(): Promise<void> {
     this.generation++;
+    const stopped = playerViewModel.dispose();
+    lyricsViewModel.dispose();
     await this.commandChain;
     if (this.ready !== null) { await this.ready.catch(() => {}); }
+    await stopped;
+    // A pending persisted restore may have projected a paused track during teardown.
+    if (playerViewModel.currentTrack !== null) { await playerViewModel.dispose(); }
+    lyricsViewModel.dispose();
     playerViewModel.playbackChangedHandler = null;
     lyricsViewModel.lyricsChangedHandler = null;
     await this.publisher?.dispose();

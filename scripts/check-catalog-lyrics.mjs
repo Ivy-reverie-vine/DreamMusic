@@ -295,6 +295,20 @@ try {
   await until(() => lrAborted); lrRelease(); await delay(50);
   assert.equal(player.currentTrack, local); assert.equal(lyrics.lines.length, 0);
   assert.equal(lrclib.cache.size, 0); assert.equal(player.state, PlayerState.PLAYING);
+  // Ability close cancels the current fallback and rejects even a provider ignoring abort.
+  lrStarted = undefined; lrRelease = undefined; lrAborted = false;
+  const closeBegan = new Promise(resolve => { lrStarted = resolve; });
+  const closeGate = new Promise(resolve => { lrRelease = resolve; });
+  gateway.controls.beforeResponse = async (url, signal) => {
+    if (url.hostname !== 'lrclib.net') return;
+    lrStarted(); signal.addEventListener('abort', () => { lrAborted = true; }, { once: true }); await closeGate;
+  };
+  await play(entry()); await closeBegan;
+  lyrics.dispose(); await player.dispose(); await until(() => lrAborted);
+  lrRelease(); await delay(50);
+  assert.equal(lyrics.loadState, state.IDLE); assert.equal(lyrics.lines.length, 0);
+  assert.equal(lrclib.cache.size, 0); assert.equal(player.state, PlayerState.IDLE);
+  assert.equal(player.currentTrack, null);
   console.log('PASS T12: actual HTTP LRCLIB fallback → compiled lyric display; synced/static/instrumental/missing/failure/timeout, retry, cache timing and late cancellation.');
   console.log('PASS T11: real HTTP automatic audio fallback + catalog lyrics → real ArkTS queue/player/lyrics; static/trusted/cache relations, plain text, empty, instrumental, unsupported, timeout, failure and cancellation. Audio keeps PLAYING; Kit boundaries controlled, no device claim.');
 } finally { await gateway.close(); }

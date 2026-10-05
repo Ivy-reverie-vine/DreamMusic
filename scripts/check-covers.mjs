@@ -268,6 +268,7 @@ const { QueueViewModel } = load('viewmodel/QueueViewModel.ets', ['QueueViewModel
 });
 const queue = new QueueViewModel(); const online = track(-7, '', url); online.neteaseId = 7;
 online.playbackSource = 'api-enhanced'; online.streamUrl = 'https://audio/7';
+online.audioIntegrity = { status: 'full' };
 await queue.playFromList([online], 0, ctx);
 const local = track(70, 'missing.jpg'); local.neteaseId = 7;
 queue.swapCurrentWithLocal(local, online, 0, '', online.streamUrl);
@@ -293,7 +294,7 @@ const coverPlayer = { errorText: '', currentTrack: null,
   isCurrentRequest(request) { return request === 1; } };
 const { OnlineMusicViewModel } = load('viewmodel/OnlineMusicViewModel.ets', ['OnlineMusicViewModel'], {
   ...identity,
-  NetEaseApi: { async resolvePlayback() { return { url: 'https://audio/1', playbackSource: 'api-enhanced' }; }, songDetailCover() { return details.promise; } },
+  NetEaseApi: { async resolvePlayback() { return { url: 'https://audio/1', playbackSource: 'api-enhanced', audioIntegrity: { status: 'full' } }; }, songDetailCover() { return details.promise; } },
   OnlineDownloadService: { async findLocal() { return null; }, async ensureLocal() { return track(10); } },
   queueViewModel: { selectFromList() {}, async playFromList(tracks) { started.push(tracks[0]); coverPlayer.currentTrack = tracks[0]; coverPlayer.ready(1); }, updateCurrentCover() {}, swapCurrentWithLocal() {} },
   playerViewModel: coverPlayer, PlayerState

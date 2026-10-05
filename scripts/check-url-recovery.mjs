@@ -106,9 +106,20 @@ try {
   records.push({ scenario: 'controlled 410 → exact-resource refresh → playing at 12000ms',
     evidence: gateway.evidence.splice(0), resolutions: requests.length, readyCalls: ready });
   // Mid-play failure retains position and never runs the download callback again.
+  queue.updateCurrentCover(track, 'https://cover.test/before-recovery');
+  assert.equal(player.currentTrack.recoveryToken, track.recoveryToken);
+  assert.equal(player.currentTrack.lyricsRevision, track.lyricsRevision);
+  gateway.recoveryControls.resolveDelayMs = 80;
   player.positionMs = 23000;
   const old = natives.at(-1); old.emit('error'); old.handlers.error();
+  await until(() => requests.filter(url => url.searchParams.get('recover') === 'true').length === 2);
+  queue.updateCurrentCover(player.currentTrack, 'https://cover.test/during-recovery');
+  const withCover = player.currentTrack;
   await until(() => player.state === PlayerState.PLAYING);
+  gateway.recoveryControls.resolveDelayMs = 0;
+  assert.equal(player.currentTrack, withCover);
+  assert.equal(queue.queueTracks[0], withCover);
+  assert.equal(withCover.streamCoverUrl, 'https://cover.test/during-recovery');
   assert.equal(player.positionMs, 23000); assert.equal(ready, 1); assert.equal(natives.at(-1).currentTime, 23000);
   records.push({ scenario: 'mid-play recovery; duplicate events coalesced; no second ready/download', positionMs: player.positionMs });
   // Persistent media failure reaches an actionable terminal after exactly two refreshes.
@@ -133,7 +144,12 @@ try {
   assert.equal(player.errorCode, 'PLAYBACK_RECOVERY_FAILED');
   await delay(400); assert.equal(player.state, PlayerState.ERROR);
   records.push({ scenario: 'total deadline cancels slow resolution and suppresses late playback', deadlineMs: 15000 });
-  player.restorePaused(local, 0, context);
+  const closing = play(); await until(() => player.recoveryRunning);
+  await player.dispose(); await closing; await delay(400);
+  assert.equal(player.currentTrack, null); assert.equal(player.state, PlayerState.IDLE);
+  assert.equal(player.recoveryRunning, false);
+  assert.ok(natives.every(native => native.state === 'released'));
+  records.push({ scenario: 'Ability teardown cancels HTTP recovery; late responses never reactivate playback' });
   if (process.argv.includes('--record')) writeFileSync(new URL('../docs/research/assets/issue32-client-recovery.json', import.meta.url),
     JSON.stringify({ boundary: 'actual ArkTS + authenticated HTTP + real WAV bytes; Kit decoder controlled; native browser decoding recorded separately', records }, null, 2) + '\n');
   console.log('PASS T13 actual ArkTS/HTTP/session: controlled 410 recovery, position/identity/queue, event coalescing, no repeated download, bounded failure, switch and deadline cancellation.');

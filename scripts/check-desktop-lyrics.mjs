@@ -186,6 +186,7 @@ const { BackgroundPlayback } = load('service/playback/BackgroundPlayback.ets', [
 const bp = BackgroundPlayback.getInstance();
 const player = {
   currentTrack: null, positionMs: 0, state: PlayerState.PAUSED,
+  async dispose() { this.currentTrack = null; this.state = PlayerState.IDLE; },
   refreshBackground() { bp.sync(this.currentTrack, this.state, this.positionMs, 100000, PlayMode.SEQUENTIAL, true); }
 };
 const online = [], localLines = parser.parseLrc(lrc);
