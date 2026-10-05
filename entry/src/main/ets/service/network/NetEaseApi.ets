@@ -21,6 +21,20 @@ export interface SearchPage {
   hasMore: boolean;
 }
 
+export interface SearchSourcePage {
+  source: string;
+  status: string;
+  offset: number;
+  nextOffset: number;
+  hasMore: boolean;
+  errorCode?: string;
+}
+
+export interface AggregateSearchPage {
+  songs: OnlineSong[];
+  sources: SearchSourcePage[];
+}
+
 interface RawArtist {
   name?: string;
 }
@@ -94,6 +108,7 @@ interface MediaSong extends MediaIdentity {
 interface MediaSearchResponse extends UpstreamEnvelope {
   data?: MediaSong[];
   hasMore?: boolean;
+  sources?: SearchSourcePage[];
 }
 
 interface MediaUrlResponse extends UpstreamEnvelope, MediaIdentity {
@@ -254,7 +269,46 @@ export class NetEaseApi {
     );
     const wrapper = res.body as MediaSearchResponse;
     ensureUpstreamOk(wrapper);
-    const raw = wrapper.data !== undefined && wrapper.data !== null ? wrapper.data : [];
+    const songs = NetEaseApi.mediaSongs(wrapper.data !== undefined && wrapper.data !== null ? wrapper.data : []);
+    const page: SearchPage = { songs: songs, hasMore: wrapper.hasMore === true };
+    NetEaseApi.putCache(NetEaseApi.searchCache, cacheKey, page);
+    return page;
+  }
+
+  /** 每个来源持有自己的 offset；失败重试不使用成功结果缓存，也不解析音频。 */
+  static async aggregateSearch(context: common.Context, keywords: string,
+    pages: Record<string, number>): Promise<AggregateSearchPage> {
+    const base = await DreamMusicAuth.baseV2(context);
+    const params: Record<string, string> = {};
+    params['keywords'] = keywords;
+    params['aggregate'] = 'true';
+    params['limit'] = String(SEARCH_LIMIT);
+    params['pages'] = JSON.stringify(pages);
+    let wrapper: MediaSearchResponse;
+    try {
+      const res = await DreamMusicAuth.withApiKey(context, (headers: Record<string, string>) => {
+        return ApiClient.getJson(base, '/search', params, headers);
+      });
+      wrapper = res.body as MediaSearchResponse;
+      ensureUpstreamOk(wrapper);
+      if (wrapper.sources !== undefined) {
+        return { songs: NetEaseApi.mediaSongs(wrapper.data !== undefined ? wrapper.data : []), sources: wrapper.sources };
+      }
+    } catch (err) {
+      if (!(err instanceof ApiError) || err.code !== 'NOT_ALLOWED') {
+        if (err instanceof Error) { throw err; }
+        throw new Error('搜索失败');
+      }
+    }
+    // 未升级网关仅保留旧单来源兼容；不得伪称三个来源均已搜索。
+    const offset = pages['api-enhanced'];
+    if (offset === undefined) { throw new ApiError('NOT_ALLOWED', '服务端尚不支持多源搜索，请升级 NightDream'); }
+    const legacy = await NetEaseApi.search(context, keywords, offset);
+    return { songs: legacy.songs, sources: [{ source: 'api-enhanced', status: legacy.songs.length > 0 ? 'ok' : 'empty',
+      offset: offset, nextOffset: offset + SEARCH_LIMIT, hasMore: legacy.hasMore }] };
+  }
+
+  private static mediaSongs(raw: MediaSong[]): OnlineSong[] {
     const songs: OnlineSong[] = [];
     for (let i = 0; i < raw.length; i++) {
       const s = raw[i];
@@ -277,9 +331,7 @@ export class NetEaseApi {
         lyricsSource: s.lyricsSource
       });
     }
-    const page: SearchPage = { songs: songs, hasMore: wrapper.hasMore === true };
-    NetEaseApi.putCache(NetEaseApi.searchCache, cacheKey, page);
-    return page;
+    return songs;
   }
 
   /** 普通在线播放直链(level=exhigh;不执行解灰) */

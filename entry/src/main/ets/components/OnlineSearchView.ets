@@ -1,7 +1,8 @@
 import { ThemeService } from '../service/theme/ThemeService';
 import { common } from '@kit.AbilityKit';
 import { OnlineSong } from '../model/Entities';
-import { NetEaseApi } from '../service/network/NetEaseApi';
+import { OnlineSearchViewModel, searchSourceName } from '../viewmodel/OnlineSearchViewModel';
+import { SearchSourcePage } from '../service/network/NetEaseApi';
 import { ApiError } from '../service/network/ApiClient';
 import { DreamMusicAuth } from '../service/network/DreamMusicAuth';
 import { onlineMusicViewModel } from '../viewmodel/OnlineMusicViewModel';
@@ -19,7 +20,7 @@ function fmt(ms: number): string {
 /**
  * 在线搜索子视图(阶段 v2,8/16 拍板):
  * 音乐库页头搜索图标进入;300ms 防抖搜索、滚动加载更多;
- * 点结果 = 直链流式即播 + 后台下载落盘入库;下载完成后原位替换队列条目。
+ * 聚合结果保留来源身份；点播沿用已有路径，只有符合网易音频边界的条目后台入库。
  */
 @Component
 export struct OnlineSearchView {
@@ -31,18 +32,12 @@ export struct OnlineSearchView {
   /** 未登录 → 打开登录盖层(阶段 v2.2) */
   onGoLogin: () => void = () => {
   };
-  @State keyword: string = '';
-  @State results: OnlineSong[] = [];
-  @State loading: boolean = false;
+  @State search: OnlineSearchViewModel = new OnlineSearchViewModel();
   @State errorText: string = '';
-  @State hasMore: boolean = false;
   @State busyId: number = -1;
   @State busyRef: string = '';
   @State progressText: string = '';
   @State errorCode: string = '';
-  private searchTimer: number = -1;
-  private pageOffset: number = 0;
-  private inflight: boolean = false;
 
   private ctx(): common.UIAbilityContext {
     return this.getUIContext().getHostContext() as common.UIAbilityContext;
@@ -56,46 +51,14 @@ export struct OnlineSearchView {
     }
   }
 
-  private onKeyword(v: string): void {
-    this.keyword = v;
-    if (this.searchTimer >= 0) {
-      clearTimeout(this.searchTimer);
-    }
-    this.searchTimer = setTimeout(() => {
-      this.doSearch(0);
-    }, 300);
+  aboutToDisappear(): void {
+    this.search.cancel();
   }
 
-  private async doSearch(offset: number): Promise<void> {
-    const kw = this.keyword.trim();
-    if (kw === '' || this.inflight) {
-      return;
-    }
-    this.inflight = true;
-    this.loading = true;
+  private onKeyword(v: string): void {
     this.errorText = '';
     this.errorCode = '';
-    try {
-      const page = await NetEaseApi.search(this.ctx(), kw, offset);
-      networkViewModel.markOnline();
-      if (offset === 0) {
-        this.results = page.songs;
-      } else {
-        this.results = this.results.concat(page.songs);
-      }
-      this.pageOffset = offset + page.songs.length;
-      this.hasMore = page.hasMore;
-    } catch (err) {
-      OnlineSearchView.reportConnectivity(err as Error);
-      this.errorText = (err as Error).message;
-      this.errorCode = err instanceof ApiError ? err.code : '';
-      if (offset === 0) {
-        this.results = [];
-      }
-    } finally {
-      this.loading = false;
-      this.inflight = false;
-    }
+    this.search.changeKeyword(this.ctx(), v);
   }
 
   private async streamAndPlay(song: OnlineSong): Promise<void> {
@@ -146,8 +109,8 @@ export struct OnlineSearchView {
 
   /** 需要用户去设置处理的错误(登录/绑定/绑定失效) */
   private isAuthError(): boolean {
-    return this.errorCode === 'NEED_LOGIN' || this.errorCode === 'FORBIDDEN' ||
-      this.errorCode === 'BIND_INVALID';
+    const code = this.errorCode !== '' ? this.errorCode : this.search.errorCode;
+    return code === 'NEED_LOGIN' || code === 'UNAUTHORIZED' || code === 'FORBIDDEN' || code === 'BIND_INVALID';
   }
 
   @Builder
@@ -184,7 +147,7 @@ export struct OnlineSearchView {
           .fontColor(this.theme.ink)
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
-        Text(`${song.artist}${song.album !== '' ? ' · ' + song.album : ''}`)
+        Text(`${searchSourceName(song.source !== undefined ? song.source : 'api-enhanced')} · ${song.artist}${song.album !== '' ? ' · ' + song.album : ''}`)
           .fontSize(FONT_LABEL)
           .fontColor(this.theme.muted)
           .maxLines(1)
@@ -246,9 +209,10 @@ export struct OnlineSearchView {
         }
         .padding(6)
         .onClick(() => {
+          this.search.cancel();
           this.onBack();
         })
-        TextInput({ placeholder: '搜索网易云音乐', text: this.keyword })
+        TextInput({ placeholder: '搜索网易 / QQ / 酷狗', text: this.search.keyword })
           .fontSize(14)
           .fontColor(this.theme.ink)
           .placeholderColor(this.theme.muted)
@@ -262,14 +226,15 @@ export struct OnlineSearchView {
       }
       .width('100%')
 
-      if (this.loading) {
+      if (this.search.loading) {
         Text('搜索中…')
           .fontSize(FONT_LABEL)
           .fontColor(this.theme.muted)
           .width('100%')
-      } else if (this.errorText !== '') {
+      }
+      if (this.errorText !== '' || this.search.errorText !== '') {
         Column({ space: 6 }) {
-          Text(this.errorText)
+          Text(this.errorText !== '' ? this.errorText : this.search.errorText)
             .fontSize(FONT_LABEL)
             .fontColor(this.theme.errorColor)
             .width('100%')
@@ -277,7 +242,7 @@ export struct OnlineSearchView {
             .textOverflow({ overflow: TextOverflow.Ellipsis })
           if (this.isAuthError()) {
             Row({ space: 4 }) {
-              Text(this.errorCode === 'NEED_LOGIN' ? '去登录' : '去设置')
+              Text(this.errorCode === 'NEED_LOGIN' || this.search.errorCode === 'UNAUTHORIZED' ? '去登录' : '去设置')
                 .fontSize(13)
                 .fontColor(this.theme.primaryText)
               SymbolGlyph($r('sys.symbol.chevron_right'))
@@ -288,29 +253,58 @@ export struct OnlineSearchView {
             .borderRadius(999)
             .backgroundColor(ThemeService.alpha(this.theme.primary, 0.12))
             .onClick(() => {
-              if (this.errorCode === 'NEED_LOGIN') {
+              if (this.errorCode === 'NEED_LOGIN' || this.search.errorCode === 'UNAUTHORIZED') {
                 this.onGoLogin();
               } else {
                 this.onGoSettings();
               }
             })
+          } else if (this.search.errorText !== '') {
+            Button('重试搜索')
+              .fontSize(FONT_LABEL)
+              .fontColor(this.theme.primaryText)
+              .backgroundColor(this.theme.card)
+              .constraintSize({ minHeight: 48 })
+              .enabled(!this.search.loading)
+              .onClick(() => {
+                this.search.retry(this.ctx());
+              })
           }
         }
         .width('100%')
-      } else if (this.keyword.trim() === '') {
+      }
+      if (this.search.status === 'partial_failure' || this.search.status === 'all_failed') {
+        Text(this.search.status === 'all_failed' ? '所有来源搜索失败，请重试' : '部分来源搜索失败，已保留可用结果')
+          .fontSize(FONT_LABEL)
+          .fontColor(this.theme.muted)
+          .width('100%')
+      }
+      ForEach(this.search.sources, (source: SearchSourcePage) => {
+        if (source.status === 'failed') {
+          Button('重试' + searchSourceName(source.source))
+            .fontSize(FONT_LABEL)
+            .fontColor(this.theme.primaryText)
+            .backgroundColor(this.theme.card)
+            .constraintSize({ minHeight: 48 })
+            .enabled(!this.search.loading)
+            .onClick(() => { this.search.retrySource(this.ctx(), source.source); })
+        }
+      }, (source: SearchSourcePage) => source.source)
+      if (this.search.keyword.trim() === '') {
         this.Hint($r('sys.symbol.magnifyingglass'), '搜索在线音乐',
-          '搜索 DreamMusic 服务，点结果自动下载到音乐库并播放')
-      } else if (this.results.length === 0) {
+          '同时查询网易、QQ、酷狗，点选歌曲播放')
+      } else if (!this.search.loading && this.search.errorText === '' && this.search.status === 'empty') {
         this.Hint($r('sys.symbol.music_note_list'), '没有找到相关歌曲',
           '换个关键词试试')
-      } else {
+      }
+      if (this.search.results.length > 0) {
         List({ space: 10 }) {
-          ForEach(this.results, (song: OnlineSong) => {
+          ForEach(this.search.results, (song: OnlineSong) => {
             ListItem() {
               this.ResultRow(song)
             }
-          })
-          if (this.hasMore) {
+          }, (song: OnlineSong) => song.mediaRef !== undefined ? song.mediaRef : 'api-enhanced|' + song.id)
+          if (this.search.hasMore) {
             ListItem() {
               Text('上拉加载更多')
                 .fontSize(FONT_LABEL)
@@ -325,8 +319,8 @@ export struct OnlineSearchView {
         .layoutWeight(1)
         .scrollBar(BarState.Auto)
         .onReachEnd(() => {
-          if (this.hasMore && !this.loading) {
-            this.doSearch(this.pageOffset);
+          if (this.search.hasMore && !this.search.loading && this.search.errorText === '') {
+            this.search.loadMore(this.ctx());
           }
         })
       }
