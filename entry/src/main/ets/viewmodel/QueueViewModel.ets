@@ -5,6 +5,8 @@ import { LibraryStore } from '../service/library/LibraryStore';
 import { playerViewModel } from './PlayerViewModel';
 import { PlayerState } from '../model/Playback';
 import { Track } from '../model/Entities';
+import { PlaybackResolution } from '../service/network/NetEaseApi';
+import { canDownloadNetEase } from '../model/OnlineTrackIdentity';
 
 const PERSIST_INTERVAL_MS = 15000;
 
@@ -115,8 +117,15 @@ export class QueueViewModel {
 
   /** 点歌:来源列表成为队列,从 startIndex 开始播 */
   async playFromList(tracks: Track[], startIndex: number, context: common.Context,
-    expectedRequest: number = -1): Promise<void> {
-    if (expectedRequest >= 0 && !playerViewModel.isCurrentRequest(expectedRequest)) { return; }
+    expectedRequest: number = -1, prepared: PlaybackResolution | null = null): Promise<void> {
+    if (!this.selectFromList(tracks, startIndex, context, expectedRequest)) { return; }
+    await this.playCurrent(0, expectedRequest, prepared);
+  }
+
+  /** Select before async resolution so failure/retry still belongs to the selected queue entry. */
+  selectFromList(tracks: Track[], startIndex: number, context: common.Context,
+    expectedRequest: number = -1): boolean {
+    if (expectedRequest >= 0 && !playerViewModel.isCurrentRequest(expectedRequest)) { return false; }
     this.context = context;
     this.trackCache = tracks.slice();
     const ids: number[] = [];
@@ -125,10 +134,11 @@ export class QueueViewModel {
     });
     this.engine.setQueue(ids, startIndex, this.mode);
     this.syncDisplay();
-    await this.playCurrent(0, expectedRequest);
+    return true;
   }
 
-  private async playCurrent(seekMs: number, expectedRequest: number = -1): Promise<void> {
+  private async playCurrent(seekMs: number, expectedRequest: number = -1,
+    prepared: PlaybackResolution | null = null): Promise<void> {
     if (this.context === null) {
       return;
     }
@@ -137,7 +147,7 @@ export class QueueViewModel {
     if (t === null) {
       return;
     }
-    const playback = playerViewModel.playTrack(t, this.context, seekMs, expectedRequest);
+    const playback = playerViewModel.playTrack(t, this.context, seekMs, expectedRequest, prepared);
     const request = playerViewModel.requestId;
     await playback;
     if (!playerViewModel.isCurrentRequest(request) || this.engine.current() !== id) { return; }
@@ -236,9 +246,14 @@ export class QueueViewModel {
    * 下载完成后把当前瞬态在线音轨替换为已入库的正式音轨。
    * 播放会话继续使用已打开的流地址；下一次切歌、重启和音乐库操作均解析本地记录。
    */
-  swapCurrentWithLocal(track: Track): void {
+  swapCurrentWithLocal(track: Track, expected: Track, request: number, playbackRef: string,
+    streamUrl: string): void {
     const oldId = this.engine.current();
     const previous = playerViewModel.currentTrack;
+    if (!playerViewModel.isCurrentRequest(request) || previous === null || previous.id !== expected.id ||
+      oldId !== expected.id || !canDownloadNetEase(previous) || previous.neteaseId !== track.neteaseId ||
+      (previous.playbackRef !== undefined ? previous.playbackRef : '') !== playbackRef ||
+      previous.streamUrl !== streamUrl || track.id <= 0) { return; }
     // 本地封面优先；下载失败/文件缺失时继续使用已缓存的同音轨在线封面。
     if (previous !== null && previous.id === oldId && previous.neteaseId === track.neteaseId) {
       track.streamCoverUrl = previous.streamCoverUrl;
@@ -260,16 +275,7 @@ export class QueueViewModel {
     if (oldId >= 0 || !this.engine.replaceTrackId(oldId, track.id)) {
       return;
     }
-    let cached = false;
-    for (let i = 0; i < this.trackCache.length; i++) {
-      if (this.trackCache[i].id === track.id) {
-        cached = true;
-        break;
-      }
-    }
-    if (!cached) {
-      this.trackCache.push(track);
-    }
+    this.trackCache = this.trackCache.map((t: Track) => t.id === oldId ? track : t);
     this.syncDisplay();
     playerViewModel.currentTrack = track;
     if (playerViewModel.trackChangeHandler !== null) {

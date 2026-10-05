@@ -45,6 +45,7 @@ try {
   const { PlayerState } = load('model/Playback.ets', ['PlayerState']);
   const { SleepTimer } = load('service/playback/SleepTimer.ets', ['SleepTimer']);
   const { QueueEngine, PlayMode } = load('service/playback/QueueEngine.ets', ['QueueEngine', 'PlayMode']);
+  const identity = load('model/OnlineTrackIdentity.ets', ['createOnlineTrack', 'canDownloadNetEase']);
   const sessions = [], downloads = [], localLookups = [], downloadResults = [];
   let localResult = null;
   class Session {
@@ -56,7 +57,7 @@ try {
   }
   const store = { async savePlayerState() {}, async insertHistory() {} };
   const background = { sync() {}, startLongTask() {}, stopLongTask() {} };
-  const deps = { PlayerSession: Session, SleepTimer, PlayerState, PlayMode, ApiError, NetEaseApi,
+  const deps = { ...identity, PlayerSession: Session, SleepTimer, PlayerState, PlayMode, ApiError, NetEaseApi,
     fileIo: { accessSync: () => true }, hilog,
     LibraryStore: { getInstance: () => store }, BackgroundPlayback: { getInstance: () => background } };
   const { playerViewModel: player } = load('viewmodel/PlayerViewModel.ets', ['playerViewModel'], deps);
@@ -83,7 +84,7 @@ try {
   await online.playSong(context, selected);
   await until(() => lyrics.loadState === LyricsLoadState.READY);
   assert.equal(player.state, PlayerState.PLAYING);
-  assert.equal(queue.currentId, -123);
+  assert.ok(queue.currentId < -1);
   assert.equal(player.currentTrack.catalogRef, selected.catalogRef);
   assert.equal(player.currentTrack.playbackRef, selected.playbackRef);
   assert.equal(player.playbackSourceText, '网易云');
@@ -136,7 +137,8 @@ try {
   assert.equal(player.currentTrack.title, selected.name);
   assert.equal(player.currentTrack.artist, selected.artist);
   assert.equal(player.currentTrack.catalogRef, selected.catalogRef);
-  assert.equal(requests.filter(r => r.pathname.endsWith('/song/url/v1')).length, resolutionCount);
+  assert.equal(requests.filter(r => r.pathname.endsWith('/song/url/v1')).length, resolutionCount + 1,
+    'confirm actual audio before reusing the numeric-ID cache');
   assert.equal(localResult.title, '已缓存旧名');
   localResult = null;
 

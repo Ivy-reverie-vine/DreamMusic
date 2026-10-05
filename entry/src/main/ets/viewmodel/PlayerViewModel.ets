@@ -9,7 +9,7 @@ import { PlayerState } from '../model/Playback';
 import { Track } from '../model/Entities';
 import { DreamMusicAuth } from '../service/network/DreamMusicAuth';
 import { SleepTimer, SleepTimerSnapshot } from '../service/playback/SleepTimer';
-import { NetEaseApi } from '../service/network/NetEaseApi';
+import { NetEaseApi, PlaybackResolution } from '../service/network/NetEaseApi';
 import { ApiError } from '../service/network/ApiClient';
 
 const DOMAIN = 0x0000;
@@ -249,7 +249,7 @@ export class PlayerViewModel {
   }
 
   async playTrack(track: Track, context: common.Context, startMs: number = 0,
-    expectedRequest: number = -1): Promise<void> {
+    expectedRequest: number = -1, prepared: PlaybackResolution | null = null): Promise<void> {
     const request = expectedRequest < 0 ? this.beginTrack(track, context) : expectedRequest;
     if (!this.isCurrentRequest(request)) { return; }
     const session = this.session;
@@ -269,20 +269,18 @@ export class PlayerViewModel {
       try {
         const playbackRef = track.playbackRef !== undefined ? track.playbackRef :
           (track.mediaRef !== undefined ? track.mediaRef : '');
-        if (track.catalogRef !== undefined && track.catalogRef !== '') {
-          const resolution = await NetEaseApi.resolvePlayback(context, track.neteaseId, playbackRef);
-          if (!this.isCurrentRequest(request)) { return; }
-          if (resolution.catalogRef !== track.catalogRef) {
-            this.failRequest(request, 'IDENTITY_MISMATCH'); return;
-          }
-          streamUrl = resolution.url;
-          track.playbackRef = resolution.playbackRef;
-          track.lyricsRef = resolution.lyricsRef;
-          track.playbackSource = resolution.playbackSource;
-          track.lyricsSource = resolution.lyricsSource;
-        } else {
-          streamUrl = await NetEaseApi.resolveUrl(context, track.neteaseId, playbackRef);
+        const resolution = prepared !== null ? prepared :
+          await NetEaseApi.resolvePlayback(context, track.neteaseId, playbackRef);
+        if (!this.isCurrentRequest(request)) { return; }
+        if (track.catalogRef !== undefined && track.catalogRef !== '' &&
+          resolution.catalogRef !== track.catalogRef) {
+          this.failRequest(request, 'IDENTITY_MISMATCH'); return;
         }
+        streamUrl = resolution.url;
+        track.playbackRef = resolution.playbackRef;
+        track.lyricsRef = resolution.lyricsRef;
+        track.playbackSource = resolution.playbackSource;
+        track.lyricsSource = resolution.lyricsSource;
         if (!this.isCurrentRequest(request)) { return; }
         if (streamUrl === '') { this.failRequest(request, 'EMPTY_URL'); return; }
         track.streamUrl = streamUrl;

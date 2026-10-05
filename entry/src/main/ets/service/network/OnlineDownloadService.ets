@@ -5,6 +5,7 @@ import { ApiClient } from './ApiClient';
 import { NetEaseApi } from './NetEaseApi';
 import { LibraryStore } from '../library/LibraryStore';
 import { Track, OnlineSong } from '../../model/Entities';
+import { canDownloadNetEase } from '../../model/OnlineTrackIdentity';
 import { parseYrc, formatLrc } from '../lyrics/LrcParser';
 
 const DOMAIN = 0x0000;
@@ -33,7 +34,13 @@ export class OnlineDownloadService {
 
   /** 已入库则直接复用；否则下载音频、封面、歌词，最后写入本地音乐库。 */
   static async ensureLocal(context: common.Context, song: OnlineSong,
-    onProgress: DownloadProgressFn): Promise<Track> {
+    onProgress: DownloadProgressFn, audio: Track): Promise<Track> {
+    if (!canDownloadNetEase(audio) || audio.neteaseId !== song.id ||
+      audio.streamUrl === undefined || audio.streamUrl === '') {
+      throw new Error('当前音频不能进入网易下载入库');
+    }
+    // Use the exact playback result, never re-resolve the catalog's numeric ID.
+    const url = audio.streamUrl;
     const store = LibraryStore.getInstance();
     const existing = await store.getTrackByNeteaseId(song.id);
     if (existing !== null && OnlineDownloadService.fileUsable(context, existing)) {
@@ -45,10 +52,6 @@ export class OnlineDownloadService {
       await store.deleteTrack(existing.id);
     }
 
-    const url = await NetEaseApi.resolveUrl(context, song.id);
-    if (url === '') {
-      throw new Error('无版权或需要会员，无法下载');
-    }
     const relPath = MUSIC_DIR + '/' + song.id + OnlineDownloadService.extOf(url);
     OnlineDownloadService.ensureDir(context.filesDir + '/' + MUSIC_DIR);
     onProgress(0);
@@ -112,7 +115,8 @@ export class OnlineDownloadService {
   private static async downloadCover(context: common.Context, song: OnlineSong): Promise<string> {
     let coverUrl = song.coverUrl;
     if (coverUrl === '') {
-      coverUrl = await NetEaseApi.songDetailCover(context, song.id).catch(() => '');
+      coverUrl = await NetEaseApi.songDetailCover(context, song.id,
+        song.catalogRef !== undefined ? song.catalogRef : '').catch(() => '');
     }
     if (coverUrl === '') {
       return '';
@@ -132,7 +136,8 @@ export class OnlineDownloadService {
   /** 歌词落盘 music/<songId>.lrc；lrc 缺失时把 yrc 转换为 LRC。 */
   private static async downloadLyric(context: common.Context, song: OnlineSong): Promise<void> {
     try {
-      const payload = await NetEaseApi.lyricRaw(context, song.id);
+      const payload = await NetEaseApi.lyricRaw(context, song.id,
+        song.lyricsRef !== undefined ? song.lyricsRef : '');
       let text = payload.lrc;
       if (text === '' && payload.yrc !== '') {
         const lines = parseYrc(payload.yrc);

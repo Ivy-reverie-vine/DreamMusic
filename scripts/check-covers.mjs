@@ -15,6 +15,7 @@ function load(path, names, dependencies = {}) {
 let now = 100000;
 class Clock extends Date { static now() { return now; } }
 const flush = () => new Promise(resolve => setImmediate(resolve));
+const identity = load('model/OnlineTrackIdentity.ets', ['createOnlineTrack', 'canDownloadNetEase']);
 const deferred = () => { let resolve, reject; const promise = new Promise((a, b) => { resolve = a; reject = b; });
   return { promise, resolve, reject }; };
 const files = new Map();
@@ -261,14 +262,15 @@ const playerViewModel = { currentTrack: null, positionMs: 2345, durationMs: 6000
   state: PlayerState.PLAYING, trackChangeHandler: null, coverColorHandler: null,
   async playTrack(t) { this.currentTrack = t; } };
 const { QueueViewModel } = load('viewmodel/QueueViewModel.ets', ['QueueViewModel'], {
-  QueueEngine, PlayMode, PlayerState, playerViewModel, setInterval() {},
+  ...identity, QueueEngine, PlayMode, PlayerState, playerViewModel, setInterval() {},
   LibraryStore: { getInstance() { return { async savePlayerState() {} }; } },
   BackgroundPlayback: { getInstance() { return { sync() { systemUpdates++; } }; } }
 });
 const queue = new QueueViewModel(); const online = track(-7, '', url); online.neteaseId = 7;
+online.playbackSource = 'api-enhanced'; online.streamUrl = 'https://audio/7';
 await queue.playFromList([online], 0, ctx);
 const local = track(70, 'missing.jpg'); local.neteaseId = 7;
-queue.swapCurrentWithLocal(local);
+queue.swapCurrentWithLocal(local, online, 0, '', online.streamUrl);
 assert.equal(playerViewModel.positionMs, 2345);
 assert.equal(playerViewModel.currentTrack, local);
 assert.equal(CoverArtService.identity(local), CoverArtService.identity(online));
@@ -290,9 +292,10 @@ const coverPlayer = { errorText: '', currentTrack: null,
   beginTrack(track, context, ready) { this.currentTrack = track; this.ready = ready; return 1; },
   isCurrentRequest(request) { return request === 1; } };
 const { OnlineMusicViewModel } = load('viewmodel/OnlineMusicViewModel.ets', ['OnlineMusicViewModel'], {
-  NetEaseApi: { async resolveUrl() { return 'https://audio/1'; }, songDetailCover() { return details.promise; } },
+  ...identity,
+  NetEaseApi: { async resolvePlayback() { return { url: 'https://audio/1', playbackSource: 'api-enhanced' }; }, songDetailCover() { return details.promise; } },
   OnlineDownloadService: { async findLocal() { return null; }, async ensureLocal() { return track(10); } },
-  queueViewModel: { async playFromList(tracks) { started.push(tracks[0]); coverPlayer.currentTrack = tracks[0]; coverPlayer.ready(1); }, updateCurrentCover() {}, swapCurrentWithLocal() {} },
+  queueViewModel: { selectFromList() {}, async playFromList(tracks) { started.push(tracks[0]); coverPlayer.currentTrack = tracks[0]; coverPlayer.ready(1); }, updateCurrentCover() {}, swapCurrentWithLocal() {} },
   playerViewModel: coverPlayer, PlayerState
 });
 await new OnlineMusicViewModel().playSong(ctx, { id: 1, name: 'slow-cover', artist: '', album: '',

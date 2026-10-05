@@ -16,9 +16,16 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
 const { PlayerState } = load('model/Playback.ets', ['PlayerState']);
 const { SleepTimer } = load('service/playback/SleepTimer.ets', ['SleepTimer']);
 const { QueueEngine, PlayMode } = load('service/playback/QueueEngine.ets', ['QueueEngine', 'PlayMode']);
+const identity = load('model/OnlineTrackIdentity.ets', ['createOnlineTrack', 'canDownloadNetEase']);
 class ApiError extends Error { constructor(code, message) { super(message); this.code = code; } }
 const sessions = [], resolutions = [], history = [], saved = [];
 let resolveUrl = async () => 'https://audio/fresh';
+const api = { async resolvePlayback(...args) {
+  resolutions.push(args);
+  const ref = args[2] || undefined;
+  return { url: await resolveUrl(...args), playbackSource: 'api-enhanced',
+    catalogRef: ref, playbackRef: ref, lyricsRef: ref };
+} };
 let playGate = null, nativeFailure = false;
 class Session {
   constructor() { sessions.push(this); this.isLoaded = false; this.isPlaying = false; }
@@ -46,7 +53,7 @@ const files = new Set(['/files/music/1.mp3', '/files/music/2.mp3']);
 const { PlayerViewModel, playerViewModel: player } = load('viewmodel/PlayerViewModel.ets',
   ['PlayerViewModel', 'playerViewModel'], {
     PlayerSession: Session, SleepTimer, PlayerState, PlayMode, ApiError,
-    NetEaseApi: { resolveUrl(...args) { resolutions.push(args); return resolveUrl(...args); } },
+    NetEaseApi: api,
     fileIo: { accessSync: path => files.has(path) }, hilog: { error() {} },
     LibraryStore: { getInstance: () => store }, BackgroundPlayback: { getInstance: () => background }
   });
@@ -55,7 +62,7 @@ const track = (id, ref = '') => ({ id, path: `music/${id}.mp3`, title: `song ${i
   durationMs: 90000, coverPath: '', importedAt: 0, missing: false, neteaseId: id < 0 ? -id : 0,
   streamUrl: id < 0 ? 'https://audio/expired' : undefined, mediaRef: ref });
 const { QueueViewModel } = load('viewmodel/QueueViewModel.ets', ['QueueViewModel'], {
-  QueueEngine, PlayMode, PlayerState, playerViewModel: player, setInterval() {},
+  ...identity, QueueEngine, PlayMode, PlayerState, playerViewModel: player, setInterval() {},
   LibraryStore: { getInstance: () => store }, BackgroundPlayback: { getInstance: () => background }
 });
 const queue = new QueueViewModel();
@@ -146,8 +153,8 @@ assert.equal(sessions.at(-1).url, 'https://audio/latest');
 // 在线入口在本地查询前显示准备状态；查询竞争与旧下载不得替换新选择。
 let localGate = null, downloadGate = deferred();
 const { OnlineMusicViewModel } = load('viewmodel/OnlineMusicViewModel.ets', ['OnlineMusicViewModel'], {
-  playerViewModel: player, queueViewModel: queue, ApiError, PlayerState,
-  NetEaseApi: { songDetailCover: async () => { throw new Error('cover failed'); } },
+  ...identity, playerViewModel: player, queueViewModel: queue, ApiError, PlayerState,
+  NetEaseApi: { ...api, songDetailCover: async () => { throw new Error('cover failed'); } },
   OnlineDownloadService: { findLocal: () => localGate ? localGate.promise : Promise.resolve(null),
     ensureLocal: () => downloadGate.promise }
 });
@@ -165,11 +172,11 @@ downloadGate.resolve(track(70)); await flush();
 assert.equal(player.currentTrack.id, 2);
 assert.equal(player.errorText, '');
 
-// 本地优先不解析在线 URL；重试成功仍启动原有后台下载链。
+// 在线入口先确认实际来源再使用缓存；本地音乐库播放仍不请求网络。
 const resolutionCount = resolutions.length;
 localGate = { promise: Promise.resolve(track(1)) };
 await onlineVM.playSong(ctx, song); localGate = null;
-assert.equal(player.currentTrack.id, 1); assert.equal(resolutions.length, resolutionCount);
+assert.equal(player.currentTrack.id, 1); assert.equal(resolutions.length, resolutionCount + 1);
 downloadGate = deferred(); resolveUrl = async () => { throw new ApiError('NETWORK', 'offline'); };
 await assert.rejects(onlineVM.playSong(ctx, song));
 resolveUrl = async () => 'https://audio/recovered'; await player.retry();
@@ -199,7 +206,7 @@ player.trackChangeHandler = null; player.coverColorHandler = null;
 localGate = { promise: Promise.reject(new Error('cache read failed')) };
 downloadGate = deferred();
 await onlineVM.playSong(ctx, song); localGate = null;
-assert.equal(queue.currentId, -7); assert.equal(player.state, PlayerState.PLAYING);
+assert.ok(queue.currentId < -1); assert.equal(player.state, PlayerState.PLAYING);
 await queue.playFromList([track(2)], 0, ctx);
 downloadGate.resolve({ ...track(70), neteaseId: 7 }); await flush();
 
@@ -244,4 +251,4 @@ const preparing = nativePlayers.at(-1); preparing.emit('initialized'); await flu
 await session.release(); prepareWait.resolve(); await prepareRejected; prepareGate = null;
 assert.equal(preparing.plays, 0); assert.equal(preparing.releases, 1);
 assert.ok(nativePlayers.every(p => p.releases === 1));
-console.log('PASS: playback states, classified recovery, same-source retry, queue/position preservation, stale resolution/native/download races, local-first lookup and cancelled native resource ownership.');
+console.log('PASS: playback states, classified recovery, same-source retry, queue/position preservation, stale resolution/native/download races, confirmed-source cache lookup and cancelled native resource ownership.');

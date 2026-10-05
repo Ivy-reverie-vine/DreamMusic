@@ -330,7 +330,7 @@ export class NetEaseApi {
         catalogRef: versioned ? (identity.catalogRef !== undefined ? identity.catalogRef : mediaRef) : undefined,
         playbackRef: versioned ? (identity.playbackRef !== undefined ? identity.playbackRef : mediaRef) : undefined,
         lyricsRef: versioned ? (identity.lyricsRef !== undefined ? identity.lyricsRef : mediaRef) : undefined,
-        playbackSource: identity.playbackSource,
+        playbackSource: versioned ? identity.playbackSource : 'api-enhanced',
         lyricsSource: identity.lyricsSource
       };
     } catch (err) {

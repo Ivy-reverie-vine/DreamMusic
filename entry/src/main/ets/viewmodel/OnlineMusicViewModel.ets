@@ -5,6 +5,7 @@ import {
 } from '../service/network/OnlineMusicService';
 import { DreamMusicAuth } from '../service/network/DreamMusicAuth';
 import { OnlineSong, Track } from '../model/Entities';
+import { createOnlineTrack, canDownloadNetEase } from '../model/OnlineTrackIdentity';
 import { NetEaseApi } from '../service/network/NetEaseApi';
 import { OnlineDownloadService } from '../service/network/OnlineDownloadService';
 import { queueViewModel } from './QueueViewModel';
@@ -90,14 +91,7 @@ export class OnlineMusicViewModel {
   /** 在线资料页复用搜索页的即时播放 + 后台入库链路。 */
   async playSong(context: common.Context, song: OnlineSong): Promise<void> {
     const mediaRef = song.mediaRef !== undefined ? song.mediaRef : '';
-    const transient: Track = {
-      id: song.id > 0 ? -song.id : -1,
-      path: 'music/online-stream.mp3', title: song.name, artist: song.artist, album: song.album,
-      durationMs: song.durationMs, coverPath: '', importedAt: Date.now(), missing: false,
-      neteaseId: song.id > 0 ? song.id : 0, streamUrl: '', streamCoverUrl: song.coverUrl, mediaRef: mediaRef,
-      catalogRef: song.catalogRef, playbackRef: song.playbackRef, lyricsRef: song.lyricsRef,
-      playbackSource: song.playbackSource, lyricsSource: song.lyricsSource
-    };
+    const transient = createOnlineTrack(song);
     const request = playerViewModel.beginTrack(transient, context, (readyRequest: number): void => {
       const expected = playerViewModel.currentTrack;
       if (expected === null || expected.id >= 0) { return; }
@@ -108,40 +102,67 @@ export class OnlineMusicViewModel {
           }
         }).catch(() => {});
       }
-      if (song.id <= 0 || (song.source !== undefined && song.source !== 'api-enhanced') ||
-        (expected.playbackRef !== undefined && expected.catalogRef !== expected.playbackRef)) { return; }
-      OnlineDownloadService.ensureLocal(context, song, () => {}).then((track: Track) => {
-        if (playerViewModel.isCurrentRequest(readyRequest) &&
-          playerViewModel.currentTrack !== null && playerViewModel.currentTrack.id < 0) {
-          queueViewModel.swapCurrentWithLocal(track);
-        }
+      if (!canDownloadNetEase(expected)) { return; }
+      // Capture the resolved audio before any later source change or metadata update.
+      const audio: Track = {
+        id: expected.id, path: expected.path, title: expected.title, artist: expected.artist,
+        album: expected.album, durationMs: expected.durationMs, coverPath: expected.coverPath,
+        importedAt: expected.importedAt, missing: expected.missing, neteaseId: expected.neteaseId,
+        streamUrl: expected.streamUrl, streamCoverUrl: expected.streamCoverUrl, mediaRef: expected.mediaRef,
+        catalogRef: expected.catalogRef, playbackRef: expected.playbackRef, lyricsRef: expected.lyricsRef,
+        playbackSource: expected.playbackSource, lyricsSource: expected.lyricsSource
+      };
+      const playbackRef = expected.playbackRef !== undefined ? expected.playbackRef : '';
+      const streamUrl = expected.streamUrl !== undefined ? expected.streamUrl : '';
+      const downloadSong: OnlineSong = {
+        id: song.id, name: song.name, artist: song.artist, album: song.album,
+        coverUrl: song.coverUrl, durationMs: song.durationMs, mediaRef: song.mediaRef,
+        source: song.source, sourceId: song.sourceId,
+        catalogRef: expected.catalogRef, playbackRef: expected.playbackRef,
+        lyricsRef: expected.lyricsRef, playbackSource: expected.playbackSource, lyricsSource: expected.lyricsSource
+      };
+      OnlineDownloadService.ensureLocal(context, downloadSong, () => {}, audio).then((track: Track) => {
+        queueViewModel.swapCurrentWithLocal(track, expected, readyRequest, playbackRef, streamUrl);
       }).catch(() => {
         // 下载失败不打断即时播放；下次点播会重试。
       });
     });
+    queueViewModel.selectFromList([transient], 0, context, request);
     try {
+      const ref = transient.playbackRef !== undefined ? transient.playbackRef : '';
+      const resolution = await NetEaseApi.resolvePlayback(context, transient.neteaseId, ref);
+      if (!playerViewModel.isCurrentRequest(request)) { return; }
+      if (transient.catalogRef !== undefined && transient.catalogRef !== '' &&
+        resolution.catalogRef !== transient.catalogRef) {
+        throw new ApiError('IDENTITY_MISMATCH', '播放目录身份不一致');
+      }
+      if (resolution.url === '') { throw new ApiError('EMPTY_URL', '暂无可播放音频'); }
+      transient.playbackRef = resolution.playbackRef;
+      transient.lyricsRef = resolution.lyricsRef;
+      transient.playbackSource = resolution.playbackSource;
+      transient.lyricsSource = resolution.lyricsSource;
+      transient.streamUrl = resolution.url;
       let local: Track | null = null;
       try {
-        if (song.id > 0 && (song.source === undefined || song.source === 'api-enhanced') &&
-          (song.playbackRef === undefined || song.playbackRef === song.catalogRef)) {
-          local = await OnlineDownloadService.findLocal(context, song.id);
+        if (canDownloadNetEase(transient)) {
+          local = await OnlineDownloadService.findLocal(context, transient.neteaseId);
         }
       } catch (err) {
         // 本地查询失败时仍允许统一在线入口；队列选择和恢复操作保持一致。
       }
       if (!playerViewModel.isCurrentRequest(request)) { return; }
-      if (local !== null && song.catalogRef !== undefined) {
+      if (local !== null) {
         // 本地命中只改变播放文件；本次 v2 选择仍展示原目录信息。
         local = {
           id: local.id, path: local.path, title: song.name, artist: song.artist, album: song.album,
           durationMs: local.durationMs, coverPath: song.coverUrl !== '' ? '' : local.coverPath,
           importedAt: local.importedAt, missing: local.missing, neteaseId: local.neteaseId,
-          streamCoverUrl: song.coverUrl, mediaRef: song.mediaRef, catalogRef: song.catalogRef,
-          playbackRef: song.playbackRef, lyricsRef: song.lyricsRef,
-          playbackSource: song.source, lyricsSource: song.lyricsSource
+          streamCoverUrl: song.coverUrl, mediaRef: song.mediaRef, catalogRef: transient.catalogRef,
+          playbackRef: transient.playbackRef, lyricsRef: transient.lyricsRef,
+          playbackSource: transient.playbackSource, lyricsSource: transient.lyricsSource
         };
       }
-      await queueViewModel.playFromList([local !== null ? local : transient], 0, context, request);
+      await queueViewModel.playFromList([local !== null ? local : transient], 0, context, request, resolution);
     } catch (err) {
       playerViewModel.failRequest(request, err instanceof ApiError ? err.code : '');
     }

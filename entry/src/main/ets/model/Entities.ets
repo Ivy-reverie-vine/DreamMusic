@@ -15,7 +15,7 @@ export interface Track {
   importedAt: number;
   /** 扫描判定:文件已从沙箱消失(保留记录,不自动删) */
   missing: boolean;
-  /** 网易云歌曲 id(0 = 本地导入;>0 = 瞬态在线播放来源标记) */
+  /** 网易目录歌曲 ID；0 = 本地导入或非网易目录。不是队列条目 ID。 */
   neteaseId: number;
   /** 瞬态在线音轨的普通播放直链(不落盘) */
   streamUrl?: string;
