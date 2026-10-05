@@ -20,7 +20,9 @@ async function until(predicate) {
   while (!predicate()) { assert.ok(Date.now() < deadline, 'client state did not settle'); await delay(10); }
 }
 const json = body => new Response(JSON.stringify(body));
-const gateway = await startIdentityGateway();
+const gateway = await startIdentityGateway({ lrclib: true });
+const lrclib = gateway.orchestrator.lrclib;
+gateway.orchestrator.lrclib = null; // Original T11 provider isolation, then enable T12 below.
 try {
   const requests = [], sessions = [];
   const hilog = { error() {}, debug() {} };
@@ -96,7 +98,8 @@ try {
     playerViewModel: player, lyricsViewModel: lyrics, playbackControlGate: {}, LyricsLoadState: state,
     LyricFollowState, findActiveLine: parser.findActiveLine,
     Scroller: class { scrollToIndex() { scrolls++; } },
-    If: node('If'), Text: node('Text'), List: node('List'), ForEach: node('ForEach'), ListItem: node('ListItem'),
+    If: node('If'), Text: node('Text'), List: node('List'), ForEach: node('ForEach'), ListItem: node('ListItem'), Button: node('Button'),
+    Color: { Transparent: 'transparent' },
     ViewStackProcessor: { StartGetAccessRecordingFor() {}, StopGetAccessRecording() {} },
     TextAlign: { Center: 0 }, FontWeight: { Medium: 'medium', Normal: 'normal' }, BarState: { Off: 0 },
     NestedScrollMode: { SELF_FIRST: 0 }, FONT_LABEL: 12, clearTimeout,
@@ -184,7 +187,7 @@ try {
     assert.equal(lyrics.activeIndex, -1);
     if (expected === state.STATIC) assert.equal(lyrics.lines[0].text, '没有时间轴');
     const hints = { [state.EMPTY]: '这首歌暂无歌词', [state.INSTRUMENTAL]: '纯音乐，无歌词',
-      [state.ERROR]: '原平台歌词暂时无法加载' };
+      [state.ERROR]: '歌词暂时无法加载' };
     if (hints[expected]) assert.ok(render().some(text => text.text === hints[expected]));
   }
   await play(entry('meting-kugou'));
@@ -197,7 +200,7 @@ try {
   assert.equal(player.state, PlayerState.PLAYING);
   assert.equal(lyrics.loadState, state.LOADING);
   await until(() => lyrics.loadState === state.TIMEOUT);
-  assert.ok(render().some(text => text.text === '原平台歌词请求超时'));
+  assert.ok(render().some(text => text.text === '歌词请求超时'));
   assert.equal(player.state, PlayerState.PLAYING);
   await delay(150);
 
@@ -227,5 +230,71 @@ try {
   assert.equal(lyrics.timelineTrusted, false);
   assert.equal(render().some(text => text.text === '迟到旧词'), false);
   assert.equal(gateway.orchestrator.registry.get('api-enhanced').inFlight, 0);
+  // T12: real gateway fallback into production ArkTS parser/display/cache/retry.
+  gateway.orchestrator.lrclib = lrclib;
+  gateway.controls.beforeResponse = async () => {};
+  const lrclibRow = extra => ({ id: 42, trackName: gateway.song.name, artistName: '原歌手', albumName: '目录专辑',
+    duration: 90, plainLyrics: '第一句\n第二句', syncedLyrics: '[00:01]第一句\n[00:02]第二句', ...extra });
+  for (const [extra, expected] of [[{}, state.READY], [{ syncedLyrics: null }, state.STATIC],
+    [{ instrumental: true, plainLyrics: null, syncedLyrics: null }, state.INSTRUMENTAL]]) {
+    lrclib.cache.clear();
+    gateway.controls.thirdPartyResponse = url => url.pathname === '/lyric/new' ? json({ code: 200 })
+      : url.hostname === 'lrclib.net' ? json(lrclibRow(extra)) : null;
+    const track = entry(); track.playbackRef = track.catalogRef;
+    await play(track); await until(() => lyrics.loadState === expected);
+    assert.equal(lyrics.lyricsSource, 'lrclib');
+    assert.ok(render().some(text => text.text === '歌词来源：LRCLIB'));
+    assert.equal(player.state, PlayerState.PLAYING);
+    player.positionMs = 5000; player.positionTickHandler(5000);
+    if (expected === state.READY) {
+      assert.equal(lyrics.activeIndex, 1);
+      assert.equal(render().find(text => text.text === '第二句').fontWeight, 'medium');
+    } else assert.equal(lyrics.activeIndex, -1);
+  }
+  // Same cached lyric provider text becomes static for an unknown MV relation.
+  lrclib.cache.clear();
+  gateway.controls.thirdPartyResponse = url => url.pathname === '/lyric/new' ? json({ code: 200 })
+    : url.hostname === 'lrclib.net' ? json(lrclibRow({})) : null;
+  await play(entry()); await until(() => lyrics.loadState === state.STATIC);
+  assert.equal(lyrics.timelineTrusted, false);
+  ui.followActiveLine();
+  for (const failure of ['missing', 'failed', 'timeout']) {
+    lrclib.cache.clear(); lrclib.timeoutMs = 60;
+    gateway.controls.beforeResponse = url => failure === 'timeout' && url.hostname === 'lrclib.net' ? delay(140) : Promise.resolve();
+    gateway.controls.thirdPartyResponse = url => url.pathname === '/lyric/new' ? json({ code: 200 })
+      : url.hostname === 'lrclib.net' ? failure === 'missing'
+        ? url.pathname === '/api/get' ? new Response('{}', { status: 404 }) : json([])
+        : failure === 'failed' ? new Response('{}', { status: 503 }) : json(lrclibRow({})) : null;
+    const track = entry(); track.playbackRef = track.catalogRef;
+    await play(track);
+    await until(() => lyrics.loadState === (failure === 'missing' ? state.EMPTY : failure === 'failed' ? state.ERROR : state.TIMEOUT));
+    assert.equal(player.state, PlayerState.PLAYING);
+    assert.equal(lyrics.retryable, failure !== 'missing');
+    render();
+    if (failure !== 'missing') {
+      gateway.controls.beforeResponse = async () => {};
+      gateway.controls.thirdPartyResponse = url => url.pathname === '/lyric/new' ? json({ code: 200 })
+        : url.hostname === 'lrclib.net' ? json(lrclibRow({})) : null;
+      lyrics.retry(); await until(() => lyrics.loadState === state.READY);
+      assert.equal(lyrics.retryable, false);
+      assert.equal(player.state, PlayerState.PLAYING);
+    }
+    await delay(150);
+  }
+  // Switch tracks while LRCLIB ignores cancellation: neither display nor cache accepts late success.
+  lrclib.cache.clear(); lrclib.timeoutMs = 1000;
+  let lrStarted, lrRelease, lrAborted = false;
+  const lrBegan = new Promise(resolve => { lrStarted = resolve; });
+  const lrGate = new Promise(resolve => { lrRelease = resolve; });
+  gateway.controls.beforeResponse = async (url, signal) => {
+    if (url.hostname !== 'lrclib.net') return;
+    lrStarted(); signal.addEventListener('abort', () => { lrAborted = true; }, { once: true }); await lrGate;
+  };
+  await play(entry()); await lrBegan;
+  await queue.playFromList([local], 0, context);
+  await until(() => lrAborted); lrRelease(); await delay(50);
+  assert.equal(player.currentTrack, local); assert.equal(lyrics.lines.length, 0);
+  assert.equal(lrclib.cache.size, 0); assert.equal(player.state, PlayerState.PLAYING);
+  console.log('PASS T12: actual HTTP LRCLIB fallback → compiled lyric display; synced/static/instrumental/missing/failure/timeout, retry, cache timing and late cancellation.');
   console.log('PASS T11: real HTTP automatic audio fallback + catalog lyrics → real ArkTS queue/player/lyrics; static/trusted/cache relations, plain text, empty, instrumental, unsupported, timeout, failure and cancellation. Audio keeps PLAYING; Kit boundaries controlled, no device claim.');
 } finally { await gateway.close(); }

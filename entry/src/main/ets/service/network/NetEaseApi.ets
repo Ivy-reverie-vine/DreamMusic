@@ -176,6 +176,7 @@ export interface CatalogLyricsState {
   status: string;
   timeline: string;
   reason: string;
+  retryable?: boolean;
 }
 
 interface CacheEntry<T> {
@@ -541,13 +542,13 @@ export class NetEaseApi {
 
   /** 新版歌词原文(lrc + yrc;阶段 v2.3:lrc 缺失时用 yrc 兜底) */
   static async lyricRaw(context: common.Context, id: number, mediaRef: string = '', playbackRef: string = '',
-    registerCancel: ((cancel: () => void) => void) | null = null): Promise<LyricPayload> {
+    registerCancel: ((cancel: () => void) => void) | null = null, forceReload: boolean = false): Promise<LyricPayload> {
     const versioned = mediaRef !== '';
     const base = versioned ? await DreamMusicAuth.baseV2(context) : await DreamMusicAuth.base(context);
     const cacheKey = 'lyric|' + base + '|' + DreamMusicAuth.username(context) + '|' +
       (versioned ? 'v2|' + mediaRef + '|' + (playbackRef !== '' ? playbackRef : mediaRef) : String(id));
     const cached = NetEaseApi.getCache(NetEaseApi.lyricCache, cacheKey);
-    if (cached !== null) {
+    if (cached !== null && !forceReload) {
       return cached;
     }
     const params: Record<string, string> = {};
@@ -582,8 +583,8 @@ export class NetEaseApi {
       lyricsSource: wrapper.lyricsSource,
       nolyric: wrapper.nolyric, lyrics: wrapper.lyrics
     };
-    if (wrapper.lyrics === undefined || wrapper.lyrics.status === 'available' ||
-      wrapper.lyrics.status === 'instrumental') {
+    if (wrapper.lyrics?.retryable !== true && (wrapper.lyrics === undefined || wrapper.lyrics.status === 'available' ||
+      wrapper.lyrics.status === 'instrumental')) {
       NetEaseApi.putCache(NetEaseApi.lyricCache, cacheKey, payload);
     }
     return payload;

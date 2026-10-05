@@ -27,6 +27,7 @@ export class LyricsViewModel {
   lyricsRef: string = '';
   lyricsSource: string = '';
   timelineTrusted: boolean = false;
+  retryable: boolean = false;
   private cancelRequest: (() => void) | null = null;
   /** 系统歌词只消费已解析结果，不重复取数。 */
   lyricsChangedHandler: (() => void) | null = null;
@@ -73,6 +74,7 @@ export class LyricsViewModel {
     this.lyricsRef = '';
     this.lyricsSource = '';
     this.timelineTrusted = false;
+    this.retryable = false;
     this.lines = [];
     this.activeIndex = -1;
     this.loadState = LyricsLoadState.LOADING;
@@ -105,7 +107,7 @@ export class LyricsViewModel {
     this.lyricsChangedHandler?.();
   }
 
-  private async loadOnlineLyrics(t: Track, token: number): Promise<void> {
+  private async loadOnlineLyrics(t: Track, token: number, forceReload: boolean = false): Promise<void> {
     try {
       const context = this.context;
       if (context === null) {
@@ -117,7 +119,7 @@ export class LyricsViewModel {
       const payload = await NetEaseApi.lyricRaw(context, t.neteaseId, mediaRef, playbackRef,
         (cancel: () => void): void => {
           if (token === this.changeToken) { this.cancelRequest = cancel; } else { cancel(); }
-        });
+        }, forceReload);
       if (token !== this.changeToken) {
         return;
       }
@@ -146,6 +148,7 @@ export class LyricsViewModel {
       this.lyricsSource = payload.lyricsSource !== undefined ? payload.lyricsSource : '';
       this.activeIndex = this.timelineTrusted ? findActiveLine(lines, playerViewModel.positionMs) : -1;
       const status = payload.lyrics !== undefined ? payload.lyrics.status : '';
+      this.retryable = payload.lyrics?.retryable === true || status === 'failed' || status === 'unavailable' || status === 'timeout';
       this.loadState = payload.nolyric === true || status === 'instrumental' ? LyricsLoadState.INSTRUMENTAL :
         status === 'unsupported' ? LyricsLoadState.UNSUPPORTED : status === 'timeout' ? LyricsLoadState.TIMEOUT :
           status === 'failed' || status === 'unavailable' ? LyricsLoadState.ERROR :
@@ -157,9 +160,22 @@ export class LyricsViewModel {
         this.timelineTrusted = false;
         this.activeIndex = -1;
         this.loadState = LyricsLoadState.ERROR;
+        this.retryable = true;
         this.lyricsChangedHandler?.();
       }
     }
+  }
+
+  retry(): void {
+    const track = playerViewModel.currentTrack;
+    if (track === null || !this.retryable || this.loadState === LyricsLoadState.LOADING) { return; }
+    this.changeToken += 1;
+    this.revision = this.changeToken;
+    this.cancelRequest?.();
+    this.cancelRequest = null;
+    this.retryable = false;
+    this.loadState = LyricsLoadState.LOADING;
+    this.loadOnlineLyrics(track, this.changeToken, true);
   }
 
   setContext(context: common.Context): void {

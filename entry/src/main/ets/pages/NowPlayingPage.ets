@@ -234,13 +234,18 @@ export struct NowPlayingPage {
 
   @Builder
   LyricWindow() {
+    if (this.lrc.lyricsSource === 'lrclib') {
+      Text('歌词来源：LRCLIB')
+        .fontSize(FONT_LABEL)
+        .fontColor(this.theme.muted)
+    }
     // 可滑动歌词列表:当前行实时高亮(按播放进度计算),自动跟随滚动;手动滑动时暂停跟随
     if (this.lrc.lines.length === 0) {
       Text(this.lrc.loadState === LyricsLoadState.LOADING ? '歌词加载中…' :
-        this.lrc.loadState === LyricsLoadState.ERROR ? '原平台歌词暂时无法加载' :
+        this.lrc.loadState === LyricsLoadState.ERROR ? '歌词暂时无法加载' :
           this.lrc.loadState === LyricsLoadState.INSTRUMENTAL ? '纯音乐，无歌词' :
             this.lrc.loadState === LyricsLoadState.UNSUPPORTED ? '原平台未提供歌词' :
-              this.lrc.loadState === LyricsLoadState.TIMEOUT ? '原平台歌词请求超时' : '这首歌暂无歌词')
+              this.lrc.loadState === LyricsLoadState.TIMEOUT ? '歌词请求超时' : '这首歌暂无歌词')
         .fontSize(FONT_LABEL)
         .fontColor(this.theme.muted)
         .width('100%')
@@ -286,6 +291,14 @@ export struct NowPlayingPage {
       .onScrollStop(() => {
         this.scheduleLyricFollow();
       })
+    }
+    if (this.lrc.retryable) {
+      Button('重试歌词')
+        .fontSize(FONT_LABEL)
+        .fontColor(this.theme.primaryText)
+        .backgroundColor(Color.Transparent)
+        .height(48)
+        .onClick(() => { this.lrc.retry(); })
     }
   }
 
