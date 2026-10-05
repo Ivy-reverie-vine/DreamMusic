@@ -1,7 +1,7 @@
 import { common } from '@kit.AbilityKit';
 import { ApiClient, ApiError, ApiJsonResult } from './ApiClient';
 import { DreamMusicAuth } from './DreamMusicAuth';
-import { OnlineSong } from '../../model/Entities';
+import { OnlineSong, OnlineSearchGroup } from '../../model/Entities';
 import {
   classifyPlaybackError,
   DIAGNOSTIC_CATEGORY_EMPTY_PLAYBACK_URL,
@@ -33,6 +33,8 @@ export interface SearchSourcePage {
 export interface AggregateSearchPage {
   songs: OnlineSong[];
   sources: SearchSourcePage[];
+  groups?: OnlineSearchGroup[];
+  searchSession?: string;
 }
 
 interface RawArtist {
@@ -103,12 +105,22 @@ interface MediaSong extends MediaIdentity {
   artists?: string[];
   album?: MediaAlbum;
   durationMs?: number;
+  versionTags?: string[];
+  originalTitle?: string;
+}
+
+interface MediaSearchGroup {
+  id: string;
+  entries: MediaSong[];
+  reason: string;
 }
 
 interface MediaSearchResponse extends UpstreamEnvelope {
   data?: MediaSong[];
   hasMore?: boolean;
   sources?: SearchSourcePage[];
+  groups?: MediaSearchGroup[];
+  searchSession?: string;
 }
 
 interface MediaUrlResponse extends UpstreamEnvelope, MediaIdentity {
@@ -277,11 +289,13 @@ export class NetEaseApi {
 
   /** 每个来源持有自己的 offset；失败重试不使用成功结果缓存，也不解析音频。 */
   static async aggregateSearch(context: common.Context, keywords: string,
-    pages: Record<string, number>): Promise<AggregateSearchPage> {
+    pages: Record<string, number>, searchSession: string = ''): Promise<AggregateSearchPage> {
     const base = await DreamMusicAuth.baseV2(context);
     const params: Record<string, string> = {};
     params['keywords'] = keywords;
     params['aggregate'] = 'true';
+    params['merge'] = 'true';
+    if (searchSession !== '') { params['searchSession'] = searchSession; }
     params['limit'] = String(SEARCH_LIMIT);
     params['pages'] = JSON.stringify(pages);
     let wrapper: MediaSearchResponse;
@@ -292,7 +306,15 @@ export class NetEaseApi {
       wrapper = res.body as MediaSearchResponse;
       ensureUpstreamOk(wrapper);
       if (wrapper.sources !== undefined) {
-        return { songs: NetEaseApi.mediaSongs(wrapper.data !== undefined ? wrapper.data : []), sources: wrapper.sources };
+        const groups: OnlineSearchGroup[] = [];
+        if (wrapper.groups !== undefined) {
+          for (const group of wrapper.groups) {
+            groups.push({ id: group.id, entries: NetEaseApi.mediaSongs(group.entries), reason: group.reason,
+              selectedRef: '', expanded: false });
+          }
+        }
+        return { songs: NetEaseApi.mediaSongs(wrapper.data !== undefined ? wrapper.data : []), sources: wrapper.sources,
+          groups: wrapper.groups !== undefined ? groups : undefined, searchSession: wrapper.searchSession };
       }
     } catch (err) {
       if (!(err instanceof ApiError) || err.code !== 'NOT_ALLOWED') {
@@ -317,7 +339,10 @@ export class NetEaseApi {
       songs.push({
         id: s.source === 'api-enhanced' && s.legacyId !== undefined ? s.legacyId : 0,
         name: s.title !== undefined ? s.title : '',
-        artist: artists.length > 0 ? artists[0] : '',
+        artist: artists.join(' / '),
+        artists: artists,
+        versionTags: s.versionTags,
+        originalTitle: s.originalTitle,
         album: album.name !== undefined ? album.name : '',
         coverUrl: album.pictureUrl !== undefined ? album.pictureUrl : '',
         durationMs: s.durationMs !== undefined ? s.durationMs : 0,

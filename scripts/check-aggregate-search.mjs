@@ -86,7 +86,7 @@ try {
     OnlineDownloadService: { async findLocal() { return null; }, async ensureLocal(_ctx, song) { downloads.push(song); } },
   });
   const vm = new OnlineSearchViewModel(), context = { filesDir: '/sandbox' };
-  const panel = componentMethods(['onKeyword', 'aboutToDisappear', 'streamAndPlay', 'reportConnectivity'], {
+  const panel = componentMethods(['onKeyword', 'aboutToDisappear', 'streamAndPlay', 'reportConnectivity', 'playEntry'], {
     ApiError, playerViewModel: player, onlineMusicViewModel: online, networkViewModel: network,
   });
   Object.assign(panel, { search: vm, ctx: () => context, errorText: '', errorCode: '', busyId: -1, busyRef: '', progressText: '' });
@@ -210,6 +210,71 @@ try {
   await vm.loadMore(context);
   assert.equal(vm.results.length, 31);
   assert.equal(vm.hasMore, false);
+  // T04: execute the actual source-choice method with real matched HTTP snapshots.
+  legacyGateway = false;
+  let kugouFailed = true;
+  gateway.controls.thirdPartyResponse = url => {
+    const api = url.host === 'upstream.test';
+    if (!(api ? url.pathname === '/search' : url.searchParams.get('type') === 'search')) return null;
+    if (url.searchParams.get('server') === 'kugou' && kugouFailed) return json({ message: 'retry' }, 429);
+    const offset = api ? Number(url.searchParams.get('offset')) : (Number(url.searchParams.get('page')) - 1) * 30;
+    const indexes = offset === 0 ? Array.from({ length: 30 }, (_, i) => i) : [0, 30];
+    return json(api ? { code: 200, result: { more: offset === 0, songs: indexes.map(i => ({
+      id: 800 + i, name: i === 30 ? '清晰录音 (Live)' : '清晰录音' + i,
+      ar: [{ name: '歌手' }, { name: '嘉宾' }], al: { name: '专辑' }, dt: 200000,
+    })) } } : indexes.map(i => ({ id: 'matched-' + i,
+      name: i === 30 ? '清晰录音 (Live)' : '清晰录音' + i, artist: ['嘉宾', '歌手'], album: '专辑', duration: 200.5 })));
+  };
+  panel.onKeyword('合并与展开'); await vm.search(context);
+  assert.equal(vm.results.length, 60);
+  assert.equal(vm.groups.length, 30, 'same recording has one visible group');
+  const initial = vm.groups[0], stableGroupId = initial.id;
+  vm.toggleGroup(stableGroupId);
+  assert.equal(vm.groups[0].expanded, true);
+  assert.equal(vm.groups[0].entries.length, 2);
+  const qqEntry = vm.groups[0].entries.find(entry => entry.source === 'meting-tencent');
+  panel.playEntry(vm.groups[0], qqEntry);
+  await until(() => panel.busyId === -1 && player.currentTrack?.catalogRef === qqEntry.catalogRef);
+  assert.equal(player.state, PlayerState.PLAYING);
+  assert.equal(player.currentTrack.title, qqEntry.name);
+  assert.equal(player.currentTrack.artist, '嘉宾 / 歌手');
+  assert.equal(player.currentTrack.playbackSource, 'meting-tencent');
+  assert.equal(player.currentTrack.lyricsRef, qqEntry.lyricsRef);
+  assert.equal(downloads.length, 0);
+  const chosenQueueId = queue.currentId;
+  kugouFailed = false;
+  await vm.retrySource(context, 'meting-kugou');
+  assert.equal(vm.groups.length, 30);
+  assert.equal(vm.groups[0].entries.length, 3);
+  assert.equal(vm.groups[0].expanded, true);
+  assert.equal(vm.groupSong(vm.groups[0]).mediaRef, qqEntry.mediaRef);
+  await vm.retry(context);
+  assert.equal(vm.results.length, 90, 'repeated matched page loses or duplicates no catalog entries');
+  await vm.loadMore(context);
+  assert.equal(vm.groups.length, 33, 'three Live versions remain independent');
+  assert.equal(vm.results.length, 93);
+  assert.equal(vm.groups[0].id, stableGroupId);
+  assert.equal(vm.groupSong(vm.groups[0]).mediaRef, qqEntry.mediaRef);
+  assert.equal(queue.currentId, chosenQueueId);
+  assert.equal(player.currentTrack.catalogRef, qqEntry.catalogRef);
+  assert.equal(player.currentTrack.title, qqEntry.name);
+  assert.equal(player.currentTrack.artist, qqEntry.artist);
+  // A changed source priority cannot change the explicitly selected row.
+  gateway.orchestrator.setSourcePriority('meting-kugou', 0);
+  await vm.retry(context);
+  assert.equal(vm.groupSong(vm.groups[0]).mediaRef, qqEntry.mediaRef);
+  vm.toggleGroup(stableGroupId);
+  assert.equal(vm.groups[0].expanded, false);
+  gateway.orchestrator.searchSessions.clear();
+  await vm.retry(context);
+  assert.equal(vm.errorCode, 'INVALID_SEARCH_SESSION');
+  assert.equal(vm.groups.length, 33, 'expired session preserves existing candidates until explicit restart');
+  assert.equal(queue.currentId, chosenQueueId);
+  await vm.retry(context);
+  assert.equal(vm.errorCode, '');
+  assert.equal(vm.groups.length, 30);
+  assert.equal(queue.currentId, chosenQueueId, 'restarting search never resets selected playback');
   panel.aboutToDisappear();
-  console.log('PASS: real HTTP aggregate + ArkTS search interaction, independent pages/retries/dedup, empty/all failed, debounce/stale/cancel and selected playback identity.');
+  assert.equal(vm.groups.length, 0);
+  console.log('PASS: real HTTP aggregate + ArkTS search/source expansion and selection, recording groups/versions, independent pages/retries/dedup, stale/cancel and stable selected playback identity.');
 } finally { await gateway.close(); }

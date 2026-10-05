@@ -1,6 +1,6 @@
 import { ThemeService } from '../service/theme/ThemeService';
 import { common } from '@kit.AbilityKit';
-import { OnlineSong } from '../model/Entities';
+import { OnlineSong, OnlineSearchGroup } from '../model/Entities';
 import { OnlineSearchViewModel, searchSourceName } from '../viewmodel/OnlineSearchViewModel';
 import { SearchSourcePage } from '../service/network/NetEaseApi';
 import { ApiError } from '../service/network/ApiClient';
@@ -8,7 +8,7 @@ import { DreamMusicAuth } from '../service/network/DreamMusicAuth';
 import { onlineMusicViewModel } from '../viewmodel/OnlineMusicViewModel';
 import { playerViewModel } from '../viewmodel/PlayerViewModel';
 import { networkViewModel } from '../viewmodel/NetworkViewModel';
-import { FONT_BODY, FONT_LABEL, RADIUS_CARD } from '../common/DesignTokens';
+import { FONT_BODY, FONT_LABEL, RADIUS_CARD, CONTROL_HIT_SIZE, SPACE_SM } from '../common/DesignTokens';
 
 function fmt(ms: number): string {
   const total = Math.floor(ms / 1000);
@@ -91,6 +91,12 @@ export struct OnlineSearchView {
     }
   }
 
+  private playEntry(group: OnlineSearchGroup, song: OnlineSong): void {
+    if (this.busyId !== -1 || this.busyRef !== '') { return; }
+    if (song.mediaRef !== undefined) { this.search.selectEntry(group.id, song.mediaRef); }
+    this.streamAndPlay(song);
+  }
+
   /** 只有网络/上游类错误才算离线;401/403/301 说明中间层可达,保持在线 */
   private static reportConnectivity(err: Error): void {
     if (err instanceof ApiError && (err.code === 'NETWORK' || err.code === 'UPSTREAM_DOWN')) {
@@ -138,11 +144,11 @@ export struct OnlineSearchView {
   }
 
   @Builder
-  ResultRow(song: OnlineSong) {
+  ResultRow(song: OnlineSong, group: OnlineSearchGroup) {
     Row({ space: 12 }) {
       this.Cover(song.coverUrl)
       Column({ space: 3 }) {
-        Text(song.name)
+        Text(song.name + (song.versionTags !== undefined && song.versionTags.length > 0 ? ' · ' + song.versionTags.join(' / ') : ''))
           .fontSize(FONT_BODY)
           .fontColor(this.theme.ink)
           .maxLines(1)
@@ -152,6 +158,11 @@ export struct OnlineSearchView {
           .fontColor(this.theme.muted)
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
+        if (song.originalTitle !== undefined && song.originalTitle !== '' && song.originalTitle !== song.name) {
+          Text(song.originalTitle)
+            .fontSize(FONT_LABEL)
+            .fontColor(this.theme.muted)
+        }
       }
       .alignItems(HorizontalAlign.Start)
       .layoutWeight(1)
@@ -170,12 +181,37 @@ export struct OnlineSearchView {
     .padding({ left: 12, right: 12, top: 10, bottom: 10 })
     .borderRadius(RADIUS_CARD)
     .backgroundColor(this.theme.card)
+    .constraintSize({ minHeight: CONTROL_HIT_SIZE })
     .stateStyles({
       pressed: { .backgroundColor(ThemeService.alpha(this.theme.primary, 0.1)) }
     })
     .onClick(() => {
-      this.streamAndPlay(song);
+      this.playEntry(group, song);
     })
+  }
+
+  @Builder
+  GroupRow(group: OnlineSearchGroup) {
+    Column({ space: SPACE_SM }) {
+      this.ResultRow(this.search.groupSong(group), group)
+      if (group.entries.length > 1) {
+        Button((group.expanded ? '收起' : '展开') + group.entries.length + ' 个来源条目')
+          .fontSize(FONT_LABEL)
+          .fontColor(this.theme.primaryText)
+          .backgroundColor(Color.Transparent)
+          .constraintSize({ minHeight: CONTROL_HIT_SIZE })
+          .accessibilityText((group.expanded ? '收起' : '展开') + this.search.groupSong(group).name + '的原平台来源')
+          .onClick(() => { this.search.toggleGroup(group.id); })
+        if (group.expanded) {
+          ForEach(group.entries, (entry: OnlineSong) => {
+            this.ResultRow(entry, group)
+          }, (entry: OnlineSong) => entry.mediaRef !== undefined ? entry.mediaRef : 'api-enhanced|' + entry.id)
+        }
+      }
+    }
+    .width('100%')
+    .alignItems(HorizontalAlign.Start)
+    .padding({ bottom: SPACE_SM })
   }
 
   @Builder
@@ -260,7 +296,7 @@ export struct OnlineSearchView {
               }
             })
           } else if (this.search.errorText !== '') {
-            Button('重试搜索')
+            Button(this.search.errorCode === 'INVALID_SEARCH_SESSION' ? '重新搜索' : '重试搜索')
               .fontSize(FONT_LABEL)
               .fontColor(this.theme.primaryText)
               .backgroundColor(this.theme.card)
@@ -299,11 +335,11 @@ export struct OnlineSearchView {
       }
       if (this.search.results.length > 0) {
         List({ space: 10 }) {
-          ForEach(this.search.results, (song: OnlineSong) => {
+          ForEach(this.search.groups, (group: OnlineSearchGroup) => {
             ListItem() {
-              this.ResultRow(song)
+              this.GroupRow(group)
             }
-          }, (song: OnlineSong) => song.mediaRef !== undefined ? song.mediaRef : 'api-enhanced|' + song.id)
+          }, (group: OnlineSearchGroup) => group.id)
           if (this.search.hasMore) {
             ListItem() {
               Text('上拉加载更多')

@@ -1,5 +1,5 @@
 import { common } from '@kit.AbilityKit';
-import { OnlineSong } from '../model/Entities';
+import { OnlineSong, OnlineSearchGroup } from '../model/Entities';
 import { NetEaseApi, SearchSourcePage } from '../service/network/NetEaseApi';
 import { ApiError } from '../service/network/ApiClient';
 import { networkViewModel } from './NetworkViewModel';
@@ -16,6 +16,7 @@ export function searchSourceName(source: string): string {
 export class OnlineSearchViewModel {
   keyword: string = '';
   results: OnlineSong[] = [];
+  groups: OnlineSearchGroup[] = [];
   sources: SearchSourcePage[] = [];
   loading: boolean = false;
   errorText: string = '';
@@ -23,6 +24,30 @@ export class OnlineSearchViewModel {
   private generation: number = 0;
   private searchTimer: number = -1;
   private pendingPages: Record<string, number> = {};
+  private searchSession: string = '';
+
+  groupSong(group: OnlineSearchGroup): OnlineSong {
+    const selected = group.entries.find((song: OnlineSong) => song.mediaRef === group.selectedRef);
+    return selected !== undefined ? selected : group.entries[0];
+  }
+
+  toggleGroup(id: string): void {
+    this.groups = this.groups.map((group: OnlineSearchGroup): OnlineSearchGroup => {
+      return { id: group.id, entries: group.entries, reason: group.reason, selectedRef: group.selectedRef,
+        expanded: group.id === id ? !group.expanded : group.expanded };
+    });
+  }
+
+  selectEntry(id: string, ref: string): OnlineSong | undefined {
+    const group = this.groups.find((item: OnlineSearchGroup) => item.id === id);
+    const song = group !== undefined ? group.entries.find((entry: OnlineSong) => entry.mediaRef === ref) : undefined;
+    if (song === undefined) { return undefined; }
+    this.groups = this.groups.map((item: OnlineSearchGroup): OnlineSearchGroup => {
+      return { id: item.id, entries: item.entries, reason: item.reason,
+        selectedRef: item.id === id ? ref : item.selectedRef, expanded: item.expanded };
+    });
+    return song;
+  }
 
   get hasMore(): boolean {
     return this.sources.some((source: SearchSourcePage) => source.status !== 'failed' && source.hasMore);
@@ -52,6 +77,8 @@ export class OnlineSearchViewModel {
     this.searchTimer = -1;
     this.loading = false;
     this.results = [];
+    this.groups = [];
+    this.searchSession = '';
     this.sources = [];
     this.errorText = '';
     this.errorCode = '';
@@ -78,6 +105,11 @@ export class OnlineSearchViewModel {
   }
 
   async retry(context: common.Context): Promise<void> {
+    if (!this.loading && this.errorCode === 'INVALID_SEARCH_SESSION') {
+      this.cancel();
+      await this.search(context);
+      return;
+    }
     if (!this.loading && Object.keys(this.pendingPages).length > 0) {
       await this.fetch(context, this.pendingPages);
     }
@@ -102,7 +134,7 @@ export class OnlineSearchViewModel {
     this.errorText = '';
     this.errorCode = '';
     try {
-      const page = await NetEaseApi.aggregateSearch(context, this.keyword.trim(), pages);
+      const page = await NetEaseApi.aggregateSearch(context, this.keyword.trim(), pages, this.searchSession);
       if (version !== this.generation) { return; }
       const results = this.results.slice();
       const seen = new Set<string>();
@@ -117,6 +149,26 @@ export class OnlineSearchViewModel {
         if (index >= 0) { sources[index] = incoming; } else { sources.push(incoming); }
       }
       this.results = results;
+      if (page.groups !== undefined) {
+        // Full session snapshot recovers entries even if an earlier HTTP response was lost.
+        this.groups = page.groups.map((incoming: OnlineSearchGroup): OnlineSearchGroup => {
+          const previous = this.groups.find((group: OnlineSearchGroup) => group.id === incoming.id);
+          return { id: incoming.id, entries: incoming.entries, reason: incoming.reason,
+            selectedRef: previous !== undefined ? previous.selectedRef : '',
+            expanded: previous !== undefined ? previous.expanded : false };
+        });
+        this.results = [];
+        for (const group of this.groups) {
+          for (const entry of group.entries) { this.results.push(entry); }
+        }
+      } else {
+        // An older gateway offers no matching proof: keep every concrete entry separate.
+        this.groups = results.map((song: OnlineSong): OnlineSearchGroup => {
+          return { id: song.mediaRef !== undefined ? song.mediaRef : 'api-enhanced|' + song.id,
+            entries: [song], reason: 'insufficient_evidence', selectedRef: '', expanded: false };
+        });
+      }
+      if (page.searchSession !== undefined) { this.searchSession = page.searchSession; }
       this.sources = sources;
       networkViewModel.markOnline();
     } catch (err) {

@@ -40,6 +40,9 @@ export interface OnlineSong {
   /** 网易 CDN 封面 URL(可能为空,UI 用占位渐变) */
   coverUrl: string;
   durationMs: number;
+  artists?: string[];
+  versionTags?: string[];
+  originalTitle?: string;
   /** v2 来源引用;普通在线播放和歌词请求使用它 */
   mediaRef?: string;
   source?: string;
@@ -49,6 +52,15 @@ export interface OnlineSong {
   lyricsRef?: string;
   playbackSource?: string;
   lyricsSource?: string;
+}
+
+/** NightDream 确认的分组；展示条目与展开状态属于当前搜索页面。 */
+export interface OnlineSearchGroup {
+  id: string;
+  entries: OnlineSong[];
+  reason: string;
+  selectedRef: string;
+  expanded: boolean;
 }
 
 export interface Album {

@@ -20,6 +20,7 @@ interface Envelope {
   code?: number;
   message?: string;
   data?: object;
+  errorCode?: string;
 }
 
 /** JSON 响应:body + 归一化小写响应头(登录取 Set-Cookie 用) */
@@ -261,6 +262,9 @@ export class ApiClient {
     }
     if (parsed !== null && parsed.code === 301) {
       throw new ApiError('BIND_INVALID', msg);
+    }
+    if (status === 400 && parsed !== null && parsed.errorCode === 'INVALID_SEARCH_SESSION') {
+      throw new ApiError('INVALID_SEARCH_SESSION', msg);
     }
     throw new ApiError('HTTP_' + status, msg);
   }
