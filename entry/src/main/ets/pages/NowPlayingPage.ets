@@ -3,6 +3,7 @@ import { CoverArtService } from '../service/cover/CoverArtService';
 import { CoverThumb } from '../components/CoverThumb';
 import { BubblePauseButton } from '../components/BubblePauseButton';
 import { PlaybackStatus } from '../components/PlaybackStatus';
+import { SourceSelection } from '../components/SourceSelection';
 import { playerViewModel, PlayerViewModel } from '../viewmodel/PlayerViewModel';
 import { queueViewModel } from '../viewmodel/QueueViewModel';
 import { playbackControlGate, PlaybackControlGate } from '../viewmodel/PlaybackControlGate';
@@ -336,6 +337,8 @@ export struct NowPlayingPage {
               .backgroundColor(ThemeService.alpha(this.theme.bg, 0.95))
 
               // 局部承托隔离封面阴影，避免其在文字背后突破全局背景范围。
+              SourceSelection()
+
               Column() {
                 this.LyricWindow()
               }

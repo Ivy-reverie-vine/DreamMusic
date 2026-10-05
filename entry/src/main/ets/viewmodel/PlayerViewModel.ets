@@ -6,7 +6,7 @@ import { BackgroundPlayback } from '../service/playback/BackgroundPlayback';
 import { LibraryStore } from '../service/library/LibraryStore';
 import { PlayMode } from '../service/playback/QueueEngine';
 import { PlayerState } from '../model/Playback';
-import { Track } from '../model/Entities';
+import { OnlineSong, Track } from '../model/Entities';
 import { DreamMusicAuth } from '../service/network/DreamMusicAuth';
 import { SleepTimer, SleepTimerSnapshot } from '../service/playback/SleepTimer';
 import { NetEaseApi, PlaybackResolution } from '../service/network/NetEaseApi';
@@ -46,6 +46,7 @@ export class PlayerViewModel {
   get requestId(): number { return this.requestVersion; }
 
   get playbackSourceText(): string {
+    if (this.state === PlayerState.ERROR || this.state === PlayerState.PREPARING) { return ''; }
     const source = this.currentTrack?.playbackSource;
     if (source === 'api-enhanced') { return '网易云'; }
     if (source === 'meting-tencent') { return '腾讯 / QQ'; }
@@ -56,6 +57,21 @@ export class PlayerViewModel {
   }
 
   isCurrentRequest(request: number): boolean { return request === this.requestVersion; }
+
+  get sourceOptions(): OnlineSong[] { return this.currentTrack?.sourceOptions ?? []; }
+
+  /** 只变更当前条目的音频；搜索新建条目时不复制这个选择。 */
+  async selectSource(mediaRef: string): Promise<void> {
+    const track = this.currentTrack;
+    if (track === null || this.lastContext === null || this.state === PlayerState.PREPARING ||
+      !track.sourceSearchSession || !track.catalogRef ||
+      !this.sourceOptions.some((song: OnlineSong): boolean => song.mediaRef === mediaRef)) { return; }
+    const position = this.positionMs;
+    track.manualPlaybackRef = mediaRef;
+    track.audioIntegrity = undefined;
+    const request = this.beginTrack(track, this.lastContext);
+    await this.playTrack(track, this.lastContext, position, request);
+  }
 
   setResolutionCancel(request: number, cancel: () => void): void {
     if (!this.isCurrentRequest(request)) { cancel(); return; }
@@ -132,6 +148,9 @@ export class PlayerViewModel {
       this.errorText = '音乐暂时加载失败，请检查网络后重试';
     } else {
       this.errorText = '这首音乐暂时无法播放，请重试';
+    }
+    if (this.currentTrack?.manualPlaybackRef !== undefined && this.recoveryAction === 'retry') {
+      this.errorText += '；可重试所选来源或重新选择';
     }
     if (this.currentTrack !== null && (this.currentTrack.id < 0 ||
       (this.currentTrack.streamUrl !== undefined && this.currentTrack.streamUrl !== '')) &&
@@ -298,23 +317,30 @@ export class PlayerViewModel {
     this.lastStatsReportedMs = startMs;
     this.durationMs = track.durationMs > 0 ? track.durationMs : 0;
     // 瞬态在线音轨:直链流式播放(阶段 v2.3),不检查本地文件
-    const streaming = track.id < 0 || (track.streamUrl !== undefined && track.streamUrl !== '');
+    const streaming = track.manualPlaybackRef !== undefined || track.id < 0 ||
+      (track.streamUrl !== undefined && track.streamUrl !== '');
     let streamUrl = track.streamUrl !== undefined ? track.streamUrl : '';
     if (streaming) {
       try {
-        const playbackRef = track.automaticSearchSession !== undefined ? (track.catalogRef ?? '') :
+        const manual = track.manualPlaybackRef !== undefined;
+        const playbackRef = manual ? track.manualPlaybackRef! :
+          track.automaticSearchSession !== undefined ? (track.catalogRef ?? '') :
           track.playbackRef !== undefined ? track.playbackRef :
           (track.mediaRef !== undefined ? track.mediaRef : '');
         const resolution = prepared !== null ? prepared :
           await NetEaseApi.resolvePlayback(context, track.neteaseId, playbackRef,
-            track.automaticSearchSession ?? '', (cancel: () => void): void => { this.setResolutionCancel(request, cancel); });
+            (manual ? track.sourceSearchSession : track.automaticSearchSession) ?? '',
+            (cancel: () => void): void => { this.setResolutionCancel(request, cancel); }, manual ? track.catalogRef ?? '' : '');
         if (!this.isCurrentRequest(request)) { return; }
         if (track.catalogRef !== undefined && track.catalogRef !== '' &&
           resolution.catalogRef !== track.catalogRef) {
           this.failRequest(request, 'IDENTITY_MISMATCH'); return;
         }
+        if (manual && (resolution.playbackRef !== playbackRef || resolution.lyricsRef !== track.lyricsRef)) {
+          this.failRequest(request, 'IDENTITY_MISMATCH'); return;
+        }
         streamUrl = resolution.url;
-        track.playbackOutcome = resolution.playback;
+        if (!manual) { track.playbackOutcome = resolution.playback; }
         track.audioIntegrity = resolution.audioIntegrity;
         if (resolution.playback !== undefined && resolution.playback.status !== 'success') {
           this.failRequest(request, 'PLAYBACK_' + resolution.playback.status.toUpperCase()); return;
@@ -330,6 +356,7 @@ export class PlayerViewModel {
         if (!this.isCurrentRequest(request)) { return; }
         if (streamUrl === '') { this.failRequest(request, 'EMPTY_URL'); return; }
         track.streamUrl = streamUrl;
+        if (manual) { this.notifyTrackMetadata(track); }
       } catch (err) {
         this.failRequest(request, err instanceof ApiError ? err.code : 'RESOLUTION');
         return;

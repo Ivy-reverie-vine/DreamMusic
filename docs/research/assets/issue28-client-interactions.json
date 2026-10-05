@@ -1,0 +1,548 @@
+{
+  "boundary": "Hvigor compiled SourceSelection controls → actual ArkTS VM/API/queue → actual authenticated HTTP gateway; ArkUI renderer, Kit media and provider responses controlled; not native layout/touch or real audio",
+  "records": [
+    {
+      "step": "failure source expansion",
+      "state": "ERROR",
+      "queueId": -2,
+      "catalogRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJhcGktZW5oYW5jZWQiLCJzb3VyY2VJZCI6IjEyMyIsImtpbmQiOiJzb25nIn0",
+      "actualSource": "",
+      "integrity": "unavailable",
+      "controls": [
+        {
+          "kind": "Button",
+          "text": "收起同录音来源",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "为当前队列曲目选择同录音来源"
+        },
+        {
+          "kind": "Text",
+          "text": "仅用于当前队列条目；重新搜索点播后恢复自动选择",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#a8b0b3",
+          "width": "100%"
+        },
+        {
+          "kind": "Text",
+          "text": "音乐平台暂无可靠完整版，请重试或在搜索结果中选择来源",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#ef9898",
+          "width": "100%"
+        },
+        {
+          "kind": "Button",
+          "text": "重新寻找完整版",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000"
+        },
+        {
+          "kind": "Button",
+          "text": "网易云",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "width": "100%",
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "使用网易云播放当前曲目"
+        },
+        {
+          "kind": "Button",
+          "text": "QQ音乐",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "width": "100%",
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "使用QQ音乐播放当前曲目"
+        },
+        {
+          "kind": "Button",
+          "text": "酷狗",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "width": "100%",
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "使用酷狗播放当前曲目"
+        }
+      ]
+    },
+    {
+      "step": "manual QQ success, original catalog retained",
+      "state": "PLAYING",
+      "queueId": -2,
+      "catalogRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJhcGktZW5oYW5jZWQiLCJzb3VyY2VJZCI6IjEyMyIsImtpbmQiOiJzb25nIn0",
+      "manualPlaybackRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJtZXRpbmctdGVuY2VudCIsInNvdXJjZUlkIjoidGVuY2VudC0wMDEiLCJraW5kIjoic29uZyJ9",
+      "actualSource": "腾讯 / QQ",
+      "integrity": "full",
+      "controls": [
+        {
+          "kind": "Button",
+          "text": "收起同录音来源",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "为当前队列曲目选择同录音来源"
+        },
+        {
+          "kind": "Text",
+          "text": "仅用于当前队列条目；重新搜索点播后恢复自动选择",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#a8b0b3",
+          "width": "100%"
+        },
+        {
+          "kind": "Button",
+          "text": "网易云",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "width": "100%",
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "使用网易云播放当前曲目"
+        },
+        {
+          "kind": "Button",
+          "text": "QQ音乐 · 已选择 · 正在使用",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "width": "100%",
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "使用QQ音乐播放当前曲目"
+        },
+        {
+          "kind": "Button",
+          "text": "酷狗",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "width": "100%",
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "使用酷狗播放当前曲目"
+        }
+      ]
+    },
+    {
+      "step": "manual QQ preview rejected; retry available",
+      "state": "ERROR",
+      "queueId": -2,
+      "catalogRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJhcGktZW5oYW5jZWQiLCJzb3VyY2VJZCI6IjEyMyIsImtpbmQiOiJzb25nIn0",
+      "manualPlaybackRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJtZXRpbmctdGVuY2VudCIsInNvdXJjZUlkIjoidGVuY2VudC0wMDEiLCJraW5kIjoic29uZyJ9",
+      "actualSource": "",
+      "integrity": "preview",
+      "controls": [
+        {
+          "kind": "Button",
+          "text": "收起同录音来源",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "为当前队列曲目选择同录音来源"
+        },
+        {
+          "kind": "Text",
+          "text": "仅用于当前队列条目；重新搜索点播后恢复自动选择",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#a8b0b3",
+          "width": "100%"
+        },
+        {
+          "kind": "Text",
+          "text": "当前来源只提供试听片段，请重试或在搜索结果中选择其他来源；可重试所选来源或重新选择",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#ef9898",
+          "width": "100%"
+        },
+        {
+          "kind": "Button",
+          "text": "重试所选来源",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000"
+        },
+        {
+          "kind": "Button",
+          "text": "网易云",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "width": "100%",
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "使用网易云播放当前曲目"
+        },
+        {
+          "kind": "Button",
+          "text": "QQ音乐 · 已选择",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "width": "100%",
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "使用QQ音乐播放当前曲目"
+        },
+        {
+          "kind": "Button",
+          "text": "酷狗",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "width": "100%",
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "使用酷狗播放当前曲目"
+        }
+      ]
+    },
+    {
+      "step": "manual QQ unknown rejected; retry available",
+      "state": "ERROR",
+      "queueId": -2,
+      "catalogRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJhcGktZW5oYW5jZWQiLCJzb3VyY2VJZCI6IjEyMyIsImtpbmQiOiJzb25nIn0",
+      "manualPlaybackRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJtZXRpbmctdGVuY2VudCIsInNvdXJjZUlkIjoidGVuY2VudC0wMDEiLCJraW5kIjoic29uZyJ9",
+      "actualSource": "",
+      "integrity": "unknown",
+      "controls": [
+        {
+          "kind": "Button",
+          "text": "收起同录音来源",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "为当前队列曲目选择同录音来源"
+        },
+        {
+          "kind": "Text",
+          "text": "仅用于当前队列条目；重新搜索点播后恢复自动选择",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#a8b0b3",
+          "width": "100%"
+        },
+        {
+          "kind": "Text",
+          "text": "暂时无法确认音频是否完整，请重试或在搜索结果中选择其他来源；可重试所选来源或重新选择",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#ef9898",
+          "width": "100%"
+        },
+        {
+          "kind": "Button",
+          "text": "重试所选来源",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000"
+        },
+        {
+          "kind": "Button",
+          "text": "网易云",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "width": "100%",
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "使用网易云播放当前曲目"
+        },
+        {
+          "kind": "Button",
+          "text": "QQ音乐 · 已选择",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "width": "100%",
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "使用QQ音乐播放当前曲目"
+        },
+        {
+          "kind": "Button",
+          "text": "酷狗",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "width": "100%",
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "使用酷狗播放当前曲目"
+        }
+      ]
+    },
+    {
+      "step": "manual QQ unavailable rejected; retry available",
+      "state": "ERROR",
+      "queueId": -2,
+      "catalogRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJhcGktZW5oYW5jZWQiLCJzb3VyY2VJZCI6IjEyMyIsImtpbmQiOiJzb25nIn0",
+      "manualPlaybackRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJtZXRpbmctdGVuY2VudCIsInNvdXJjZUlkIjoidGVuY2VudC0wMDEiLCJraW5kIjoic29uZyJ9",
+      "actualSource": "",
+      "integrity": "unavailable",
+      "controls": [
+        {
+          "kind": "Button",
+          "text": "收起同录音来源",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "为当前队列曲目选择同录音来源"
+        },
+        {
+          "kind": "Text",
+          "text": "仅用于当前队列条目；重新搜索点播后恢复自动选择",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#a8b0b3",
+          "width": "100%"
+        },
+        {
+          "kind": "Text",
+          "text": "暂时没有可播放的音频，可能受版权或会员限制，请稍后重试；可重试所选来源或重新选择",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#ef9898",
+          "width": "100%"
+        },
+        {
+          "kind": "Button",
+          "text": "重试所选来源",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000"
+        },
+        {
+          "kind": "Button",
+          "text": "网易云",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "width": "100%",
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "使用网易云播放当前曲目"
+        },
+        {
+          "kind": "Button",
+          "text": "QQ音乐 · 已选择",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "width": "100%",
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "使用QQ音乐播放当前曲目"
+        },
+        {
+          "kind": "Button",
+          "text": "酷狗",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "width": "100%",
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "使用酷狗播放当前曲目"
+        }
+      ]
+    },
+    {
+      "step": "reselect Kugou without new queue identity",
+      "state": "PLAYING",
+      "queueId": -2,
+      "catalogRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJhcGktZW5oYW5jZWQiLCJzb3VyY2VJZCI6IjEyMyIsImtpbmQiOiJzb25nIn0",
+      "manualPlaybackRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJtZXRpbmcta3Vnb3UiLCJzb3VyY2VJZCI6Imt1Z291LTAwMSIsImtpbmQiOiJzb25nIn0",
+      "actualSource": "酷狗",
+      "integrity": "full",
+      "controls": [
+        {
+          "kind": "Button",
+          "text": "收起同录音来源",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "为当前队列曲目选择同录音来源"
+        },
+        {
+          "kind": "Text",
+          "text": "仅用于当前队列条目；重新搜索点播后恢复自动选择",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#a8b0b3",
+          "width": "100%"
+        },
+        {
+          "kind": "Button",
+          "text": "网易云",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "width": "100%",
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "使用网易云播放当前曲目"
+        },
+        {
+          "kind": "Button",
+          "text": "QQ音乐",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "width": "100%",
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "使用QQ音乐播放当前曲目"
+        },
+        {
+          "kind": "Button",
+          "text": "酷狗 · 已选择 · 正在使用",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "width": "100%",
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "使用酷狗播放当前曲目"
+        }
+      ]
+    },
+    {
+      "step": "cached entry retains SQLite and favorite identity while streaming QQ",
+      "state": "PLAYING",
+      "queueId": 42,
+      "catalogRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJhcGktZW5oYW5jZWQiLCJzb3VyY2VJZCI6IjEyMyIsImtpbmQiOiJzb25nIn0",
+      "manualPlaybackRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJtZXRpbmctdGVuY2VudCIsInNvdXJjZUlkIjoidGVuY2VudC0wMDEiLCJraW5kIjoic29uZyJ9",
+      "actualSource": "腾讯 / QQ",
+      "integrity": "full",
+      "controls": [
+        {
+          "kind": "Button",
+          "text": "选择同录音来源",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "为当前队列曲目选择同录音来源"
+        }
+      ]
+    },
+    {
+      "step": "fresh search does not inherit manual source",
+      "state": "PLAYING",
+      "queueId": -4,
+      "catalogRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJhcGktZW5oYW5jZWQiLCJzb3VyY2VJZCI6IjEyMyIsImtpbmQiOiJzb25nIn0",
+      "actualSource": "腾讯 / QQ",
+      "integrity": "full",
+      "controls": [
+        {
+          "kind": "Button",
+          "text": "选择同录音来源",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "为当前队列曲目选择同录音来源"
+        }
+      ]
+    },
+    {
+      "step": "local switch cancels stale manual resolution",
+      "state": "PLAYING",
+      "queueId": 77,
+      "actualSource": "",
+      "controls": []
+    }
+  ]
+}

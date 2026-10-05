@@ -108,6 +108,10 @@ export interface Track {
   mediaRef?: string;
   automaticSearchSession?: string;
   playbackOutcome?: AutomaticPlaybackOutcome;
+  /** 当前队列条目的搜索候选快照与手动选择；不落数据库。 */
+  sourceSearchSession?: string;
+  sourceOptions?: OnlineSong[];
+  manualPlaybackRef?: string;
   catalogRef?: string;
   playbackRef?: string;
   lyricsRef?: string;

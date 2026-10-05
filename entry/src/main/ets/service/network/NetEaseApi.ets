@@ -373,7 +373,8 @@ export class NetEaseApi {
 
   /** 返回真实音频身份；旧调用仍可通过 resolveUrl 只取 URL。 */
   static async resolvePlayback(context: common.Context, id: number, mediaRef: string = '',
-    automaticSearchSession: string = '', registerCancel: ((cancel: () => void) => void) | null = null): Promise<PlaybackResolution> {
+    automaticSearchSession: string = '', registerCancel: ((cancel: () => void) => void) | null = null,
+    manualCatalogRef: string = ''): Promise<PlaybackResolution> {
     let cancelled = false;
     let cancelHttp: (() => void) | null = null;
     registerCancel?.(() => { cancelled = true; cancelHttp?.(); });
@@ -388,7 +389,12 @@ export class NetEaseApi {
     params['level'] = QUALITY_LEVEL;
     params['randomCNIP'] = 'true';
     if (versioned && automaticSearchSession !== '') {
-      params['automatic'] = 'true';
+      if (manualCatalogRef !== '') {
+        params['manual'] = 'true';
+        params['catalogRef'] = manualCatalogRef;
+      } else {
+        params['automatic'] = 'true';
+      }
       params['searchSession'] = automaticSearchSession;
     }
     const startedAt = Date.now();

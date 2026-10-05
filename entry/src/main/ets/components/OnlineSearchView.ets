@@ -6,8 +6,10 @@ import { SearchSourcePage } from '../service/network/NetEaseApi';
 import { ApiError } from '../service/network/ApiClient';
 import { DreamMusicAuth } from '../service/network/DreamMusicAuth';
 import { onlineMusicViewModel } from '../viewmodel/OnlineMusicViewModel';
-import { playerViewModel } from '../viewmodel/PlayerViewModel';
+import { playerViewModel, PlayerViewModel } from '../viewmodel/PlayerViewModel';
+import { PlayerState } from '../model/Playback';
 import { networkViewModel } from '../viewmodel/NetworkViewModel';
+import { SourceSelection } from './SourceSelection';
 import { FONT_BODY, FONT_LABEL, RADIUS_CARD, CONTROL_HIT_SIZE, SPACE_SM } from '../common/DesignTokens';
 
 function fmt(ms: number): string {
@@ -24,6 +26,7 @@ function fmt(ms: number): string {
  */
 @Component
 export struct OnlineSearchView {
+  @State player: PlayerViewModel = playerViewModel;
   @State theme: ThemeService = ThemeService.getInstance();
   onBack: () => void = () => {
   };
@@ -61,14 +64,15 @@ export struct OnlineSearchView {
     this.search.changeKeyword(this.ctx(), v);
   }
 
-  private async streamAndPlay(song: OnlineSong, automatic: boolean = false): Promise<void> {
+  private async streamAndPlay(song: OnlineSong, automatic: boolean = false,
+    sourceOptions: OnlineSong[] = []): Promise<void> {
     if (this.busyId !== -1 || this.busyRef !== '') { return; }
     this.busyId = song.id;
     this.busyRef = song.mediaRef !== undefined ? song.mediaRef : '';
     this.progressText = '正在加载音乐…';
     this.errorText = '';
     this.errorCode = '';
-    const playback = onlineMusicViewModel.playSong(this.ctx(), song, automatic);
+    const playback = onlineMusicViewModel.playSong(this.ctx(), song, automatic, sourceOptions);
     const request = playerViewModel.requestId;
     try {
       await playback;
@@ -94,7 +98,7 @@ export struct OnlineSearchView {
   private playEntry(group: OnlineSearchGroup, song: OnlineSong, automatic: boolean = false): void {
     if (this.busyId !== -1 || this.busyRef !== '') { return; }
     if (song.mediaRef !== undefined) { this.search.selectEntry(group.id, song.mediaRef); }
-    this.streamAndPlay(song, automatic);
+    this.streamAndPlay(song, automatic, group.entries);
   }
 
   /** 只有网络/上游类错误才算离线;401/403/301 说明中间层可达,保持在线 */
@@ -188,6 +192,16 @@ export struct OnlineSearchView {
     .onClick(() => {
       this.playEntry(group, song, automatic);
     })
+    if (!automatic && song.mediaRef !== undefined &&
+      this.player.sourceOptions.some((entry: OnlineSong): boolean => entry.mediaRef === song.mediaRef)) {
+      Button('为当前曲目使用' + searchSourceName(song.source ?? 'api-enhanced'))
+        .constraintSize({ minHeight: CONTROL_HIT_SIZE })
+        .fontSize(FONT_LABEL)
+        .fontColor(this.theme.primaryText)
+        .backgroundColor(Color.Transparent)
+        .enabled(this.player.state !== PlayerState.PREPARING)
+        .onClick(() => { playerViewModel.selectSource(song.mediaRef ?? ''); })
+    }
   }
 
   @Builder
@@ -320,6 +334,9 @@ export struct OnlineSearchView {
           }
         }
         .width('100%')
+      }
+      if (this.player.state === PlayerState.ERROR) {
+        SourceSelection()
       }
       if (this.search.status === 'partial_failure' || this.search.status === 'all_failed') {
         Text(this.search.status === 'all_failed' ? '所有来源搜索失败，请重试' : '部分来源搜索失败，已保留可用结果')

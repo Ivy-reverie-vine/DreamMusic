@@ -89,9 +89,12 @@ export class OnlineMusicViewModel {
   }
 
   /** 在线资料页复用搜索页的即时播放 + 后台入库链路。 */
-  async playSong(context: common.Context, song: OnlineSong, automatic: boolean = false): Promise<void> {
+  async playSong(context: common.Context, song: OnlineSong, automatic: boolean = false,
+    sourceOptions: OnlineSong[] = []): Promise<void> {
     const mediaRef = song.mediaRef !== undefined ? song.mediaRef : '';
     const transient = createOnlineTrack(song);
+    transient.sourceSearchSession = song.automaticSearchSession;
+    transient.sourceOptions = sourceOptions.slice();
     if (!automatic) { transient.automaticSearchSession = undefined; }
     const request = playerViewModel.beginTrack(transient, context, (readyRequest: number): void => {
       const expected = playerViewModel.currentTrack;
@@ -172,7 +175,9 @@ export class OnlineMusicViewModel {
           streamCoverUrl: song.coverUrl, mediaRef: song.mediaRef, catalogRef: transient.catalogRef,
           audioIntegrity: transient.audioIntegrity,
           playbackRef: transient.playbackRef, lyricsRef: transient.lyricsRef,
-          playbackSource: transient.playbackSource, lyricsSource: transient.lyricsSource
+          playbackSource: transient.playbackSource, lyricsSource: transient.lyricsSource,
+          sourceSearchSession: transient.sourceSearchSession, sourceOptions: transient.sourceOptions,
+          automaticSearchSession: transient.automaticSearchSession, playbackOutcome: transient.playbackOutcome
         };
       }
       await queueViewModel.playFromList([local !== null ? local : transient], 0, context, request, resolution);
