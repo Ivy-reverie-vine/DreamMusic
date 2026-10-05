@@ -109,6 +109,7 @@ export class OnlineMusicViewModel {
         album: expected.album, durationMs: expected.durationMs, coverPath: expected.coverPath,
         importedAt: expected.importedAt, missing: expected.missing, neteaseId: expected.neteaseId,
         streamUrl: expected.streamUrl, streamCoverUrl: expected.streamCoverUrl, mediaRef: expected.mediaRef,
+        audioIntegrity: expected.audioIntegrity,
         catalogRef: expected.catalogRef, playbackRef: expected.playbackRef, lyricsRef: expected.lyricsRef,
         playbackSource: expected.playbackSource, lyricsSource: expected.lyricsSource
       };
@@ -136,7 +137,12 @@ export class OnlineMusicViewModel {
         resolution.catalogRef !== transient.catalogRef) {
         throw new ApiError('IDENTITY_MISMATCH', '播放目录身份不一致');
       }
+      transient.audioIntegrity = resolution.audioIntegrity;
       if (resolution.url === '') { throw new ApiError('EMPTY_URL', '暂无可播放音频'); }
+      if (resolution.audioIntegrity?.status !== 'full') {
+        const status = resolution.audioIntegrity?.status ?? 'unknown';
+        throw new ApiError('AUDIO_' + status.toUpperCase(), '暂无可靠完整版音频');
+      }
       transient.playbackRef = resolution.playbackRef;
       transient.lyricsRef = resolution.lyricsRef;
       transient.playbackSource = resolution.playbackSource;
@@ -158,6 +164,7 @@ export class OnlineMusicViewModel {
           durationMs: local.durationMs, coverPath: song.coverUrl !== '' ? '' : local.coverPath,
           importedAt: local.importedAt, missing: local.missing, neteaseId: local.neteaseId,
           streamCoverUrl: song.coverUrl, mediaRef: song.mediaRef, catalogRef: transient.catalogRef,
+          audioIntegrity: transient.audioIntegrity,
           playbackRef: transient.playbackRef, lyricsRef: transient.lyricsRef,
           playbackSource: transient.playbackSource, lyricsSource: transient.lyricsSource
         };

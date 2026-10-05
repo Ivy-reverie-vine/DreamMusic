@@ -30,12 +30,12 @@ const files = new Set(['/sandbox/music/offline.mp3']);
 const resolutions = [], downloads = [], reads = [], inserts = [], deletions = [], history = [];
 const favorites = new Set([70]);
 let stored = null, downloadGate = null;
-let response = ref => ({ url: 'https://audio/current.mp3', catalogRef: ref, playbackRef: ref,
+let response = ref => ({ audioIntegrity: { status: 'full', reason: 'controlled_full', catalogDurationMs: 90000, resourceDurationMs: 90000, evidence: ['controlled'] }, url: 'https://audio/current.mp3', catalogRef: ref, playbackRef: ref,
   lyricsRef: ref, playbackSource: ref === refs.netease ? 'api-enhanced' : 'meting-tencent', lyricsSource: 'api-enhanced' });
 const api = {
   async resolvePlayback(_context, id, ref = '') {
     resolutions.push({ id, ref });
-    return ref ? response(ref) : { url: 'https://audio/legacy.mp3', playbackSource: 'api-enhanced' };
+    return ref ? response(ref) : { audioIntegrity: { status: 'full', reason: 'controlled_full', catalogDurationMs: 90000, resourceDurationMs: 90000, evidence: ['controlled'] }, url: 'https://audio/legacy.mp3', playbackSource: 'api-enhanced' };
   },
   async songDetailCover() { return 'https://cover/original'; },
   async lyricRaw() { return { lrc: '[00:00]目录歌词', yrc: '' }; }
@@ -103,7 +103,7 @@ assert.equal(downloads.length, 0);
 
 // Catalog and search hints say NetEase; the actual playback source says QQ. Never read/delete/insert NetEase cache.
 stored = local(); files.add('/sandbox/music/123.mp3');
-response = ref => ({ url: 'https://audio/qq.mp3', catalogRef: ref, playbackRef: refs.qq,
+response = ref => ({ audioIntegrity: { status: 'full', reason: 'controlled_full', catalogDurationMs: 90000, resourceDurationMs: 90000, evidence: ['controlled'] }, url: 'https://audio/qq.mp3', catalogRef: ref, playbackRef: refs.qq,
   lyricsRef: ref, playbackSource: 'meting-tencent', lyricsSource: 'api-enhanced' });
 for (const selected of [original, { ...original, mediaRef: undefined, catalogRef: undefined, playbackRef: undefined, lyricsRef: undefined }]) {
   // The second selection represents the existing v1 online profile/playlist entry.
@@ -136,7 +136,7 @@ const independent = identity.createOnlineTrack(song('meting-tencent', 0, 'differ
 assert.notEqual(independent.id, favored.id); assert.equal(favorites.has(independent.id), false);
 
 // Real NetEase path writes the resolved audio URL, then replaces only its matching transient selection.
-response = ref => ({ url: 'https://audio/resolved-full.flac?token=controlled', catalogRef: ref,
+response = ref => ({ audioIntegrity: { status: 'full', reason: 'controlled_full', catalogDurationMs: 90000, resourceDurationMs: 90000, evidence: ['controlled'] }, url: 'https://audio/resolved-full.flac?token=controlled', catalogRef: ref,
   playbackRef: ref, lyricsRef: ref, playbackSource: 'api-enhanced', lyricsSource: 'api-enhanced' });
 stored = null; files.delete('/sandbox/music/123.mp3'); downloadGate = deferred();
 const count = resolutions.length;
@@ -164,7 +164,7 @@ for (const switchSource of [false, true]) {
   stored = null; downloadGate = deferred();
   await online.playSong(context, original); await flush();
   const old = player.currentTrack, oldRequest = player.requestId, oldRef = old.playbackRef, oldUrl = old.streamUrl;
-  response = ref => ({ url: 'https://audio/new-qq.mp3', catalogRef: switchSource ? refs.netease : ref,
+  response = ref => ({ audioIntegrity: { status: 'full', reason: 'controlled_full', catalogDurationMs: 90000, resourceDurationMs: 90000, evidence: ['controlled'] }, url: 'https://audio/new-qq.mp3', catalogRef: switchSource ? refs.netease : ref,
     playbackRef: refs.qq, lyricsRef: ref, playbackSource: 'meting-tencent' });
   if (switchSource) {
     await queue.playFromList([{ ...old, playbackRef: refs.qq }], 0, context);
@@ -177,7 +177,7 @@ for (const switchSource of [false, true]) {
   assert.equal(player.currentTrack.playbackSource, 'meting-tencent');
   queue.swapCurrentWithLocal(local(), old, oldRequest, oldRef, oldUrl);
   assert.equal(player.currentTrack, selected);
-  response = ref => ({ url: 'https://audio/netease.mp3', catalogRef: ref,
+  response = ref => ({ audioIntegrity: { status: 'full', reason: 'controlled_full', catalogDurationMs: 90000, resourceDurationMs: 90000, evidence: ['controlled'] }, url: 'https://audio/netease.mp3', catalogRef: ref,
     playbackRef: ref, lyricsRef: ref, playbackSource: 'api-enhanced' });
 }
 

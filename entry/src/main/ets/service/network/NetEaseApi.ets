@@ -1,7 +1,7 @@
 import { common } from '@kit.AbilityKit';
 import { ApiClient, ApiError, ApiJsonResult } from './ApiClient';
 import { DreamMusicAuth } from './DreamMusicAuth';
-import { OnlineSong, OnlineSearchGroup } from '../../model/Entities';
+import { OnlineSong, OnlineSearchGroup, AudioIntegrity } from '../../model/Entities';
 import {
   classifyPlaybackError,
   DIAGNOSTIC_CATEGORY_EMPTY_PLAYBACK_URL,
@@ -77,6 +77,7 @@ interface UrlEntry {
 
 interface SongUrlResponse extends UpstreamEnvelope {
   data?: UrlEntry[];
+  audioIntegrity?: AudioIntegrity;
 }
 
 interface MediaAlbum {
@@ -94,6 +95,7 @@ interface MediaIdentity {
 
 export interface PlaybackResolution extends MediaIdentity {
   url: string;
+  audioIntegrity?: AudioIntegrity;
 }
 
 interface MediaSong extends MediaIdentity {
@@ -126,6 +128,7 @@ interface MediaSearchResponse extends UpstreamEnvelope {
 interface MediaUrlResponse extends UpstreamEnvelope, MediaIdentity {
   data?: UrlEntry[];
   mediaRef?: string;
+  audioIntegrity?: AudioIntegrity;
 }
 
 interface MediaDetailResponse extends UpstreamEnvelope {
@@ -398,12 +401,17 @@ export class NetEaseApi {
         capability: 'media-resolution',
         stage: 'url_response',
         durationMs: Date.now() - startedAt,
-        ok: url !== '',
-        errorCategory: url === '' ? DIAGNOSTIC_CATEGORY_EMPTY_PLAYBACK_URL : undefined
+        ok: url !== '' && wrapper.audioIntegrity?.status === 'full',
+        errorCategory: url === '' ? DIAGNOSTIC_CATEGORY_EMPTY_PLAYBACK_URL :
+          wrapper.audioIntegrity?.status !== 'full' ? 'audio_' + (wrapper.audioIntegrity?.status ?? 'unknown') : undefined
       });
       const identity = res.body as MediaUrlResponse;
       return {
         url: url,
+        audioIntegrity: wrapper.audioIntegrity !== undefined ? wrapper.audioIntegrity : {
+          status: url === '' ? 'unavailable' : 'unknown', reason: url === '' ? 'empty_url' : 'missing_evidence',
+          catalogDurationMs: 0, resourceDurationMs: 0, evidence: []
+        },
         catalogRef: versioned ? (identity.catalogRef !== undefined ? identity.catalogRef : mediaRef) : undefined,
         playbackRef: versioned ? (identity.playbackRef !== undefined ? identity.playbackRef : mediaRef) : undefined,
         lyricsRef: versioned ? (identity.lyricsRef !== undefined ? identity.lyricsRef : mediaRef) : undefined,

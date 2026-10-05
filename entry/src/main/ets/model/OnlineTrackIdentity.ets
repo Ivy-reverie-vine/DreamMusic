@@ -20,7 +20,8 @@ export function createOnlineTrack(song: OnlineSong): Track {
 
 /** Only a confirmed NetEase audio resource may use the existing numeric-ID store. */
 export function canDownloadNetEase(track: Track): boolean {
-  if (track.neteaseId <= 0 || track.playbackSource !== 'api-enhanced') { return false; }
+  if (track.neteaseId <= 0 || track.playbackSource !== 'api-enhanced' ||
+    track.audioIntegrity?.status !== 'full') { return false; }
   const ref = track.playbackRef !== undefined ? track.playbackRef : '';
   const catalog = track.catalogRef !== undefined ? track.catalogRef : '';
   // Cross-resource NetEase migration is outside this slice too: no guessing another resource's ID.

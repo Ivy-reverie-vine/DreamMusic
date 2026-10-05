@@ -3,6 +3,14 @@
  * 术语与 CONTEXT.md 对齐:音轨/歌单/收藏/播放历史/服务器配置。
  */
 
+export interface AudioIntegrity {
+  status: string;
+  reason: string;
+  catalogDurationMs: number;
+  resourceDurationMs: number;
+  evidence: string[];
+}
+
 export interface Track {
   id: number;
   /** 沙箱相对路径,音乐库唯一键(ADR-0001) */
@@ -19,6 +27,7 @@ export interface Track {
   neteaseId: number;
   /** 瞬态在线音轨的普通播放直链(不落盘) */
   streamUrl?: string;
+  audioIntegrity?: AudioIntegrity;
   /** 在线封面 URL；封面服务缓存到 cacheDir，转本地时暂留作封面缺失回退，不写数据库。 */
   streamCoverUrl?: string;
   /** v2 版本化来源引用;不包含可直接播放的 URL */

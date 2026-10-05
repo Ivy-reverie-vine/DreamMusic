@@ -263,6 +263,7 @@ export class QueueViewModel {
       track.lyricsRef = previous.lyricsRef;
       track.playbackSource = previous.playbackSource;
       track.lyricsSource = previous.lyricsSource;
+      track.audioIntegrity = previous.audioIntegrity;
       if (previous.catalogRef !== undefined) {
         track.title = previous.title;
         track.artist = previous.artist;
@@ -300,6 +301,7 @@ export class QueueViewModel {
       album: expected.album, durationMs: expected.durationMs, coverPath: expected.coverPath,
       importedAt: expected.importedAt, missing: expected.missing, neteaseId: expected.neteaseId,
       streamUrl: expected.streamUrl, streamCoverUrl: url, mediaRef: expected.mediaRef,
+      audioIntegrity: expected.audioIntegrity,
       catalogRef: expected.catalogRef, playbackRef: expected.playbackRef, lyricsRef: expected.lyricsRef,
       playbackSource: expected.playbackSource, lyricsSource: expected.lyricsSource
     };

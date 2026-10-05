@@ -295,6 +295,18 @@ export struct OnlineSearchView {
                 this.onGoSettings();
               }
             })
+          } else if (this.errorText !== '') {
+            Button('重试播放')
+              .fontSize(FONT_LABEL)
+              .fontColor(this.theme.primaryText)
+              .backgroundColor(this.theme.card)
+              .constraintSize({ minHeight: 48 })
+              .onClick(() => {
+                playerViewModel.retry().then(() => {
+                  this.errorText = playerViewModel.errorText;
+                  this.errorCode = playerViewModel.errorCode;
+                });
+              })
           } else if (this.search.errorText !== '') {
             Button(this.search.errorCode === 'INVALID_SEARCH_SESSION' ? '重新搜索' : '重试搜索')
               .fontSize(FONT_LABEL)

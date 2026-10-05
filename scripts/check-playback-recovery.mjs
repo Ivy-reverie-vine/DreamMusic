@@ -23,7 +23,7 @@ let resolveUrl = async () => 'https://audio/fresh';
 const api = { async resolvePlayback(...args) {
   resolutions.push(args);
   const ref = args[2] || undefined;
-  return { url: await resolveUrl(...args), playbackSource: 'api-enhanced',
+  return { audioIntegrity: { status: 'full', reason: 'controlled_full', catalogDurationMs: 90000, resourceDurationMs: 90000, evidence: ['controlled'] }, url: await resolveUrl(...args), playbackSource: 'api-enhanced',
     catalogRef: ref, playbackRef: ref, lyricsRef: ref };
 } };
 let playGate = null, nativeFailure = false;

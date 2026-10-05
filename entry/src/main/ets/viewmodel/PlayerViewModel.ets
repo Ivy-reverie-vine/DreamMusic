@@ -103,12 +103,30 @@ export class PlayerViewModel {
     } else if (code === 'NEED_LOGIN' || code === 'UNAUTHORIZED' || code === 'FORBIDDEN' || code === 'BIND_INVALID') {
       this.errorText = '在线播放需要登录并绑定账号，请到设置完成后重试';
       this.recoveryAction = 'settings';
-    } else if (code === 'EMPTY_URL') {
+    } else if (code === 'AUDIO_PREVIEW') {
+      this.errorText = '当前来源只提供试听片段，请重试或在搜索结果中选择其他来源';
+    } else if (code === 'AUDIO_UNKNOWN') {
+      this.errorText = '暂时无法确认音频是否完整，请重试或在搜索结果中选择其他来源';
+    } else if (code === 'MEDIA_READ_FAILED') {
+      this.errorText = '音频读取失败，请重试或在搜索结果中选择其他来源';
+    } else if (code === 'EMPTY_URL' || code === 'AUDIO_UNAVAILABLE') {
       this.errorText = '暂时没有可播放的音频，可能受版权或会员限制，请稍后重试';
     } else if (code === 'NETWORK' || code === 'TIMEOUT' || code === 'UPSTREAM_DOWN') {
       this.errorText = '音乐暂时加载失败，请检查网络后重试';
     } else {
       this.errorText = '这首音乐暂时无法播放，请重试';
+    }
+    if (this.currentTrack !== null && (this.currentTrack.id < 0 ||
+      (this.currentTrack.streamUrl !== undefined && this.currentTrack.streamUrl !== '')) &&
+      code !== 'AUDIO_PREVIEW' && code !== 'AUDIO_UNKNOWN') {
+      const integrity = this.currentTrack.audioIntegrity;
+      this.currentTrack.audioIntegrity = {
+        status: 'unavailable', reason: code === 'EMPTY_URL' ? 'empty_url' :
+          code === 'MEDIA_READ_FAILED' ? 'media_read_failed' :
+            code === 'AUDIO_UNAVAILABLE' ? (integrity?.reason ?? 'unavailable') : code.toLowerCase(),
+        catalogDurationMs: integrity?.catalogDurationMs ?? this.currentTrack.durationMs,
+        resourceDurationMs: integrity?.resourceDurationMs ?? 0, evidence: integrity?.evidence ?? []
+      };
     }
     this.state = PlayerState.ERROR;
     this.syncBackground(true);
@@ -277,6 +295,11 @@ export class PlayerViewModel {
           this.failRequest(request, 'IDENTITY_MISMATCH'); return;
         }
         streamUrl = resolution.url;
+        track.audioIntegrity = resolution.audioIntegrity;
+        if (streamUrl === '') { this.failRequest(request, 'EMPTY_URL'); return; }
+        if (resolution.audioIntegrity?.status !== 'full') {
+          this.failRequest(request, 'AUDIO_' + (resolution.audioIntegrity?.status ?? 'unknown').toUpperCase()); return;
+        }
         track.playbackRef = resolution.playbackRef;
         track.lyricsRef = resolution.lyricsRef;
         track.playbackSource = resolution.playbackSource;
@@ -345,7 +368,7 @@ export class PlayerViewModel {
         }
       },
       onError: (msg: string): void => {
-        this.failRequest(request);
+        this.failRequest(request, streaming ? 'MEDIA_READ_FAILED' : '');
       }
     };
     try {
@@ -383,7 +406,7 @@ export class PlayerViewModel {
         }
       }
     } catch (err) {
-      this.failRequest(request);
+      this.failRequest(request, streaming ? 'MEDIA_READ_FAILED' : '');
       await session.release();
     }
   }
