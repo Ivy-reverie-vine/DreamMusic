@@ -101,6 +101,9 @@ export interface Track {
   neteaseId: number;
   /** 瞬态在线音轨的普通播放直链(不落盘) */
   streamUrl?: string;
+  /** 仅当前在线队列有效的用户/资源恢复凭据，不落数据库。 */
+  recoveryToken?: string;
+  lyricsRevision?: number;
   audioIntegrity?: AudioIntegrity;
   /** 在线封面 URL；封面服务缓存到 cacheDir，转本地时暂留作封面缺失回退，不写数据库。 */
   streamCoverUrl?: string;

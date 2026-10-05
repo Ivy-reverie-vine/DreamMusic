@@ -140,7 +140,8 @@ try {
   assert.equal(player.state, PlayerState.PLAYING);
   assert.equal(queue.currentId, queueId);
   assert.equal(player.currentTrack.catalogRef, song.catalogRef);
-  assert.equal(requests.at(-1).searchParams.get('mediaRef'), song.catalogRef, 'automatic retry starts from original catalog');
+  assert.equal(requests.at(-1).searchParams.get('mediaRef'), player.currentTrack.playbackRef, 'URL recovery reparses the resource that actually played');
+  assert.equal(requests.at(-1).searchParams.get('recover'), 'true');
   assert.equal(player.playbackSourceText, '腾讯 / QQ');
   assert.equal(downloads.length, 0);
   configure({ netease: 'full', tencent: 'full', kugou: 'full' }, { netease: 300, tencent: 20, kugou: 320 });

@@ -1,0 +1,48 @@
+{
+  "boundary": "actual ArkTS + authenticated HTTP + real WAV bytes; Kit decoder controlled; native browser decoding recorded separately",
+  "records": [
+    {
+      "scenario": "controlled 410 → exact-resource refresh → playing at 12000ms",
+      "evidence": [
+        {
+          "stage": "provider_resolution",
+          "refresh": false,
+          "version": 1
+        },
+        {
+          "stage": "media_http",
+          "version": "1",
+          "status": 410
+        },
+        {
+          "stage": "provider_resolution",
+          "refresh": true,
+          "version": 2
+        },
+        {
+          "stage": "media_http",
+          "version": "2",
+          "status": 200
+        }
+      ],
+      "resolutions": 1,
+      "readyCalls": 1
+    },
+    {
+      "scenario": "mid-play recovery; duplicate events coalesced; no second ready/download",
+      "positionMs": 23000
+    },
+    {
+      "scenario": "persistent 410 → two retries → actionable error",
+      "refreshes": 2
+    },
+    {
+      "scenario": "switch to local cancels stale HTTP/media ownership",
+      "currentId": 77
+    },
+    {
+      "scenario": "total deadline cancels slow resolution and suppresses late playback",
+      "deadlineMs": 15000
+    }
+  ]
+}

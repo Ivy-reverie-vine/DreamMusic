@@ -94,7 +94,7 @@ export class LyricsViewModel {
       this.lines = [];
       this.activeIndex = -1;
       this.reloadChecked = true;
-      this.loadOnlineLyrics(t, token);
+      this.loadOnlineLyrics(t, token, (t.lyricsRevision ?? 0) > 0);
       return;
     }
     const abs = this.context.filesDir + '/' + t.path;

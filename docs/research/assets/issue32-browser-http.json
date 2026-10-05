@@ -1,0 +1,22 @@
+[
+  {
+    "stage": "provider_resolution",
+    "refresh": false,
+    "version": 1
+  },
+  {
+    "stage": "media_http",
+    "version": "1",
+    "status": 410
+  },
+  {
+    "stage": "provider_resolution",
+    "refresh": true,
+    "version": 2
+  },
+  {
+    "stage": "media_http",
+    "version": "2",
+    "status": 200
+  }
+]

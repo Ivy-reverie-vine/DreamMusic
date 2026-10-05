@@ -86,6 +86,7 @@ interface MediaAlbum {
 }
 
 interface MediaIdentity {
+  recoveryToken?: string;
   catalogRef?: string;
   playbackRef?: string;
   lyricsRef?: string;
@@ -400,7 +401,8 @@ export class NetEaseApi {
   /** 返回真实音频身份；旧调用仍可通过 resolveUrl 只取 URL。 */
   static async resolvePlayback(context: common.Context, id: number, mediaRef: string = '',
     automaticSearchSession: string = '', registerCancel: ((cancel: () => void) => void) | null = null,
-    manualCatalogRef: string = '', otherRecording: boolean = false): Promise<PlaybackResolution> {
+    manualCatalogRef: string = '', otherRecording: boolean = false,
+    recoveryToken: string = ''): Promise<PlaybackResolution> {
     let cancelled = false;
     let cancelHttp: (() => void) | null = null;
     registerCancel?.(() => { cancelled = true; cancelHttp?.(); });
@@ -414,6 +416,10 @@ export class NetEaseApi {
     }
     params['level'] = QUALITY_LEVEL;
     params['randomCNIP'] = 'true';
+    if (recoveryToken !== '') {
+      params['recover'] = 'true';
+      params['recoveryToken'] = recoveryToken;
+    }
     if (versioned && automaticSearchSession !== '') {
       if (manualCatalogRef !== '') {
         params['manual'] = otherRecording ? 'other' : 'true';
@@ -433,7 +439,7 @@ export class NetEaseApi {
         });
       });
       // Automatic playback owns one budget; transport retries must not restart it.
-      const res: ApiJsonResult = automaticSearchSession !== '' ? await resolve() :
+      const res: ApiJsonResult = automaticSearchSession !== '' || recoveryToken !== '' ? await resolve() :
         await NetEaseApi.withQueryRetry<ApiJsonResult>(resolve);
       const wrapper = versioned ? res.body as MediaUrlResponse : res.body as SongUrlResponse;
       ensureUpstreamOk(wrapper);
@@ -457,6 +463,7 @@ export class NetEaseApi {
       const identity = res.body as MediaUrlResponse;
       return {
         url: url,
+        recoveryToken: identity.recoveryToken,
         playback: identity.playback,
         manualSelection: identity.manualSelection,
         audioIntegrity: wrapper.audioIntegrity !== undefined ? wrapper.audioIntegrity : {

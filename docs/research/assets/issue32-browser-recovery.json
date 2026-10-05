@@ -1,0 +1,512 @@
+{
+  "boundary": "actual production React/API, authenticated HTTP, Chromium native decoder; third-party provider and 410 expiry controlled; muted local 90-second PCM WAV",
+  "records": [
+    {
+      "scenario": "controlled HTTP410 then native playing",
+      "audio": [
+        {
+          "duration": 90,
+          "path": "/test/media/2",
+          "paused": true,
+          "readyState": 4,
+          "time": 90
+        }
+      ],
+      "events": [
+        {
+          "event": "error",
+          "paused": true,
+          "readyState": 0,
+          "time": 0
+        },
+        {
+          "event": "pause",
+          "paused": true,
+          "readyState": 0,
+          "time": 0
+        },
+        {
+          "event": "loadedmetadata",
+          "paused": false,
+          "readyState": 1,
+          "time": 0
+        },
+        {
+          "event": "playing",
+          "paused": false,
+          "readyState": 1,
+          "time": 0
+        },
+        {
+          "event": "playing",
+          "paused": false,
+          "readyState": 4,
+          "time": 0.004
+        },
+        {
+          "event": "timeupdate",
+          "paused": false,
+          "readyState": 4,
+          "time": 88.397
+        },
+        {
+          "event": "timeupdate",
+          "paused": false,
+          "readyState": 4,
+          "time": 88.659
+        },
+        {
+          "event": "timeupdate",
+          "paused": false,
+          "readyState": 4,
+          "time": 88.933
+        },
+        {
+          "event": "timeupdate",
+          "paused": false,
+          "readyState": 4,
+          "time": 89.198
+        },
+        {
+          "event": "timeupdate",
+          "paused": false,
+          "readyState": 4,
+          "time": 89.463
+        },
+        {
+          "event": "timeupdate",
+          "paused": false,
+          "readyState": 4,
+          "time": 89.726
+        },
+        {
+          "event": "timeupdate",
+          "paused": false,
+          "readyState": 4,
+          "time": 89.995
+        },
+        {
+          "event": "timeupdate",
+          "paused": true,
+          "readyState": 4,
+          "time": 90
+        },
+        {
+          "event": "pause",
+          "paused": true,
+          "readyState": 4,
+          "time": 90
+        }
+      ],
+      "state": {
+        "artist": "原歌手",
+        "catalogRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJhcGktZW5oYW5jZWQiLCJzb3VyY2VJZCI6IjEyMyIsImtpbmQiOiJzb25nIn0",
+        "isPlaying": false,
+        "lyricsRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJhcGktZW5oYW5jZWQiLCJzb3VyY2VJZCI6IjEyMyIsImtpbmQiOiJzb25nIn0",
+        "name": "目录歌曲",
+        "playbackRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJtZXRpbmctdGVuY2VudCIsInNvdXJjZUlkIjoic2VsZWN0ZWQiLCJraW5kIjoic29uZyJ9",
+        "playbackSource": "meting-tencent",
+        "revision": 1,
+        "time": 0
+      }
+    },
+    {
+      "scenario": "live native recovery sample",
+      "audio": [
+        {
+          "duration": 90,
+          "path": "/test/media/2",
+          "paused": false,
+          "readyState": 4,
+          "time": 0.039347
+        }
+      ],
+      "events": [
+        {
+          "event": "error",
+          "paused": true,
+          "readyState": 0,
+          "time": 0
+        },
+        {
+          "event": "timeupdate",
+          "paused": true,
+          "readyState": 0,
+          "time": 0
+        },
+        {
+          "event": "pause",
+          "paused": true,
+          "readyState": 0,
+          "time": 0
+        },
+        {
+          "event": "loadedmetadata",
+          "paused": false,
+          "readyState": 1,
+          "time": 0
+        },
+        {
+          "event": "playing",
+          "paused": false,
+          "readyState": 1,
+          "time": 0
+        },
+        {
+          "event": "timeupdate",
+          "paused": false,
+          "readyState": 4,
+          "time": 0.003
+        },
+        {
+          "event": "playing",
+          "paused": false,
+          "readyState": 4,
+          "time": 0.003
+        }
+      ],
+      "state": {
+        "artist": "原歌手",
+        "catalogRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJhcGktZW5oYW5jZWQiLCJzb3VyY2VJZCI6IjEyMyIsImtpbmQiOiJzb25nIn0",
+        "isPlaying": true,
+        "lyricsRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJhcGktZW5oYW5jZWQiLCJzb3VyY2VJZCI6IjEyMyIsImtpbmQiOiJzb25nIn0",
+        "name": "目录歌曲",
+        "playbackRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJtZXRpbmctdGVuY2VudCIsInNvdXJjZUlkIjoic2VsZWN0ZWQiLCJraW5kIjoic29uZyJ9",
+        "playbackSource": "meting-tencent",
+        "revision": 1,
+        "time": 0.003
+      }
+    },
+    {
+      "scenario": "progress after native playing",
+      "audio": [
+        {
+          "duration": 90,
+          "path": "/test/media/2",
+          "paused": false,
+          "readyState": 4,
+          "time": 33.102788
+        }
+      ],
+      "events": [
+        {
+          "event": "error",
+          "paused": true,
+          "readyState": 0,
+          "time": 0
+        },
+        {
+          "event": "pause",
+          "paused": true,
+          "readyState": 0,
+          "time": 0
+        },
+        {
+          "event": "loadedmetadata",
+          "paused": false,
+          "readyState": 1,
+          "time": 0
+        },
+        {
+          "event": "playing",
+          "paused": false,
+          "readyState": 1,
+          "time": 0
+        },
+        {
+          "event": "playing",
+          "paused": false,
+          "readyState": 4,
+          "time": 0.003
+        },
+        {
+          "event": "timeupdate",
+          "paused": false,
+          "readyState": 4,
+          "time": 30.729
+        },
+        {
+          "event": "timeupdate",
+          "paused": false,
+          "readyState": 4,
+          "time": 30.991
+        },
+        {
+          "event": "timeupdate",
+          "paused": false,
+          "readyState": 4,
+          "time": 31.256
+        },
+        {
+          "event": "timeupdate",
+          "paused": false,
+          "readyState": 4,
+          "time": 31.525
+        },
+        {
+          "event": "timeupdate",
+          "paused": false,
+          "readyState": 4,
+          "time": 31.788
+        },
+        {
+          "event": "timeupdate",
+          "paused": false,
+          "readyState": 4,
+          "time": 32.057
+        },
+        {
+          "event": "timeupdate",
+          "paused": false,
+          "readyState": 4,
+          "time": 32.319
+        },
+        {
+          "event": "timeupdate",
+          "paused": false,
+          "readyState": 4,
+          "time": 32.583
+        },
+        {
+          "event": "timeupdate",
+          "paused": false,
+          "readyState": 4,
+          "time": 32.853
+        }
+      ],
+      "state": {
+        "artist": "原歌手",
+        "catalogRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJhcGktZW5oYW5jZWQiLCJzb3VyY2VJZCI6IjEyMyIsImtpbmQiOiJzb25nIn0",
+        "isPlaying": true,
+        "lyricsRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJhcGktZW5oYW5jZWQiLCJzb3VyY2VJZCI6IjEyMyIsImtpbmQiOiJzb25nIn0",
+        "name": "目录歌曲",
+        "playbackRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJtZXRpbmctdGVuY2VudCIsInNvdXJjZUlkIjoic2VsZWN0ZWQiLCJraW5kIjoic29uZyJ9",
+        "playbackSource": "meting-tencent",
+        "revision": 1,
+        "time": 32.853
+      }
+    },
+    {
+      "scenario": "persistent HTTP410 bounded failure",
+      "audio": [
+        {
+          "path": "/test/media/3",
+          "paused": true,
+          "readyState": 0,
+          "time": 0
+        }
+      ],
+      "error": "所选资源恢复失败，请重试或重新选择来源",
+      "events": [
+        {
+          "event": "error",
+          "paused": true,
+          "readyState": 0,
+          "time": 0
+        },
+        {
+          "event": "timeupdate",
+          "paused": true,
+          "readyState": 0,
+          "time": 0
+        },
+        {
+          "event": "pause",
+          "paused": true,
+          "readyState": 0,
+          "time": 0
+        },
+        {
+          "event": "error",
+          "paused": true,
+          "readyState": 0,
+          "time": 0
+        },
+        {
+          "event": "timeupdate",
+          "paused": true,
+          "readyState": 0,
+          "time": 0
+        },
+        {
+          "event": "pause",
+          "paused": true,
+          "readyState": 0,
+          "time": 0
+        },
+        {
+          "event": "error",
+          "paused": true,
+          "readyState": 0,
+          "time": 0
+        },
+        {
+          "event": "timeupdate",
+          "paused": true,
+          "readyState": 0,
+          "time": 0
+        },
+        {
+          "event": "pause",
+          "paused": true,
+          "readyState": 0,
+          "time": 0
+        }
+      ],
+      "state": {
+        "artist": "原歌手",
+        "catalogRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJhcGktZW5oYW5jZWQiLCJzb3VyY2VJZCI6IjEyMyIsImtpbmQiOiJzb25nIn0",
+        "isPlaying": false,
+        "lyricsRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJhcGktZW5oYW5jZWQiLCJzb3VyY2VJZCI6IjEyMyIsImtpbmQiOiJzb25nIn0",
+        "name": "目录歌曲",
+        "playbackRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJtZXRpbmctdGVuY2VudCIsInNvdXJjZUlkIjoic2VsZWN0ZWQiLCJraW5kIjoic29uZyJ9",
+        "playbackSource": "meting-tencent",
+        "revision": 2,
+        "time": 0
+      }
+    },
+    {
+      "scenario": "cancel during slow HTTP refresh; checked again after late-response window",
+      "audio": [
+        {
+          "paused": true,
+          "readyState": 0,
+          "time": 0
+        }
+      ],
+      "events": [
+        {
+          "event": "error",
+          "paused": true,
+          "readyState": 0,
+          "time": 0
+        },
+        {
+          "event": "timeupdate",
+          "paused": true,
+          "readyState": 0,
+          "time": 0
+        },
+        {
+          "event": "pause",
+          "paused": true,
+          "readyState": 0,
+          "time": 0
+        }
+      ],
+      "state": {
+        "isPlaying": false,
+        "time": 0
+      }
+    },
+    {
+      "scenario": "final no-store sample: native playing and progress",
+      "audio": [
+        {
+          "duration": 90,
+          "path": "/test/media/2",
+          "paused": false,
+          "readyState": 4,
+          "time": 37.738296
+        }
+      ],
+      "events": [
+        {
+          "event": "error",
+          "paused": true,
+          "readyState": 0,
+          "time": 0
+        },
+        {
+          "event": "pause",
+          "paused": true,
+          "readyState": 0,
+          "time": 0
+        },
+        {
+          "event": "loadedmetadata",
+          "paused": false,
+          "readyState": 1,
+          "time": 0
+        },
+        {
+          "event": "playing",
+          "paused": false,
+          "readyState": 1,
+          "time": 0
+        },
+        {
+          "event": "playing",
+          "paused": false,
+          "readyState": 4,
+          "time": 0.03
+        },
+        {
+          "event": "timeupdate",
+          "paused": false,
+          "readyState": 4,
+          "time": 35.49
+        },
+        {
+          "event": "timeupdate",
+          "paused": false,
+          "readyState": 4,
+          "time": 35.747
+        },
+        {
+          "event": "timeupdate",
+          "paused": false,
+          "readyState": 4,
+          "time": 36.017
+        },
+        {
+          "event": "timeupdate",
+          "paused": false,
+          "readyState": 4,
+          "time": 36.28
+        },
+        {
+          "event": "timeupdate",
+          "paused": false,
+          "readyState": 4,
+          "time": 36.553
+        },
+        {
+          "event": "timeupdate",
+          "paused": false,
+          "readyState": 4,
+          "time": 36.832
+        },
+        {
+          "event": "timeupdate",
+          "paused": false,
+          "readyState": 4,
+          "time": 37.088
+        },
+        {
+          "event": "timeupdate",
+          "paused": false,
+          "readyState": 4,
+          "time": 37.362
+        },
+        {
+          "event": "timeupdate",
+          "paused": false,
+          "readyState": 4,
+          "time": 37.625
+        }
+      ],
+      "state": {
+        "artist": "原歌手",
+        "catalogRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJhcGktZW5oYW5jZWQiLCJzb3VyY2VJZCI6IjEyMyIsImtpbmQiOiJzb25nIn0",
+        "isPlaying": true,
+        "lyricsRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJhcGktZW5oYW5jZWQiLCJzb3VyY2VJZCI6IjEyMyIsImtpbmQiOiJzb25nIn0",
+        "name": "目录歌曲",
+        "playbackRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJtZXRpbmctdGVuY2VudCIsInNvdXJjZUlkIjoic2VsZWN0ZWQiLCJraW5kIjoic29uZyJ9",
+        "playbackSource": "meting-tencent",
+        "revision": 1,
+        "time": 37.625
+      }
+    }
+  ]
+}

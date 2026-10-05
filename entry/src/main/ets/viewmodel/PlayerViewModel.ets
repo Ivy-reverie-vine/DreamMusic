@@ -32,6 +32,10 @@ export class PlayerViewModel {
   private requestVersion: number = 0;
   private resolutionCancel: (() => void) | null = null;
   private playbackReadyHandler: ((request: number) => void) | null = null;
+  private readyNotified: boolean = false;
+  private recoveryRunning: boolean = false;
+  private recoveryAttempts: number = 0;
+  private recoveryTimer: number = -1;
 
   get statusText(): string {
     switch (this.state) {
@@ -98,6 +102,7 @@ export class PlayerViewModel {
       !this.sourceOptions.some((song: OnlineSong): boolean => song.mediaRef === mediaRef)) { return; }
     const position = this.positionMs;
     track.manualPlaybackRef = mediaRef;
+    track.recoveryToken = undefined;
     track.audioIntegrity = undefined;
     const request = this.beginTrack(track, this.lastContext);
     await this.playTrack(track, this.lastContext, position, request);
@@ -117,6 +122,10 @@ export class PlayerViewModel {
     }
     this.resolutionCancel?.();
     this.resolutionCancel = null;
+    this.clearRecoveryTimer();
+    this.recoveryRunning = false;
+    this.recoveryAttempts = 0;
+    this.readyNotified = false;
     const request = ++this.requestVersion;
     const previous = this.session;
     this.session = new PlayerSession();
@@ -170,6 +179,8 @@ export class PlayerViewModel {
       this.errorText = '播放解析已取消';
     } else if (code === 'INVALID_SEARCH_SESSION') {
       this.errorText = '搜索结果已过期，请重新搜索后点播';
+    } else if (code === 'PLAYBACK_RECOVERY_FAILED' || code === 'INVALID_PLAYBACK_RECEIPT') {
+      this.errorText = '所选资源恢复失败，请重试或重新选择来源';
     } else if (code === 'MEDIA_READ_FAILED') {
       this.errorText = '音频读取失败，请重试或在搜索结果中选择其他来源';
     } else if (code === 'EMPTY_URL' || code === 'AUDIO_UNAVAILABLE') {
@@ -205,8 +216,80 @@ export class PlayerViewModel {
     const context = this.lastContext;
     const position = this.positionMs;
     const ready = this.playbackReadyHandler;
+    const wasNotified = this.readyNotified;
     const request = this.beginTrack(track, context, ready);
-    await this.playTrack(track, context, position, request);
+    this.positionMs = position;
+    this.readyNotified = wasNotified;
+    if (track.recoveryToken && track.playbackRef) {
+      await this.recoverStream(request);
+    } else {
+      await this.playTrack(track, context, position, request);
+    }
+  }
+
+  private clearRecoveryTimer(): void {
+    if (this.recoveryTimer >= 0) { clearTimeout(this.recoveryTimer); this.recoveryTimer = -1; }
+  }
+
+  private hasPlaybackError(): boolean { return this.state === PlayerState.ERROR; }
+
+  /** One recovery owner, two exact-resource attempts, one total 15-second deadline. */
+  private async recoverStream(request: number): Promise<void> {
+    if (!this.isCurrentRequest(request)) { return; }
+    const track = this.currentTrack;
+    const context = this.lastContext;
+    if (this.recoveryRunning) { this.failRequest(request, 'MEDIA_READ_FAILED'); return; }
+    if (track === null || context === null || !track.recoveryToken || !track.playbackRef || this.recoveryAttempts >= 2) {
+      this.failRequest(request, 'MEDIA_READ_FAILED'); return;
+    }
+    this.recoveryRunning = true;
+    const position = this.positionMs;
+    const selectedRef = track.playbackRef;
+    const token = track.recoveryToken;
+    track.streamUrl = '';
+    this.state = PlayerState.PREPARING;
+    this.errorText = '';
+    this.syncBackground(true);
+    this.recoveryTimer = setTimeout(() => {
+      if (!this.isCurrentRequest(request)) { return; }
+      this.resolutionCancel?.(); this.resolutionCancel = null;
+      this.session.release().catch(() => {});
+      this.session = new PlayerSession();
+      this.requestVersion++;
+      this.recoveryTimer = -1;
+      this.recoveryRunning = false;
+      this.recoveryAttempts = 2;
+      this.failRequest(this.requestVersion, 'PLAYBACK_RECOVERY_FAILED');
+    }, 15000);
+    try {
+      while (this.isCurrentRequest(request) && this.recoveryAttempts < 2) {
+        this.recoveryAttempts++;
+        const previous = this.session;
+        this.session = new PlayerSession();
+        await previous.release();
+        if (!this.isCurrentRequest(request)) { return; }
+        this.state = PlayerState.PREPARING;
+        try {
+          const resolution = await NetEaseApi.resolvePlayback(context, track.neteaseId, selectedRef, '',
+            (cancel: () => void): void => { this.setResolutionCancel(request, cancel); }, '', false, token);
+          if (!this.isCurrentRequest(request)) { return; }
+          if (resolution.playbackRef !== selectedRef || resolution.catalogRef !== track.catalogRef ||
+            resolution.lyricsRef !== track.lyricsRef) { this.failRequest(request, 'IDENTITY_MISMATCH'); return; }
+          track.lyricsRevision = (track.lyricsRevision ?? 0) + 1;
+          await this.playTrack(track, context, position, request, resolution);
+          if (!this.isCurrentRequest(request) || !this.hasPlaybackError()) { return; }
+          if (this.errorCode === 'AUDIO_PREVIEW' || this.errorCode === 'AUDIO_UNKNOWN' || this.errorCode === 'IDENTITY_MISMATCH') { return; }
+        } catch (err) {
+          if (!this.isCurrentRequest(request)) { return; }
+          const code = err instanceof ApiError ? err.code : '';
+          if (code === 'INVALID_PLAYBACK_RECEIPT' || code === 'IDENTITY_MISMATCH' || code === 'FORBIDDEN' ||
+            code === 'UNAUTHORIZED') { this.failRequest(request, code); return; }
+        }
+      }
+      this.failRequest(request, 'PLAYBACK_RECOVERY_FAILED');
+    } finally {
+      if (this.isCurrentRequest(request)) { this.clearRecoveryTimer(); this.recoveryRunning = false; }
+    }
   }
   /** 播放模式由队列域持有,此处镜像供后台会话同步 */
   playMode: PlayMode = PlayMode.SEQUENTIAL;
@@ -371,6 +454,7 @@ export class PlayerViewModel {
           this.failRequest(request, 'IDENTITY_MISMATCH'); return;
         }
         streamUrl = resolution.url;
+        track.recoveryToken = resolution.recoveryToken;
         if (!manual) { track.playbackOutcome = resolution.playback; }
         track.audioIntegrity = resolution.audioIntegrity;
         if (track.otherRecordingOrigin !== undefined) {
@@ -404,7 +488,7 @@ export class PlayerViewModel {
         track.streamUrl = streamUrl;
         // Automatic fallback/re-resolution can change audio after catalog lyrics started.
         // Invalidate that timing result just as a manual source change does.
-        if (manual || previousPlaybackRef !== track.playbackRef) { this.notifyTrackMetadata(track); }
+        if (manual || this.recoveryRunning || previousPlaybackRef !== track.playbackRef) { this.notifyTrackMetadata(track); }
       } catch (err) {
         this.failRequest(request, err instanceof ApiError ? err.code : 'RESOLUTION');
         return;
@@ -435,7 +519,7 @@ export class PlayerViewModel {
     }
     const callbacks: PlaybackCallbacks = {
       onStateChange: (s: PlayerState): void => {
-        if (!this.isCurrentRequest(request)) { return; }
+        if (!this.isCurrentRequest(request) || session !== this.session) { return; }
         this.state = s;
         if (s === PlayerState.PLAYING || s === PlayerState.PAUSED) {
           this.errorText = ''; this.errorCode = ''; this.recoveryAction = '';
@@ -443,7 +527,7 @@ export class PlayerViewModel {
         this.syncBackground(true);
       },
       onPositionUpdate: (ms: number): void => {
-        if (!this.isCurrentRequest(request)) { return; }
+        if (!this.isCurrentRequest(request) || session !== this.session) { return; }
         this.positionMs = ms;
         this.checkSleepTimer();
         if (this.durationMs <= 0) {
@@ -458,7 +542,7 @@ export class PlayerViewModel {
         this.syncBackground(false);
       },
       onTrackEnded: (): void => {
-        if (!this.isCurrentRequest(request)) { return; }
+        if (!this.isCurrentRequest(request) || session !== this.session) { return; }
         this.state = PlayerState.COMPLETED;
         this.syncBackground(true);
         if (this.endedHandler !== null) {
@@ -466,7 +550,9 @@ export class PlayerViewModel {
         }
       },
       onError: (msg: string): void => {
-        this.failRequest(request, streaming ? 'MEDIA_READ_FAILED' : '');
+        if (!this.isCurrentRequest(request) || session !== this.session) { return; }
+        if (streaming) { this.recoverStream(request).catch(() => { this.failRequest(request, 'PLAYBACK_RECOVERY_FAILED'); }); }
+        else { this.failRequest(request); }
       }
     };
     try {
@@ -475,7 +561,7 @@ export class PlayerViewModel {
       } else {
         await session.playFile(abs, callbacks);
       }
-      if (!this.isCurrentRequest(request) || this.state === PlayerState.ERROR) { return; }
+      if (!this.isCurrentRequest(request) || session !== this.session || this.state === PlayerState.ERROR) { return; }
       session.setVolume(this.volume);
       if (startMs > 0) {
         session.seekTo(startMs);
@@ -496,7 +582,8 @@ export class PlayerViewModel {
         LibraryStore.getInstance().insertHistory(track.id).catch(() => {
         });
       }
-      if (this.isCurrentRequest(request) && this.playbackReadyHandler !== null) {
+      if (this.isCurrentRequest(request) && !this.readyNotified && this.playbackReadyHandler !== null) {
+        this.readyNotified = true;
         try {
           this.playbackReadyHandler(request);
         } catch (err) {
@@ -504,7 +591,10 @@ export class PlayerViewModel {
         }
       }
     } catch (err) {
-      this.failRequest(request, streaming ? 'MEDIA_READ_FAILED' : '');
+      if (this.isCurrentRequest(request) && session === this.session) {
+        if (streaming) { await this.recoverStream(request); }
+        else { this.failRequest(request); }
+      }
       await session.release();
     }
   }
@@ -537,6 +627,9 @@ export class PlayerViewModel {
 
   /** 启动恢复:只还原界面状态与进度,不打开文件;按播放时从断点续播 */
   restorePaused(track: Track, positionMs: number, context: common.Context): void {
+    this.clearRecoveryTimer();
+    this.recoveryRunning = false;
+    this.recoveryAttempts = 0;
     this.resolutionCancel?.();
     this.resolutionCancel = null;
     this.requestVersion++;
