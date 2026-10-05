@@ -1,7 +1,7 @@
 import { common } from '@kit.AbilityKit';
 import { ApiClient, ApiError, ApiJsonResult } from './ApiClient';
 import { DreamMusicAuth } from './DreamMusicAuth';
-import { OnlineSong, OnlineSearchGroup, AudioIntegrity } from '../../model/Entities';
+import { OnlineSong, OnlineSearchGroup, AudioIntegrity, AutomaticPlaybackOutcome } from '../../model/Entities';
 import {
   classifyPlaybackError,
   DIAGNOSTIC_CATEGORY_EMPTY_PLAYBACK_URL,
@@ -96,6 +96,7 @@ interface MediaIdentity {
 export interface PlaybackResolution extends MediaIdentity {
   url: string;
   audioIntegrity?: AudioIntegrity;
+  playback?: AutomaticPlaybackOutcome;
 }
 
 interface MediaSong extends MediaIdentity {
@@ -129,6 +130,7 @@ interface MediaUrlResponse extends UpstreamEnvelope, MediaIdentity {
   data?: UrlEntry[];
   mediaRef?: string;
   audioIntegrity?: AudioIntegrity;
+  playback?: AutomaticPlaybackOutcome;
 }
 
 interface MediaDetailResponse extends UpstreamEnvelope {
@@ -312,7 +314,9 @@ export class NetEaseApi {
         const groups: OnlineSearchGroup[] = [];
         if (wrapper.groups !== undefined) {
           for (const group of wrapper.groups) {
-            groups.push({ id: group.id, entries: NetEaseApi.mediaSongs(group.entries), reason: group.reason,
+            const entries = NetEaseApi.mediaSongs(group.entries);
+            for (const song of entries) { song.automaticSearchSession = wrapper.searchSession; }
+            groups.push({ id: group.id, entries: entries, reason: group.reason,
               selectedRef: '', expanded: false });
           }
         }
@@ -368,7 +372,11 @@ export class NetEaseApi {
   }
 
   /** 返回真实音频身份；旧调用仍可通过 resolveUrl 只取 URL。 */
-  static async resolvePlayback(context: common.Context, id: number, mediaRef: string = ''): Promise<PlaybackResolution> {
+  static async resolvePlayback(context: common.Context, id: number, mediaRef: string = '',
+    automaticSearchSession: string = '', registerCancel: ((cancel: () => void) => void) | null = null): Promise<PlaybackResolution> {
+    let cancelled = false;
+    let cancelHttp: (() => void) | null = null;
+    registerCancel?.(() => { cancelled = true; cancelHttp?.(); });
     const versioned = mediaRef !== '';
     const base = versioned ? await DreamMusicAuth.baseV2(context) : await DreamMusicAuth.base(context);
     const params: Record<string, string> = {};
@@ -379,13 +387,22 @@ export class NetEaseApi {
     }
     params['level'] = QUALITY_LEVEL;
     params['randomCNIP'] = 'true';
+    if (versioned && automaticSearchSession !== '') {
+      params['automatic'] = 'true';
+      params['searchSession'] = automaticSearchSession;
+    }
     const startedAt = Date.now();
     try {
-      const res: ApiJsonResult = await NetEaseApi.withQueryRetry<ApiJsonResult>(
-        () => DreamMusicAuth.withApiKey(context, (headers: Record<string, string>) => {
-          return ApiClient.getJson(base, '/song/url/v1', params, headers);
-        })
-      );
+      const resolve = (): Promise<ApiJsonResult> => DreamMusicAuth.withApiKey(context, (headers: Record<string, string>) => {
+        if (cancelled) { throw new ApiError('PLAYBACK_CANCELLED', '播放解析已取消'); }
+        return ApiClient.getJson(base, '/song/url/v1', params, headers, (cancel: () => void): void => {
+          cancelHttp = cancel;
+          if (cancelled) { cancel(); }
+        });
+      });
+      // Automatic playback owns one budget; transport retries must not restart it.
+      const res: ApiJsonResult = automaticSearchSession !== '' ? await resolve() :
+        await NetEaseApi.withQueryRetry<ApiJsonResult>(resolve);
       const wrapper = versioned ? res.body as MediaUrlResponse : res.body as SongUrlResponse;
       ensureUpstreamOk(wrapper);
       playbackDiagnostics.record({
@@ -408,6 +425,7 @@ export class NetEaseApi {
       const identity = res.body as MediaUrlResponse;
       return {
         url: url,
+        playback: identity.playback,
         audioIntegrity: wrapper.audioIntegrity !== undefined ? wrapper.audioIntegrity : {
           status: url === '' ? 'unavailable' : 'unknown', reason: url === '' ? 'empty_url' : 'missing_evidence',
           catalogDurationMs: 0, resourceDurationMs: 0, evidence: []
@@ -432,6 +450,8 @@ export class NetEaseApi {
         errorCategory: category
       });
       throw e;
+    } finally {
+      registerCancel?.(() => {});
     }
   }
 

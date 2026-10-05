@@ -12,6 +12,7 @@ export function createOnlineTrack(song: OnlineSong): Track {
     coverPath: '', importedAt: Date.now(), missing: false,
     neteaseId: netease && song.id > 0 ? song.id : 0, streamUrl: '', streamCoverUrl: song.coverUrl,
     mediaRef: song.mediaRef, catalogRef: catalogRef,
+    automaticSearchSession: song.automaticSearchSession,
     playbackRef: song.playbackRef !== undefined ? song.playbackRef : song.mediaRef,
     lyricsRef: song.lyricsRef !== undefined ? song.lyricsRef : song.mediaRef,
     playbackSource: song.playbackSource, lyricsSource: song.lyricsSource

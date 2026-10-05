@@ -47,17 +47,28 @@ export class ApiError extends Error {
 export class ApiClient {
   /** GET JSON(headers 如 {'X-API-Key': key} 或 {'Cookie': 'dm_session=...'}) */
   static async getJson(baseUrl: string, path: string, params: Record<string, string>,
-    headers: Record<string, string>): Promise<ApiJsonResult> {
+    headers: Record<string, string>, registerCancel: ((cancel: () => void) => void) | null = null): Promise<ApiJsonResult> {
     const url = ApiClient.buildUrl(baseUrl, path, params);
     const client = http.createHttp();
+    let cancelled = false;
+    let rejectCancel: ((error: ApiError) => void) | null = null;
+    const cancellation = new Promise<http.HttpResponse>((resolve, reject) => {
+      rejectCancel = (error: ApiError): void => { reject(error); };
+    });
+    registerCancel?.(() => {
+      cancelled = true;
+      rejectCancel?.(new ApiError('PLAYBACK_CANCELLED', '播放解析已取消'));
+      client.destroy();
+    });
     try {
-      const resp = await client.request(url, {
+      if (cancelled) { return ApiClient.parseJsonResponse(await cancellation); }
+      const resp = await Promise.race([cancellation, client.request(url, {
         method: http.RequestMethod.GET,
         header: ApiClient.toHeader(headers),
         expectDataType: http.HttpDataType.STRING,
         connectTimeout: JSON_TIMEOUT_MS,
         readTimeout: JSON_TIMEOUT_MS
-      });
+      })]);
       return ApiClient.parseJsonResponse(resp);
     } catch (err) {
       if (err instanceof ApiError) {
@@ -71,6 +82,7 @@ export class ApiClient {
       }
       throw new ApiError('NETWORK', '网络请求失败:' + e.message);
     } finally {
+      registerCancel?.(() => {});
       client.destroy();
     }
   }

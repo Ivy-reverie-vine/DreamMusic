@@ -11,6 +11,25 @@ export interface AudioIntegrity {
   evidence: string[];
 }
 
+export interface PlaybackAttempt {
+  mediaRef: string;
+  source: string;
+  status: string;
+  reason?: string;
+  matchReason: string;
+  audioIntegrity?: AudioIntegrity;
+}
+
+export interface AutomaticPlaybackOutcome {
+  status: string;
+  reason: string;
+  totalBudgetMs: number;
+  stageBudgetMs: number;
+  elapsedMs: number;
+  remainingBudgetMs: number;
+  attempts: PlaybackAttempt[];
+}
+
 export interface Track {
   id: number;
   /** 沙箱相对路径,音乐库唯一键(ADR-0001) */
@@ -32,6 +51,8 @@ export interface Track {
   streamCoverUrl?: string;
   /** v2 版本化来源引用;不包含可直接播放的 URL */
   mediaRef?: string;
+  automaticSearchSession?: string;
+  playbackOutcome?: AutomaticPlaybackOutcome;
   catalogRef?: string;
   playbackRef?: string;
   lyricsRef?: string;
@@ -54,6 +75,7 @@ export interface OnlineSong {
   originalTitle?: string;
   /** v2 来源引用;普通在线播放和歌词请求使用它 */
   mediaRef?: string;
+  automaticSearchSession?: string;
   source?: string;
   sourceId?: string;
   catalogRef?: string;

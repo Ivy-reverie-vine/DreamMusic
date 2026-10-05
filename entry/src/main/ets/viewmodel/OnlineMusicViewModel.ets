@@ -89,9 +89,10 @@ export class OnlineMusicViewModel {
   }
 
   /** 在线资料页复用搜索页的即时播放 + 后台入库链路。 */
-  async playSong(context: common.Context, song: OnlineSong): Promise<void> {
+  async playSong(context: common.Context, song: OnlineSong, automatic: boolean = false): Promise<void> {
     const mediaRef = song.mediaRef !== undefined ? song.mediaRef : '';
     const transient = createOnlineTrack(song);
+    if (!automatic) { transient.automaticSearchSession = undefined; }
     const request = playerViewModel.beginTrack(transient, context, (readyRequest: number): void => {
       const expected = playerViewModel.currentTrack;
       if (expected === null || expected.id >= 0) { return; }
@@ -131,13 +132,18 @@ export class OnlineMusicViewModel {
     queueViewModel.selectFromList([transient], 0, context, request);
     try {
       const ref = transient.playbackRef !== undefined ? transient.playbackRef : '';
-      const resolution = await NetEaseApi.resolvePlayback(context, transient.neteaseId, ref);
+      const resolution = await NetEaseApi.resolvePlayback(context, transient.neteaseId, ref,
+        transient.automaticSearchSession ?? '', (cancel: () => void): void => { playerViewModel.setResolutionCancel(request, cancel); });
       if (!playerViewModel.isCurrentRequest(request)) { return; }
       if (transient.catalogRef !== undefined && transient.catalogRef !== '' &&
         resolution.catalogRef !== transient.catalogRef) {
         throw new ApiError('IDENTITY_MISMATCH', '播放目录身份不一致');
       }
       transient.audioIntegrity = resolution.audioIntegrity;
+      transient.playbackOutcome = resolution.playback;
+      if (resolution.playback !== undefined && resolution.playback.status !== 'success') {
+        throw new ApiError('PLAYBACK_' + resolution.playback.status.toUpperCase(), '暂无可靠完整版音频');
+      }
       if (resolution.url === '') { throw new ApiError('EMPTY_URL', '暂无可播放音频'); }
       if (resolution.audioIntegrity?.status !== 'full') {
         const status = resolution.audioIntegrity?.status ?? 'unknown';

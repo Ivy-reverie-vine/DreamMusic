@@ -446,8 +446,10 @@ likelist?uid=<neteaseUid>
 - 鸿蒙网易云转发调用：`DreamMusic/entry/src/main/ets/service/network/NetEaseApi.ets`
 ## T01 来源身份扩展（2026-10-04）
 
-NightDream `/dreammusic/api/v2` 兼容增加 `catalogRef`（目录）、`playbackRef`（音频）、`lyricsRef`（歌词）及 `playbackSource` / `lyricsSource`。原有具体资源 `mediaRef` 不改含义；当前单来源切片的三个引用均指向原资源，自动跨源解析尚未实现。
+NightDream `/dreammusic/api/v2` 兼容增加 `catalogRef`（目录）、`playbackRef`（音频）、`lyricsRef`（歌词）及 `playbackSource` / `lyricsSource`。原有具体资源 `mediaRef` 不改含义；普通单来源请求的三个引用均指向原资源。合并搜索主行点播携带 `automatic=true` 与按用户隔离的 `searchSession`，从服务端确认的同录音组寻找首个可靠完整版；音频引用/实际来源改变时原目录与歌词引用仍保持原条目。展开来源的手动点播仍是具体单资源解析。
 
 客户端从目录引用请求 `/song/detail?mediaRef=...`，从音频引用请求 `/song/url/v1?mediaRef=...`，从歌词引用请求 `/lyric/new?mediaRef=...`。旧服务端缺少新字段时沿用 `mediaRef`；旧 v1 数字 ID 调用保留。播放器消费实际解析身份并显示来源，原目录标题、歌手、已有封面保持稳定；非网易实际音频不得进入网易数字 ID 入库链。
+
+自动条目的播放/重试使用原目录引用和原搜索会话；会话失效提示重新搜索，不转成另一录音。`playback` 保存终态、预算和尝试证据：success/exhausted/timeout/cancelled。默认总预算10秒，普通平台阶段7秒，预留3秒；B站尚未启用。自动请求不做会重启预算的网络重试，切歌取消旧 HTTP。只有 `audioIntegrity=full` 才交给播放器；失败终态显示重试/搜索来源选择。详细契约见同级 NightDream `docs/automatic-playback.md`，验收见 [issue #25 记录](research/issue-25-validation.md)。
 
 完整契约见 `NightDream/docs/media-ref-v2.md`，本轮实现与证据边界见 [Issue #20 验收记录](research/issue-20-validation.md)。

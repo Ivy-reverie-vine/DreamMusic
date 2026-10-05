@@ -29,6 +29,7 @@ export class PlayerViewModel {
   errorCode: string = '';
   recoveryAction: string = '';
   private requestVersion: number = 0;
+  private resolutionCancel: (() => void) | null = null;
   private playbackReadyHandler: ((request: number) => void) | null = null;
 
   get statusText(): string {
@@ -55,6 +56,11 @@ export class PlayerViewModel {
 
   isCurrentRequest(request: number): boolean { return request === this.requestVersion; }
 
+  setResolutionCancel(request: number, cancel: () => void): void {
+    if (!this.isCurrentRequest(request)) { cancel(); return; }
+    this.resolutionCancel = cancel;
+  }
+
   /** 在本地查找/在线解析前即选择音轨，取消旧会话并显示准备状态。 */
   beginTrack(track: Track, context: common.Context,
     onReady: ((request: number) => void) | null = null): number {
@@ -62,6 +68,8 @@ export class PlayerViewModel {
       this.clearSleepTimerHandle();
       this.notifySleepTimerChanged();
     }
+    this.resolutionCancel?.();
+    this.resolutionCancel = null;
     const request = ++this.requestVersion;
     const previous = this.session;
     this.session = new PlayerSession();
@@ -107,6 +115,14 @@ export class PlayerViewModel {
       this.errorText = '当前来源只提供试听片段，请重试或在搜索结果中选择其他来源';
     } else if (code === 'AUDIO_UNKNOWN') {
       this.errorText = '暂时无法确认音频是否完整，请重试或在搜索结果中选择其他来源';
+    } else if (code === 'PLAYBACK_TIMEOUT') {
+      this.errorText = '寻找完整版已超时，请重试或在搜索结果中选择来源';
+    } else if (code === 'PLAYBACK_EXHAUSTED') {
+      this.errorText = '音乐平台暂无可靠完整版，请重试或在搜索结果中选择来源';
+    } else if (code === 'PLAYBACK_CANCELLED') {
+      this.errorText = '播放解析已取消';
+    } else if (code === 'INVALID_SEARCH_SESSION') {
+      this.errorText = '搜索结果已过期，请重新搜索后点播';
     } else if (code === 'MEDIA_READ_FAILED') {
       this.errorText = '音频读取失败，请重试或在搜索结果中选择其他来源';
     } else if (code === 'EMPTY_URL' || code === 'AUDIO_UNAVAILABLE') {
@@ -285,17 +301,23 @@ export class PlayerViewModel {
     let streamUrl = track.streamUrl !== undefined ? track.streamUrl : '';
     if (streaming) {
       try {
-        const playbackRef = track.playbackRef !== undefined ? track.playbackRef :
+        const playbackRef = track.automaticSearchSession !== undefined ? (track.catalogRef ?? '') :
+          track.playbackRef !== undefined ? track.playbackRef :
           (track.mediaRef !== undefined ? track.mediaRef : '');
         const resolution = prepared !== null ? prepared :
-          await NetEaseApi.resolvePlayback(context, track.neteaseId, playbackRef);
+          await NetEaseApi.resolvePlayback(context, track.neteaseId, playbackRef,
+            track.automaticSearchSession ?? '', (cancel: () => void): void => { this.setResolutionCancel(request, cancel); });
         if (!this.isCurrentRequest(request)) { return; }
         if (track.catalogRef !== undefined && track.catalogRef !== '' &&
           resolution.catalogRef !== track.catalogRef) {
           this.failRequest(request, 'IDENTITY_MISMATCH'); return;
         }
         streamUrl = resolution.url;
+        track.playbackOutcome = resolution.playback;
         track.audioIntegrity = resolution.audioIntegrity;
+        if (resolution.playback !== undefined && resolution.playback.status !== 'success') {
+          this.failRequest(request, 'PLAYBACK_' + resolution.playback.status.toUpperCase()); return;
+        }
         if (streamUrl === '') { this.failRequest(request, 'EMPTY_URL'); return; }
         if (resolution.audioIntegrity?.status !== 'full') {
           this.failRequest(request, 'AUDIO_' + (resolution.audioIntegrity?.status ?? 'unknown').toUpperCase()); return;
@@ -439,6 +461,8 @@ export class PlayerViewModel {
 
   /** 启动恢复:只还原界面状态与进度,不打开文件;按播放时从断点续播 */
   restorePaused(track: Track, positionMs: number, context: common.Context): void {
+    this.resolutionCancel?.();
+    this.resolutionCancel = null;
     this.requestVersion++;
     this.session.release().catch(() => {});
     this.session = new PlayerSession();

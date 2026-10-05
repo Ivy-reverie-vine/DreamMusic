@@ -61,14 +61,14 @@ export struct OnlineSearchView {
     this.search.changeKeyword(this.ctx(), v);
   }
 
-  private async streamAndPlay(song: OnlineSong): Promise<void> {
+  private async streamAndPlay(song: OnlineSong, automatic: boolean = false): Promise<void> {
     if (this.busyId !== -1 || this.busyRef !== '') { return; }
     this.busyId = song.id;
     this.busyRef = song.mediaRef !== undefined ? song.mediaRef : '';
     this.progressText = '正在加载音乐…';
     this.errorText = '';
     this.errorCode = '';
-    const playback = onlineMusicViewModel.playSong(this.ctx(), song);
+    const playback = onlineMusicViewModel.playSong(this.ctx(), song, automatic);
     const request = playerViewModel.requestId;
     try {
       await playback;
@@ -91,10 +91,10 @@ export struct OnlineSearchView {
     }
   }
 
-  private playEntry(group: OnlineSearchGroup, song: OnlineSong): void {
+  private playEntry(group: OnlineSearchGroup, song: OnlineSong, automatic: boolean = false): void {
     if (this.busyId !== -1 || this.busyRef !== '') { return; }
     if (song.mediaRef !== undefined) { this.search.selectEntry(group.id, song.mediaRef); }
-    this.streamAndPlay(song);
+    this.streamAndPlay(song, automatic);
   }
 
   /** 只有网络/上游类错误才算离线;401/403/301 说明中间层可达,保持在线 */
@@ -144,7 +144,7 @@ export struct OnlineSearchView {
   }
 
   @Builder
-  ResultRow(song: OnlineSong, group: OnlineSearchGroup) {
+  ResultRow(song: OnlineSong, group: OnlineSearchGroup, automatic: boolean = false) {
     Row({ space: 12 }) {
       this.Cover(song.coverUrl)
       Column({ space: 3 }) {
@@ -186,14 +186,14 @@ export struct OnlineSearchView {
       pressed: { .backgroundColor(ThemeService.alpha(this.theme.primary, 0.1)) }
     })
     .onClick(() => {
-      this.playEntry(group, song);
+      this.playEntry(group, song, automatic);
     })
   }
 
   @Builder
   GroupRow(group: OnlineSearchGroup) {
     Column({ space: SPACE_SM }) {
-      this.ResultRow(this.search.groupSong(group), group)
+      this.ResultRow(this.search.groupSong(group), group, true)
       if (group.entries.length > 1) {
         Button((group.expanded ? '收起' : '展开') + group.entries.length + ' 个来源条目')
           .fontSize(FONT_LABEL)
