@@ -33,6 +33,14 @@ export class QueueViewModel {
   private trackCache: Track[] = [];
 
   constructor() {
+    playerViewModel.replaceQueueEntryHandler = (previous: Track, selected: Track): boolean => {
+      if (this.engine.current() !== previous.id || playerViewModel.currentTrack !== previous ||
+        !this.engine.replaceCurrentTrackId(previous.id, selected.id)) { return false; }
+      this.trackCache.push(selected);
+      this.syncDisplay();
+      this.persist(0);
+      return true;
+    };
     // 播放自然结束 → 队列域接管切歌
     playerViewModel.endedHandler = (): void => {
       this.handleTrackEnded();
@@ -310,6 +318,8 @@ export class QueueViewModel {
       automaticSearchSession: expected.automaticSearchSession, playbackOutcome: expected.playbackOutcome,
       sourceSearchSession: expected.sourceSearchSession, sourceOptions: expected.sourceOptions,
       manualPlaybackRef: expected.manualPlaybackRef,
+      otherRecordingOrigin: expected.otherRecordingOrigin, manualCandidate: expected.manualCandidate,
+      lyricsMode: expected.lyricsMode,
       catalogRef: expected.catalogRef, playbackRef: expected.playbackRef, lyricsRef: expected.lyricsRef,
       playbackSource: expected.playbackSource, lyricsSource: expected.lyricsSource
     };

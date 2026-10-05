@@ -112,6 +112,10 @@ export interface Track {
   sourceSearchSession?: string;
   sourceOptions?: OnlineSong[];
   manualPlaybackRef?: string;
+  /** 明确选择其他录音的原目录，只用于候选授权，不作为收藏或歌词身份。 */
+  otherRecordingOrigin?: string;
+  manualCandidate?: BilibiliFallbackCandidate;
+  lyricsMode?: string;
   catalogRef?: string;
   playbackRef?: string;
   lyricsRef?: string;

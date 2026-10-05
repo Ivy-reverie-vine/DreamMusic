@@ -6,7 +6,8 @@ import { BackgroundPlayback } from '../service/playback/BackgroundPlayback';
 import { LibraryStore } from '../service/library/LibraryStore';
 import { PlayMode } from '../service/playback/QueueEngine';
 import { PlayerState } from '../model/Playback';
-import { OnlineSong, Track } from '../model/Entities';
+import { BilibiliFallbackCandidate, OnlineSong, Track } from '../model/Entities';
+import { createOnlineTrack } from '../model/OnlineTrackIdentity';
 import { DreamMusicAuth } from '../service/network/DreamMusicAuth';
 import { SleepTimer, SleepTimerSnapshot } from '../service/playback/SleepTimer';
 import { NetEaseApi, PlaybackResolution } from '../service/network/NetEaseApi';
@@ -59,6 +60,35 @@ export class PlayerViewModel {
   isCurrentRequest(request: number): boolean { return request === this.requestVersion; }
 
   get sourceOptions(): OnlineSong[] { return this.currentTrack?.sourceOptions ?? []; }
+
+  get otherRecordingOptions(): BilibiliFallbackCandidate[] {
+    return (this.currentTrack?.playbackOutcome?.bilibili?.candidates ?? [])
+      .filter((candidate: BilibiliFallbackCandidate): boolean => candidate.status === 'manual' &&
+        candidate.mediaRef !== undefined && candidate.resource !== undefined);
+  }
+
+  /** 队列域原位替换当前选择；不得复用原曲数据库/收藏身份。 */
+  replaceQueueEntryHandler: ((previous: Track, selected: Track) => boolean) | null = null;
+
+  async selectOtherRecording(mediaRef: string): Promise<void> {
+    const previous = this.currentTrack;
+    const candidate = this.otherRecordingOptions.find((item: BilibiliFallbackCandidate): boolean => item.mediaRef === mediaRef);
+    if (previous === null || candidate === undefined || this.lastContext === null ||
+      this.state === PlayerState.PREPARING || !previous.sourceSearchSession || !previous.catalogRef) { return; }
+    const selected = createOnlineTrack({ id: 0, name: candidate.title,
+      artist: (candidate.match?.evidence.artists ?? []).join(' / '), album: candidate.resource?.title ?? '',
+      durationMs: candidate.durationMs ?? 0, coverUrl: '', source: candidate.source,
+      mediaRef: mediaRef, catalogRef: mediaRef, lyricsRef: '', lyricsSource: '' });
+    selected.manualPlaybackRef = mediaRef;
+    selected.otherRecordingOrigin = previous.otherRecordingOrigin ?? previous.catalogRef;
+    selected.manualCandidate = candidate;
+    selected.lyricsMode = 'none';
+    selected.sourceSearchSession = previous.sourceSearchSession;
+    selected.playbackOutcome = previous.playbackOutcome;
+    if (this.replaceQueueEntryHandler === null || !this.replaceQueueEntryHandler(previous, selected)) { return; }
+    const request = this.beginTrack(selected, this.lastContext);
+    await this.playTrack(selected, this.lastContext, 0, request);
+  }
 
   /** 只变更当前条目的音频；搜索新建条目时不复制这个选择。 */
   async selectSource(mediaRef: string): Promise<void> {
@@ -330,7 +360,8 @@ export class PlayerViewModel {
         const resolution = prepared !== null ? prepared :
           await NetEaseApi.resolvePlayback(context, track.neteaseId, playbackRef,
             (manual ? track.sourceSearchSession : track.automaticSearchSession) ?? '',
-            (cancel: () => void): void => { this.setResolutionCancel(request, cancel); }, manual ? track.catalogRef ?? '' : '');
+            (cancel: () => void): void => { this.setResolutionCancel(request, cancel); },
+            manual ? track.otherRecordingOrigin ?? track.catalogRef ?? '' : '', track.otherRecordingOrigin !== undefined);
         if (!this.isCurrentRequest(request)) { return; }
         if (track.catalogRef !== undefined && track.catalogRef !== '' &&
           resolution.catalogRef !== track.catalogRef) {
@@ -342,6 +373,20 @@ export class PlayerViewModel {
         streamUrl = resolution.url;
         if (!manual) { track.playbackOutcome = resolution.playback; }
         track.audioIntegrity = resolution.audioIntegrity;
+        if (track.otherRecordingOrigin !== undefined) {
+          const choice = resolution.manualSelection;
+          if (choice?.originalCatalogRef !== track.otherRecordingOrigin || choice.lyricsMode !== 'none' ||
+            choice.entry === undefined || choice.entry === null) {
+            this.failRequest(request, 'IDENTITY_MISMATCH'); return;
+          }
+          track.title = choice.entry.title;
+          track.artist = choice.entry.artists.join(' / ');
+          track.album = choice.entry.album.name ?? '';
+          track.durationMs = choice.entry.durationMs;
+          track.streamCoverUrl = choice.entry.album.pictureUrl ?? '';
+          this.durationMs = track.durationMs;
+          this.notifyTrackMetadata(track);
+        }
         if (resolution.playback !== undefined && resolution.playback.status !== 'success') {
           this.failRequest(request, 'PLAYBACK_' + resolution.playback.status.toUpperCase()); return;
         }

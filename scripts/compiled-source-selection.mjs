@@ -28,7 +28,7 @@ export function sourceSelectionHarness(player, PlayerState, searchSourceName) {
   } });
   const { SourceSelection } = runInNewContext(`${stripTypeScriptTypes(source, { mode: 'transform' })}\n({SourceSelection})`, {
     ViewPU, Reflect, ObservedPropertyObjectPU: Property, ObservedPropertySimplePU: Property,
-    ThemeService: { getInstance: () => ({ primaryText: '#68c4bb', muted: '#a8b0b3', transparent: '#00000000', errorColor: '#ef9898' }) },
+    ThemeService: { getInstance: () => ({ ink: '#F2F5F6', primaryText: '#68c4bb', muted: '#a8b0b3', transparent: '#00000000', errorColor: '#ef9898' }) },
     playerViewModel: player, PlayerState, searchSourceName, CONTROL_HIT_SIZE: 48, FONT_BODY: 15, FONT_LABEL: 12, SPACE_SM: 8,
     HorizontalAlign: { Start: 0 }, If: node('If'), Column: node('Column'), Button: node('Button'), Text: node('Text'), ForEach: node('ForEach'),
   });

@@ -1,0 +1,739 @@
+{
+  "date": "2026-10-05 Asia/Shanghai",
+  "boundary": "Real NetEase/Bilibili HTTP → actual gateway → actual ArkTS API/player/queue/lyrics + compiled controls. Local disposable auth/SQLite, Kit media and ArkUI rendering controlled. No real decoding/device evidence.",
+  "catalog": {
+    "id": 18520488,
+    "title": "Never Gonna Give You Up",
+    "artist": "Rick Astley"
+  },
+  "chosen": {
+    "title": "【sky光遇】 Never gonna give you up 完整版sky studio 整活专用 语瞳原创",
+    "resource": {
+      "bvid": "BV1KR4y1w7A3",
+      "cid": "723641888",
+      "page": 1,
+      "title": "【sky光遇】 Never gonna give you up 完整版sky studio 整活专用 语瞳原创",
+      "partTitle": "【sky光遇】 Never gonna give you up 完整版sky studio 整活专用 语瞳原创",
+      "uploader": {
+        "id": "479784248",
+        "name": "Sky光遇琴谱_瞳"
+      }
+    },
+    "reason": "recording_provenance_missing",
+    "match": {
+      "status": "manual",
+      "reason": "recording_provenance_missing",
+      "evidence": {
+        "policy": "bilibili-credits-v1",
+        "title": "",
+        "artists": [],
+        "album": "",
+        "catalogDurationMs": 214018,
+        "partDurationMs": 251000,
+        "catalogLink": false,
+        "originalAlbumAudio": false
+      }
+    }
+  },
+  "records": [
+    {
+      "step": "real automatic rejection; discovered manual candidates",
+      "state": "ERROR",
+      "queueId": -2,
+      "title": "Never Gonna Give You Up",
+      "artist": "Rick Astley",
+      "catalogRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJhcGktZW5oYW5jZWQiLCJzb3VyY2VJZCI6IjE4NTIwNDg4Iiwia2luZCI6InNvbmcifQ",
+      "integrity": {
+        "status": "unavailable",
+        "reason": "playback_exhausted",
+        "catalogDurationMs": 0,
+        "resourceDurationMs": 0,
+        "evidence": []
+      },
+      "errorCode": "PLAYBACK_EXHAUSTED",
+      "lyricsState": "ready",
+      "activeLyric": -1,
+      "controls": [
+        {
+          "kind": "Button",
+          "text": "选择同录音来源",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "为当前队列曲目选择同录音来源"
+        },
+        {
+          "kind": "Button",
+          "text": "收起其他录音候选",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "查看自动拒绝的其他录音与额外片段候选"
+        },
+        {
+          "kind": "Text",
+          "text": "选择后成为独立曲目，仅替换当前队列条目；不会沿用原曲收藏或同步歌词",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#a8b0b3",
+          "width": "100%"
+        },
+        {
+          "kind": "Text",
+          "text": "【sky光遇】 Never gonna give you up 完整版sky studio 整活专用 语瞳原创",
+          "enabled": true,
+          "fontSize": 15,
+          "fontColor": "#F2F5F6",
+          "width": "100%"
+        },
+        {
+          "kind": "Text",
+          "text": "bilibili · 录音版本未确认 · P1\n【sky光遇】 Never gonna give you up 完整版sky studio 整活专用 语瞳原创\n缺少原录音来源证据\n音频完整性待解析确认",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#a8b0b3",
+          "width": "100%"
+        },
+        {
+          "kind": "Button",
+          "text": "选择候选：【sky光遇】 Never gonna give you up 完整版sky studio 整活专用 语瞳原创",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "width": "100%",
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "选择【sky光遇】 Never gonna give you up 完整版sky studio 整活专用 语瞳原创，作为独立曲目播放"
+        },
+        {
+          "kind": "Text",
+          "text": "Rick Astley - Never Gonna Give You Up动态鼓谱",
+          "enabled": true,
+          "fontSize": 15,
+          "fontColor": "#F2F5F6",
+          "width": "100%"
+        },
+        {
+          "kind": "Text",
+          "text": "bilibili · 录音版本未确认 · P1\nRick Astley - Never Gonna Give You Up动态鼓谱\n不同录音或可能含对白、前后奏、剪辑\n音频完整性待解析确认",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#a8b0b3",
+          "width": "100%"
+        },
+        {
+          "kind": "Button",
+          "text": "选择候选：Rick Astley - Never Gonna Give You Up动态鼓谱",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "width": "100%",
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "选择Rick Astley - Never Gonna Give You Up动态鼓谱，作为独立曲目播放"
+        },
+        {
+          "kind": "Text",
+          "text": "",
+          "enabled": true,
+          "fontSize": 15,
+          "fontColor": "#F2F5F6",
+          "width": "100%"
+        },
+        {
+          "kind": "Text",
+          "text": "bilibili · 录音版本未确认 · P1\nTwo Steps From Hell - Never Give Up On Your Dreams\n缺少原录音来源证据\n音频完整性待解析确认",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#a8b0b3",
+          "width": "100%"
+        },
+        {
+          "kind": "Button",
+          "text": "选择候选：",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "width": "100%",
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "选择，作为独立曲目播放"
+        },
+        {
+          "kind": "Text",
+          "text": "Never gonna give you up慢速略降调＋3D环绕声",
+          "enabled": true,
+          "fontSize": 15,
+          "fontColor": "#F2F5F6",
+          "width": "100%"
+        },
+        {
+          "kind": "Text",
+          "text": "bilibili · 录音版本未确认 · P1\nNever gonna give you up慢速略降调＋3D环绕声\n不同录音或可能含对白、前后奏、剪辑\n音频完整性待解析确认",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#a8b0b3",
+          "width": "100%"
+        },
+        {
+          "kind": "Button",
+          "text": "选择候选：Never gonna give you up慢速略降调＋3D环绕声",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "width": "100%",
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "选择Never gonna give you up慢速略降调＋3D环绕声，作为独立曲目播放"
+        },
+        {
+          "kind": "Text",
+          "text": "8D Never Gonna Give You Up",
+          "enabled": true,
+          "fontSize": 15,
+          "fontColor": "#F2F5F6",
+          "width": "100%"
+        },
+        {
+          "kind": "Text",
+          "text": "bilibili · 录音版本未确认 · P1\n【8D环绕】《Never Gonna Give You Up》-Rick Astley\n不同录音或可能含对白、前后奏、剪辑\n音频完整性待解析确认",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#a8b0b3",
+          "width": "100%"
+        },
+        {
+          "kind": "Button",
+          "text": "选择候选：8D Never Gonna Give You Up",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "width": "100%",
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "选择8D Never Gonna Give You Up，作为独立曲目播放"
+        }
+      ]
+    },
+    {
+      "step": "real candidate selected; explicit confirmation pending",
+      "state": "ERROR",
+      "queueId": -2,
+      "title": "Never Gonna Give You Up",
+      "artist": "Rick Astley",
+      "catalogRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJhcGktZW5oYW5jZWQiLCJzb3VyY2VJZCI6IjE4NTIwNDg4Iiwia2luZCI6InNvbmcifQ",
+      "integrity": {
+        "status": "unavailable",
+        "reason": "playback_exhausted",
+        "catalogDurationMs": 0,
+        "resourceDurationMs": 0,
+        "evidence": []
+      },
+      "errorCode": "PLAYBACK_EXHAUSTED",
+      "lyricsState": "ready",
+      "activeLyric": -1,
+      "controls": [
+        {
+          "kind": "Button",
+          "text": "选择同录音来源",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "为当前队列曲目选择同录音来源"
+        },
+        {
+          "kind": "Button",
+          "text": "收起其他录音候选",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "查看自动拒绝的其他录音与额外片段候选"
+        },
+        {
+          "kind": "Text",
+          "text": "选择后成为独立曲目，仅替换当前队列条目；不会沿用原曲收藏或同步歌词",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#a8b0b3",
+          "width": "100%"
+        },
+        {
+          "kind": "Text",
+          "text": "【sky光遇】 Never gonna give you up 完整版sky studio 整活专用 语瞳原创",
+          "enabled": true,
+          "fontSize": 15,
+          "fontColor": "#F2F5F6",
+          "width": "100%"
+        },
+        {
+          "kind": "Text",
+          "text": "bilibili · 录音版本未确认 · P1\n【sky光遇】 Never gonna give you up 完整版sky studio 整活专用 语瞳原创\n缺少原录音来源证据\n音频完整性待解析确认",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#a8b0b3",
+          "width": "100%"
+        },
+        {
+          "kind": "Button",
+          "text": "选择候选：【sky光遇】 Never gonna give you up 完整版sky studio 整活专用 语瞳原创",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "width": "100%",
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "选择【sky光遇】 Never gonna give you up 完整版sky studio 整活专用 语瞳原创，作为独立曲目播放"
+        },
+        {
+          "kind": "Text",
+          "text": "接受不同或不确定版本；若只提供试听或完整性未知，仍无法播放",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#a8b0b3",
+          "width": "100%"
+        },
+        {
+          "kind": "Button",
+          "text": "确认播放此独立曲目",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000"
+        },
+        {
+          "kind": "Button",
+          "text": "取消选择",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000"
+        },
+        {
+          "kind": "Text",
+          "text": "Rick Astley - Never Gonna Give You Up动态鼓谱",
+          "enabled": true,
+          "fontSize": 15,
+          "fontColor": "#F2F5F6",
+          "width": "100%"
+        },
+        {
+          "kind": "Text",
+          "text": "bilibili · 录音版本未确认 · P1\nRick Astley - Never Gonna Give You Up动态鼓谱\n不同录音或可能含对白、前后奏、剪辑\n音频完整性待解析确认",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#a8b0b3",
+          "width": "100%"
+        },
+        {
+          "kind": "Button",
+          "text": "选择候选：Rick Astley - Never Gonna Give You Up动态鼓谱",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "width": "100%",
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "选择Rick Astley - Never Gonna Give You Up动态鼓谱，作为独立曲目播放"
+        },
+        {
+          "kind": "Text",
+          "text": "",
+          "enabled": true,
+          "fontSize": 15,
+          "fontColor": "#F2F5F6",
+          "width": "100%"
+        },
+        {
+          "kind": "Text",
+          "text": "bilibili · 录音版本未确认 · P1\nTwo Steps From Hell - Never Give Up On Your Dreams\n缺少原录音来源证据\n音频完整性待解析确认",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#a8b0b3",
+          "width": "100%"
+        },
+        {
+          "kind": "Button",
+          "text": "选择候选：",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "width": "100%",
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "选择，作为独立曲目播放"
+        },
+        {
+          "kind": "Text",
+          "text": "Never gonna give you up慢速略降调＋3D环绕声",
+          "enabled": true,
+          "fontSize": 15,
+          "fontColor": "#F2F5F6",
+          "width": "100%"
+        },
+        {
+          "kind": "Text",
+          "text": "bilibili · 录音版本未确认 · P1\nNever gonna give you up慢速略降调＋3D环绕声\n不同录音或可能含对白、前后奏、剪辑\n音频完整性待解析确认",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#a8b0b3",
+          "width": "100%"
+        },
+        {
+          "kind": "Button",
+          "text": "选择候选：Never gonna give you up慢速略降调＋3D环绕声",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "width": "100%",
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "选择Never gonna give you up慢速略降调＋3D环绕声，作为独立曲目播放"
+        },
+        {
+          "kind": "Text",
+          "text": "8D Never Gonna Give You Up",
+          "enabled": true,
+          "fontSize": 15,
+          "fontColor": "#F2F5F6",
+          "width": "100%"
+        },
+        {
+          "kind": "Text",
+          "text": "bilibili · 录音版本未确认 · P1\n【8D环绕】《Never Gonna Give You Up》-Rick Astley\n不同录音或可能含对白、前后奏、剪辑\n音频完整性待解析确认",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#a8b0b3",
+          "width": "100%"
+        },
+        {
+          "kind": "Button",
+          "text": "选择候选：8D Never Gonna Give You Up",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "width": "100%",
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "选择8D Never Gonna Give You Up，作为独立曲目播放"
+        }
+      ]
+    },
+    {
+      "step": "confirmed real candidate resolved; production integrity gate preserved",
+      "state": "ERROR",
+      "queueId": -3,
+      "title": "【sky光遇】 Never gonna give you up 完整版sky studio 整活专用 语瞳原创",
+      "artist": "",
+      "catalogRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJiaWxpYmlsaSIsInNvdXJjZUlkIjoiQlYxS1I0eTF3N0EzOjcyMzY0MTg4OCIsImtpbmQiOiJzb25nIn0",
+      "originalCatalogRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJhcGktZW5oYW5jZWQiLCJzb3VyY2VJZCI6IjE4NTIwNDg4Iiwia2luZCI6InNvbmcifQ",
+      "integrity": {
+        "status": "unknown",
+        "reason": "missing_evidence",
+        "catalogDurationMs": 251000,
+        "resourceDurationMs": 250602,
+        "evidence": [
+          "catalog_duration",
+          "provider_resource_duration",
+          "bilibili_cid_membership",
+          "dash_audio_representation"
+        ]
+      },
+      "errorCode": "AUDIO_UNKNOWN",
+      "lyricsState": "empty",
+      "activeLyric": -1,
+      "controls": [
+        {
+          "kind": "Button",
+          "text": "收起其他录音候选",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "查看自动拒绝的其他录音与额外片段候选"
+        },
+        {
+          "kind": "Text",
+          "text": "选择后成为独立曲目，仅替换当前队列条目；不会沿用原曲收藏或同步歌词",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#a8b0b3",
+          "width": "100%"
+        },
+        {
+          "kind": "Text",
+          "text": "暂时无法确认音频是否完整，请重试或在搜索结果中选择其他来源；可重试所选来源或重新选择",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#ef9898",
+          "width": "100%"
+        },
+        {
+          "kind": "Button",
+          "text": "重试所选候选",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000"
+        },
+        {
+          "kind": "Text",
+          "text": "【sky光遇】 Never gonna give you up 完整版sky studio 整活专用 语瞳原创",
+          "enabled": true,
+          "fontSize": 15,
+          "fontColor": "#F2F5F6",
+          "width": "100%"
+        },
+        {
+          "kind": "Text",
+          "text": "bilibili · 录音版本未确认 · P1\n【sky光遇】 Never gonna give you up 完整版sky studio 整活专用 语瞳原创\n缺少原录音来源证据\n音频完整性待解析确认",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#a8b0b3",
+          "width": "100%"
+        },
+        {
+          "kind": "Button",
+          "text": "选择候选：【sky光遇】 Never gonna give you up 完整版sky studio 整活专用 语瞳原创",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "width": "100%",
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "选择【sky光遇】 Never gonna give you up 完整版sky studio 整活专用 语瞳原创，作为独立曲目播放"
+        },
+        {
+          "kind": "Text",
+          "text": "Rick Astley - Never Gonna Give You Up动态鼓谱",
+          "enabled": true,
+          "fontSize": 15,
+          "fontColor": "#F2F5F6",
+          "width": "100%"
+        },
+        {
+          "kind": "Text",
+          "text": "bilibili · 录音版本未确认 · P1\nRick Astley - Never Gonna Give You Up动态鼓谱\n不同录音或可能含对白、前后奏、剪辑\n音频完整性待解析确认",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#a8b0b3",
+          "width": "100%"
+        },
+        {
+          "kind": "Button",
+          "text": "选择候选：Rick Astley - Never Gonna Give You Up动态鼓谱",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "width": "100%",
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "选择Rick Astley - Never Gonna Give You Up动态鼓谱，作为独立曲目播放"
+        },
+        {
+          "kind": "Text",
+          "text": "",
+          "enabled": true,
+          "fontSize": 15,
+          "fontColor": "#F2F5F6",
+          "width": "100%"
+        },
+        {
+          "kind": "Text",
+          "text": "bilibili · 录音版本未确认 · P1\nTwo Steps From Hell - Never Give Up On Your Dreams\n缺少原录音来源证据\n音频完整性待解析确认",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#a8b0b3",
+          "width": "100%"
+        },
+        {
+          "kind": "Button",
+          "text": "选择候选：",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "width": "100%",
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "选择，作为独立曲目播放"
+        },
+        {
+          "kind": "Text",
+          "text": "Never gonna give you up慢速略降调＋3D环绕声",
+          "enabled": true,
+          "fontSize": 15,
+          "fontColor": "#F2F5F6",
+          "width": "100%"
+        },
+        {
+          "kind": "Text",
+          "text": "bilibili · 录音版本未确认 · P1\nNever gonna give you up慢速略降调＋3D环绕声\n不同录音或可能含对白、前后奏、剪辑\n音频完整性待解析确认",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#a8b0b3",
+          "width": "100%"
+        },
+        {
+          "kind": "Button",
+          "text": "选择候选：Never gonna give you up慢速略降调＋3D环绕声",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "width": "100%",
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "选择Never gonna give you up慢速略降调＋3D环绕声，作为独立曲目播放"
+        },
+        {
+          "kind": "Text",
+          "text": "8D Never Gonna Give You Up",
+          "enabled": true,
+          "fontSize": 15,
+          "fontColor": "#F2F5F6",
+          "width": "100%"
+        },
+        {
+          "kind": "Text",
+          "text": "bilibili · 录音版本未确认 · P1\n【8D环绕】《Never Gonna Give You Up》-Rick Astley\n不同录音或可能含对白、前后奏、剪辑\n音频完整性待解析确认",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#a8b0b3",
+          "width": "100%"
+        },
+        {
+          "kind": "Button",
+          "text": "选择候选：8D Never Gonna Give You Up",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "width": "100%",
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "选择8D Never Gonna Give You Up，作为独立曲目播放"
+        }
+      ]
+    }
+  ],
+  "events": [
+    {
+      "host": "netease-local",
+      "path": "/search",
+      "httpStatus": 200
+    },
+    {
+      "host": "netease-local",
+      "path": "/song/url/v1",
+      "httpStatus": 200
+    },
+    {
+      "host": "netease-local",
+      "path": "/lyric/new",
+      "httpStatus": 200
+    },
+    {
+      "host": "netease-local",
+      "path": "/song/detail",
+      "httpStatus": 200
+    },
+    {
+      "host": "api.bilibili.com",
+      "path": "/x/web-interface/nav",
+      "httpStatus": 200
+    },
+    {
+      "host": "api.bilibili.com",
+      "path": "/x/web-interface/wbi/search/type",
+      "httpStatus": 200
+    },
+    {
+      "host": "api.bilibili.com",
+      "path": "/x/web-interface/view",
+      "httpStatus": 200
+    },
+    {
+      "host": "api.bilibili.com",
+      "path": "/x/web-interface/view",
+      "httpStatus": 200
+    },
+    {
+      "host": "api.bilibili.com",
+      "path": "/x/web-interface/view",
+      "httpStatus": 200
+    },
+    {
+      "host": "api.bilibili.com",
+      "path": "/x/web-interface/view",
+      "httpStatus": 200
+    },
+    {
+      "host": "api.bilibili.com",
+      "path": "/x/web-interface/view",
+      "httpStatus": 200
+    },
+    {
+      "host": "api.bilibili.com",
+      "path": "/x/web-interface/view",
+      "httpStatus": 200
+    },
+    {
+      "host": "api.bilibili.com",
+      "path": "/x/player/playurl",
+      "httpStatus": 200
+    }
+  ],
+  "audioDecoded": false
+}

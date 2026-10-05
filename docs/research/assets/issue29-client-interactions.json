@@ -1,0 +1,791 @@
+{
+  "boundary": "Actual Hvigor compiled controls → ArkTS player/queue/lyrics/API → authenticated HTTP gateway; ArkUI renderer, Kit media, client storage and third-party responses controlled. Not native layout/touch or real audio.",
+  "records": [
+    {
+      "step": "automatic rejection, candidate and extra-segment reason visible",
+      "state": "ERROR",
+      "queueId": -2,
+      "title": "目录歌曲",
+      "artist": "原歌手",
+      "catalogRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJhcGktZW5oYW5jZWQiLCJzb3VyY2VJZCI6IjEyMyIsImtpbmQiOiJzb25nIn0",
+      "actualSource": "",
+      "integrity": "unavailable",
+      "lyricsState": "ready",
+      "lyricsRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJhcGktZW5oYW5jZWQiLCJzb3VyY2VJZCI6IjEyMyIsImtpbmQiOiJzb25nIn0",
+      "activeLyric": -1,
+      "controls": [
+        {
+          "kind": "Button",
+          "text": "选择同录音来源",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "为当前队列曲目选择同录音来源"
+        },
+        {
+          "kind": "Button",
+          "text": "收起其他录音候选",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "查看自动拒绝的其他录音与额外片段候选"
+        },
+        {
+          "kind": "Text",
+          "text": "选择后成为独立曲目，仅替换当前队列条目；不会沿用原曲收藏或同步歌词",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#a8b0b3",
+          "width": "100%"
+        },
+        {
+          "kind": "Text",
+          "text": "独立版本 MV",
+          "enabled": true,
+          "fontSize": 15,
+          "fontColor": "#F2F5F6",
+          "width": "100%"
+        },
+        {
+          "kind": "Text",
+          "text": "bilibili · MV · P2\n目录歌曲 MV 含对白\n不同录音或可能含对白、前后奏、剪辑\n音频完整性待解析确认",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#a8b0b3",
+          "width": "100%"
+        },
+        {
+          "kind": "Button",
+          "text": "选择候选：独立版本 MV",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "width": "100%",
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "选择独立版本 MV，作为独立曲目播放"
+        }
+      ]
+    },
+    {
+      "step": "candidate chosen; awaiting explicit confirmation without audio requests",
+      "state": "ERROR",
+      "queueId": -2,
+      "title": "目录歌曲",
+      "artist": "原歌手",
+      "catalogRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJhcGktZW5oYW5jZWQiLCJzb3VyY2VJZCI6IjEyMyIsImtpbmQiOiJzb25nIn0",
+      "actualSource": "",
+      "integrity": "unavailable",
+      "lyricsState": "ready",
+      "lyricsRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJhcGktZW5oYW5jZWQiLCJzb3VyY2VJZCI6IjEyMyIsImtpbmQiOiJzb25nIn0",
+      "activeLyric": -1,
+      "controls": [
+        {
+          "kind": "Button",
+          "text": "选择同录音来源",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "为当前队列曲目选择同录音来源"
+        },
+        {
+          "kind": "Button",
+          "text": "收起其他录音候选",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "查看自动拒绝的其他录音与额外片段候选"
+        },
+        {
+          "kind": "Text",
+          "text": "选择后成为独立曲目，仅替换当前队列条目；不会沿用原曲收藏或同步歌词",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#a8b0b3",
+          "width": "100%"
+        },
+        {
+          "kind": "Text",
+          "text": "独立版本 MV",
+          "enabled": true,
+          "fontSize": 15,
+          "fontColor": "#F2F5F6",
+          "width": "100%"
+        },
+        {
+          "kind": "Text",
+          "text": "bilibili · MV · P2\n目录歌曲 MV 含对白\n不同录音或可能含对白、前后奏、剪辑\n音频完整性待解析确认",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#a8b0b3",
+          "width": "100%"
+        },
+        {
+          "kind": "Button",
+          "text": "选择候选：独立版本 MV",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "width": "100%",
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "选择独立版本 MV，作为独立曲目播放"
+        },
+        {
+          "kind": "Text",
+          "text": "接受不同或不确定版本；若只提供试听或完整性未知，仍无法播放",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#a8b0b3",
+          "width": "100%"
+        },
+        {
+          "kind": "Button",
+          "text": "确认播放此独立曲目",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000"
+        },
+        {
+          "kind": "Button",
+          "text": "取消选择",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000"
+        }
+      ]
+    },
+    {
+      "step": "confirmed independent MV playing; own identity, no inherited synced lyrics",
+      "state": "PLAYING",
+      "queueId": -3,
+      "title": "独立版本 MV",
+      "artist": "独立录音歌手",
+      "catalogRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJiaWxpYmlsaSIsInNvdXJjZUlkIjoiQlYxR0o0MTF4N2g3OjIyMiIsImtpbmQiOiJzb25nIn0",
+      "originalCatalogRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJhcGktZW5oYW5jZWQiLCJzb3VyY2VJZCI6IjEyMyIsImtpbmQiOiJzb25nIn0",
+      "actualSource": "Bilibili",
+      "integrity": "full",
+      "lyricsState": "empty",
+      "lyricsRef": "",
+      "activeLyric": -1,
+      "controls": [
+        {
+          "kind": "Button",
+          "text": "收起其他录音候选",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "查看自动拒绝的其他录音与额外片段候选"
+        },
+        {
+          "kind": "Text",
+          "text": "选择后成为独立曲目，仅替换当前队列条目；不会沿用原曲收藏或同步歌词",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#a8b0b3",
+          "width": "100%"
+        },
+        {
+          "kind": "Text",
+          "text": "独立版本 MV",
+          "enabled": true,
+          "fontSize": 15,
+          "fontColor": "#F2F5F6",
+          "width": "100%"
+        },
+        {
+          "kind": "Text",
+          "text": "bilibili · MV · P2\n目录歌曲 MV 含对白\n不同录音或可能含对白、前后奏、剪辑\n音频完整性待解析确认",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#a8b0b3",
+          "width": "100%"
+        },
+        {
+          "kind": "Button",
+          "text": "选择候选：独立版本 MV",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "width": "100%",
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "选择独立版本 MV，作为独立曲目播放"
+        }
+      ]
+    },
+    {
+      "step": "manual preview rejected without fallback or stale lyrics",
+      "state": "ERROR",
+      "queueId": -3,
+      "title": "独立版本 MV",
+      "artist": "独立录音歌手",
+      "catalogRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJiaWxpYmlsaSIsInNvdXJjZUlkIjoiQlYxR0o0MTF4N2g3OjIyMiIsImtpbmQiOiJzb25nIn0",
+      "originalCatalogRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJhcGktZW5oYW5jZWQiLCJzb3VyY2VJZCI6IjEyMyIsImtpbmQiOiJzb25nIn0",
+      "actualSource": "",
+      "integrity": "preview",
+      "lyricsState": "empty",
+      "lyricsRef": "",
+      "activeLyric": -1,
+      "controls": [
+        {
+          "kind": "Button",
+          "text": "收起其他录音候选",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "查看自动拒绝的其他录音与额外片段候选"
+        },
+        {
+          "kind": "Text",
+          "text": "选择后成为独立曲目，仅替换当前队列条目；不会沿用原曲收藏或同步歌词",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#a8b0b3",
+          "width": "100%"
+        },
+        {
+          "kind": "Text",
+          "text": "当前来源只提供试听片段，请重试或在搜索结果中选择其他来源；可重试所选来源或重新选择",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#ef9898",
+          "width": "100%"
+        },
+        {
+          "kind": "Button",
+          "text": "重试所选候选",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000"
+        },
+        {
+          "kind": "Text",
+          "text": "独立版本 MV",
+          "enabled": true,
+          "fontSize": 15,
+          "fontColor": "#F2F5F6",
+          "width": "100%"
+        },
+        {
+          "kind": "Text",
+          "text": "bilibili · MV · P2\n目录歌曲 MV 含对白\n不同录音或可能含对白、前后奏、剪辑\n音频完整性待解析确认",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#a8b0b3",
+          "width": "100%"
+        },
+        {
+          "kind": "Button",
+          "text": "选择候选：独立版本 MV",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "width": "100%",
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "选择独立版本 MV，作为独立曲目播放"
+        }
+      ]
+    },
+    {
+      "step": "manual unknown rejected without fallback or stale lyrics",
+      "state": "ERROR",
+      "queueId": -3,
+      "title": "独立版本 MV",
+      "artist": "独立录音歌手",
+      "catalogRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJiaWxpYmlsaSIsInNvdXJjZUlkIjoiQlYxR0o0MTF4N2g3OjIyMiIsImtpbmQiOiJzb25nIn0",
+      "originalCatalogRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJhcGktZW5oYW5jZWQiLCJzb3VyY2VJZCI6IjEyMyIsImtpbmQiOiJzb25nIn0",
+      "actualSource": "",
+      "integrity": "unknown",
+      "lyricsState": "empty",
+      "lyricsRef": "",
+      "activeLyric": -1,
+      "controls": [
+        {
+          "kind": "Button",
+          "text": "收起其他录音候选",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "查看自动拒绝的其他录音与额外片段候选"
+        },
+        {
+          "kind": "Text",
+          "text": "选择后成为独立曲目，仅替换当前队列条目；不会沿用原曲收藏或同步歌词",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#a8b0b3",
+          "width": "100%"
+        },
+        {
+          "kind": "Text",
+          "text": "暂时无法确认音频是否完整，请重试或在搜索结果中选择其他来源；可重试所选来源或重新选择",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#ef9898",
+          "width": "100%"
+        },
+        {
+          "kind": "Button",
+          "text": "重试所选候选",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000"
+        },
+        {
+          "kind": "Text",
+          "text": "独立版本 MV",
+          "enabled": true,
+          "fontSize": 15,
+          "fontColor": "#F2F5F6",
+          "width": "100%"
+        },
+        {
+          "kind": "Text",
+          "text": "bilibili · MV · P2\n目录歌曲 MV 含对白\n不同录音或可能含对白、前后奏、剪辑\n音频完整性待解析确认",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#a8b0b3",
+          "width": "100%"
+        },
+        {
+          "kind": "Button",
+          "text": "选择候选：独立版本 MV",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "width": "100%",
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "选择独立版本 MV，作为独立曲目播放"
+        }
+      ]
+    },
+    {
+      "step": "manual short rejected without fallback or stale lyrics",
+      "state": "ERROR",
+      "queueId": -3,
+      "title": "独立版本 MV",
+      "artist": "独立录音歌手",
+      "catalogRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJiaWxpYmlsaSIsInNvdXJjZUlkIjoiQlYxR0o0MTF4N2g3OjIyMiIsImtpbmQiOiJzb25nIn0",
+      "originalCatalogRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJhcGktZW5oYW5jZWQiLCJzb3VyY2VJZCI6IjEyMyIsImtpbmQiOiJzb25nIn0",
+      "actualSource": "",
+      "integrity": "preview",
+      "lyricsState": "empty",
+      "lyricsRef": "",
+      "activeLyric": -1,
+      "controls": [
+        {
+          "kind": "Button",
+          "text": "收起其他录音候选",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "查看自动拒绝的其他录音与额外片段候选"
+        },
+        {
+          "kind": "Text",
+          "text": "选择后成为独立曲目，仅替换当前队列条目；不会沿用原曲收藏或同步歌词",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#a8b0b3",
+          "width": "100%"
+        },
+        {
+          "kind": "Text",
+          "text": "当前来源只提供试听片段，请重试或在搜索结果中选择其他来源；可重试所选来源或重新选择",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#ef9898",
+          "width": "100%"
+        },
+        {
+          "kind": "Button",
+          "text": "重试所选候选",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000"
+        },
+        {
+          "kind": "Text",
+          "text": "独立版本 MV",
+          "enabled": true,
+          "fontSize": 15,
+          "fontColor": "#F2F5F6",
+          "width": "100%"
+        },
+        {
+          "kind": "Text",
+          "text": "bilibili · MV · P2\n目录歌曲 MV 含对白\n不同录音或可能含对白、前后奏、剪辑\n音频完整性待解析确认",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#a8b0b3",
+          "width": "100%"
+        },
+        {
+          "kind": "Button",
+          "text": "选择候选：独立版本 MV",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "width": "100%",
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "选择独立版本 MV，作为独立曲目播放"
+        }
+      ]
+    },
+    {
+      "step": "manual failure rejected without fallback or stale lyrics",
+      "state": "ERROR",
+      "queueId": -3,
+      "title": "独立版本 MV",
+      "artist": "独立录音歌手",
+      "catalogRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJiaWxpYmlsaSIsInNvdXJjZUlkIjoiQlYxR0o0MTF4N2g3OjIyMiIsImtpbmQiOiJzb25nIn0",
+      "originalCatalogRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJhcGktZW5oYW5jZWQiLCJzb3VyY2VJZCI6IjEyMyIsImtpbmQiOiJzb25nIn0",
+      "actualSource": "",
+      "integrity": "unavailable",
+      "lyricsState": "empty",
+      "lyricsRef": "",
+      "activeLyric": -1,
+      "controls": [
+        {
+          "kind": "Button",
+          "text": "收起其他录音候选",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "查看自动拒绝的其他录音与额外片段候选"
+        },
+        {
+          "kind": "Text",
+          "text": "选择后成为独立曲目，仅替换当前队列条目；不会沿用原曲收藏或同步歌词",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#a8b0b3",
+          "width": "100%"
+        },
+        {
+          "kind": "Text",
+          "text": "音乐暂时加载失败，请检查网络后重试；可重试所选来源或重新选择",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#ef9898",
+          "width": "100%"
+        },
+        {
+          "kind": "Button",
+          "text": "重试所选候选",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000"
+        },
+        {
+          "kind": "Text",
+          "text": "独立版本 MV",
+          "enabled": true,
+          "fontSize": 15,
+          "fontColor": "#F2F5F6",
+          "width": "100%"
+        },
+        {
+          "kind": "Text",
+          "text": "bilibili · MV · P2\n目录歌曲 MV 含对白\n不同录音或可能含对白、前后奏、剪辑\n音频完整性待解析确认",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#a8b0b3",
+          "width": "100%"
+        },
+        {
+          "kind": "Button",
+          "text": "选择候选：独立版本 MV",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "width": "100%",
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "选择独立版本 MV，作为独立曲目播放"
+        }
+      ]
+    },
+    {
+      "step": "retry same independent candidate",
+      "state": "PLAYING",
+      "queueId": -3,
+      "title": "独立版本 MV",
+      "artist": "独立录音歌手",
+      "catalogRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJiaWxpYmlsaSIsInNvdXJjZUlkIjoiQlYxR0o0MTF4N2g3OjIyMiIsImtpbmQiOiJzb25nIn0",
+      "originalCatalogRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJhcGktZW5oYW5jZWQiLCJzb3VyY2VJZCI6IjEyMyIsImtpbmQiOiJzb25nIn0",
+      "actualSource": "Bilibili",
+      "integrity": "full",
+      "lyricsState": "empty",
+      "lyricsRef": "",
+      "activeLyric": -1,
+      "controls": [
+        {
+          "kind": "Button",
+          "text": "收起其他录音候选",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "查看自动拒绝的其他录音与额外片段候选"
+        },
+        {
+          "kind": "Text",
+          "text": "选择后成为独立曲目，仅替换当前队列条目；不会沿用原曲收藏或同步歌词",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#a8b0b3",
+          "width": "100%"
+        },
+        {
+          "kind": "Text",
+          "text": "独立版本 MV",
+          "enabled": true,
+          "fontSize": 15,
+          "fontColor": "#F2F5F6",
+          "width": "100%"
+        },
+        {
+          "kind": "Text",
+          "text": "bilibili · MV · P2\n目录歌曲 MV 含对白\n不同录音或可能含对白、前后奏、剪辑\n音频完整性待解析确认",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#a8b0b3",
+          "width": "100%"
+        },
+        {
+          "kind": "Button",
+          "text": "选择候选：独立版本 MV",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "width": "100%",
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "选择独立版本 MV，作为独立曲目播放"
+        }
+      ]
+    },
+    {
+      "step": "duplicate cached/favorite track: only current occurrence replaced; original library identity retained",
+      "state": "PLAYING",
+      "queueId": -5,
+      "title": "独立版本 MV",
+      "artist": "独立录音歌手",
+      "catalogRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJiaWxpYmlsaSIsInNvdXJjZUlkIjoiQlYxR0o0MTF4N2g3OjIyMiIsImtpbmQiOiJzb25nIn0",
+      "originalCatalogRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJhcGktZW5oYW5jZWQiLCJzb3VyY2VJZCI6IjEyMyIsImtpbmQiOiJzb25nIn0",
+      "actualSource": "Bilibili",
+      "integrity": "full",
+      "lyricsState": "empty",
+      "lyricsRef": "",
+      "activeLyric": -1,
+      "controls": [
+        {
+          "kind": "Button",
+          "text": "查看其他录音候选",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "查看自动拒绝的其他录音与额外片段候选"
+        }
+      ]
+    },
+    {
+      "step": "queue neighbour isolated; revisiting independent selection retains explicit choice",
+      "state": "PLAYING",
+      "queueId": -3,
+      "title": "独立版本 MV",
+      "artist": "独立录音歌手",
+      "catalogRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJiaWxpYmlsaSIsInNvdXJjZUlkIjoiQlYxR0o0MTF4N2g3OjIyMiIsImtpbmQiOiJzb25nIn0",
+      "originalCatalogRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJhcGktZW5oYW5jZWQiLCJzb3VyY2VJZCI6IjEyMyIsImtpbmQiOiJzb25nIn0",
+      "actualSource": "Bilibili",
+      "integrity": "full",
+      "lyricsState": "empty",
+      "lyricsRef": "",
+      "activeLyric": -1,
+      "controls": [
+        {
+          "kind": "Button",
+          "text": "收起其他录音候选",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "查看自动拒绝的其他录音与额外片段候选"
+        },
+        {
+          "kind": "Text",
+          "text": "选择后成为独立曲目，仅替换当前队列条目；不会沿用原曲收藏或同步歌词",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#a8b0b3",
+          "width": "100%"
+        },
+        {
+          "kind": "Text",
+          "text": "独立版本 MV",
+          "enabled": true,
+          "fontSize": 15,
+          "fontColor": "#F2F5F6",
+          "width": "100%"
+        },
+        {
+          "kind": "Text",
+          "text": "bilibili · MV · P2\n目录歌曲 MV 含对白\n不同录音或可能含对白、前后奏、剪辑\n音频完整性待解析确认",
+          "enabled": true,
+          "fontSize": 12,
+          "fontColor": "#a8b0b3",
+          "width": "100%"
+        },
+        {
+          "kind": "Button",
+          "text": "选择候选：独立版本 MV",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "width": "100%",
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "选择独立版本 MV，作为独立曲目播放"
+        }
+      ]
+    },
+    {
+      "step": "original search replay re-runs automatic resolution",
+      "state": "ERROR",
+      "queueId": -6,
+      "title": "目录歌曲",
+      "artist": "原歌手",
+      "catalogRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJhcGktZW5oYW5jZWQiLCJzb3VyY2VJZCI6IjEyMyIsImtpbmQiOiJzb25nIn0",
+      "actualSource": "",
+      "integrity": "unavailable",
+      "lyricsState": "ready",
+      "lyricsRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJhcGktZW5oYW5jZWQiLCJzb3VyY2VJZCI6IjEyMyIsImtpbmQiOiJzb25nIn0",
+      "activeLyric": -1,
+      "controls": [
+        {
+          "kind": "Button",
+          "text": "选择同录音来源",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "为当前队列曲目选择同录音来源"
+        },
+        {
+          "kind": "Button",
+          "text": "查看其他录音候选",
+          "enabled": true,
+          "constraintSize": {
+            "minHeight": 48
+          },
+          "fontSize": 15,
+          "fontColor": "#68c4bb",
+          "backgroundColor": "#00000000",
+          "accessibilityText": "查看自动拒绝的其他录音与额外片段候选"
+        }
+      ]
+    },
+    {
+      "step": "switch cancels pending manual audio and ignores stale original lyrics",
+      "state": "PLAYING",
+      "queueId": 77,
+      "title": "本地曲",
+      "artist": "",
+      "actualSource": "",
+      "lyricsState": "empty",
+      "lyricsRef": "",
+      "activeLyric": -1,
+      "controls": []
+    }
+  ]
+}

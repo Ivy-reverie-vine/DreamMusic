@@ -67,6 +67,12 @@ export class LyricsViewModel {
     this.activeIndex = -1;
     this.loadState = LyricsLoadState.LOADING;
     this.lyricsChangedHandler?.();
+    if (t.lyricsMode === 'none') {
+      this.reloadChecked = true;
+      this.loadState = LyricsLoadState.EMPTY;
+      this.lyricsChangedHandler?.();
+      return;
+    }
     if (this.context === null) {
       this.reloadChecked = true;
       return;

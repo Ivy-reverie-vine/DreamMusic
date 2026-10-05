@@ -94,9 +94,23 @@ interface MediaIdentity {
 }
 
 export interface PlaybackResolution extends MediaIdentity {
+  manualSelection?: ManualRecordingSelection;
   url: string;
   audioIntegrity?: AudioIntegrity;
   playback?: AutomaticPlaybackOutcome;
+}
+
+export interface ManualRecordingEntry {
+  title: string;
+  artists: string[];
+  album: MediaAlbum;
+  durationMs: number;
+}
+
+export interface ManualRecordingSelection {
+  originalCatalogRef: string;
+  lyricsMode: string;
+  entry?: ManualRecordingEntry;
 }
 
 interface MediaSong extends MediaIdentity {
@@ -127,6 +141,7 @@ interface MediaSearchResponse extends UpstreamEnvelope {
 }
 
 interface MediaUrlResponse extends UpstreamEnvelope, MediaIdentity {
+  manualSelection?: ManualRecordingSelection;
   data?: UrlEntry[];
   mediaRef?: string;
   audioIntegrity?: AudioIntegrity;
@@ -374,7 +389,7 @@ export class NetEaseApi {
   /** 返回真实音频身份；旧调用仍可通过 resolveUrl 只取 URL。 */
   static async resolvePlayback(context: common.Context, id: number, mediaRef: string = '',
     automaticSearchSession: string = '', registerCancel: ((cancel: () => void) => void) | null = null,
-    manualCatalogRef: string = ''): Promise<PlaybackResolution> {
+    manualCatalogRef: string = '', otherRecording: boolean = false): Promise<PlaybackResolution> {
     let cancelled = false;
     let cancelHttp: (() => void) | null = null;
     registerCancel?.(() => { cancelled = true; cancelHttp?.(); });
@@ -390,7 +405,7 @@ export class NetEaseApi {
     params['randomCNIP'] = 'true';
     if (versioned && automaticSearchSession !== '') {
       if (manualCatalogRef !== '') {
-        params['manual'] = 'true';
+        params['manual'] = otherRecording ? 'other' : 'true';
         params['catalogRef'] = manualCatalogRef;
       } else {
         params['automatic'] = 'true';
@@ -432,6 +447,7 @@ export class NetEaseApi {
       return {
         url: url,
         playback: identity.playback,
+        manualSelection: identity.manualSelection,
         audioIntegrity: wrapper.audioIntegrity !== undefined ? wrapper.audioIntegrity : {
           status: url === '' ? 'unavailable' : 'unknown', reason: url === '' ? 'empty_url' : 'missing_evidence',
           catalogDurationMs: 0, resourceDurationMs: 0, evidence: []

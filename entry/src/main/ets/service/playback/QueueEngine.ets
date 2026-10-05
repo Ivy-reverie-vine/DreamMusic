@@ -230,6 +230,13 @@ export class QueueEngine {
     return true;
   }
 
+  /** 独立录音只替换当前位置，即使同一本地音轨在队列中出现多次。 */
+  replaceCurrentTrackId(oldId: number, newId: number): boolean {
+    if (this.current() !== oldId || newId === 0 || this.tracks.indexOf(newId) >= 0) { return false; }
+    this.tracks[this.currentIndex] = newId;
+    return true;
+  }
+
   toSnapshot(): QueueSnapshot {
     return {
       tracks: this.tracks.slice(),
