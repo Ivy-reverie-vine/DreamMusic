@@ -1,0 +1,449 @@
+[
+  {
+    "keyword": "晴天 周杰伦",
+    "catalog": {
+      "source": "api-enhanced",
+      "id": "2652820720",
+      "title": "晴天(深情版)",
+      "artists": [
+        "Lucky小爱"
+      ],
+      "album": "晴天(深情版)",
+      "durationMs": 0
+    },
+    "httpStatus": 200,
+    "wallMs": 501,
+    "catalogPreserved": true,
+    "playbackSource": "api-enhanced",
+    "audioIntegrity": {
+      "status": "full",
+      "reason": "provider_duration_and_non_trial",
+      "catalogDurationMs": 278961,
+      "resourceDurationMs": 278961,
+      "evidence": [
+        "catalog_duration",
+        "provider_resource_duration",
+        "provider_non_trial"
+      ]
+    },
+    "playback": {
+      "status": "success",
+      "reason": "success",
+      "totalBudgetMs": 10000,
+      "stageBudgetMs": 7000,
+      "elapsedMs": 497,
+      "remainingBudgetMs": 9503,
+      "attempts": [
+        {
+          "mediaRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJhcGktZW5oYW5jZWQiLCJzb3VyY2VJZCI6IjI2NTI4MjA3MjAiLCJraW5kIjoic29uZyJ9",
+          "source": "api-enhanced",
+          "status": "full",
+          "matchReason": "selected_resource",
+          "reason": "provider_duration_and_non_trial",
+          "audioIntegrity": {
+            "status": "full",
+            "reason": "provider_duration_and_non_trial",
+            "catalogDurationMs": 278961,
+            "resourceDurationMs": 278961,
+            "evidence": [
+              "catalog_duration",
+              "provider_resource_duration",
+              "provider_non_trial"
+            ]
+          }
+        }
+      ],
+      "continuation": {
+        "stage": "bilibili",
+        "enabled": false,
+        "eligible": false,
+        "catalogRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJhcGktZW5oYW5jZWQiLCJzb3VyY2VJZCI6IjI2NTI4MjA3MjAiLCJraW5kIjoic29uZyJ9",
+        "candidates": [
+          "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJhcGktZW5oYW5jZWQiLCJzb3VyY2VJZCI6IjI2NTI4MjA3MjAiLCJraW5kIjoic29uZyJ9"
+        ]
+      }
+    },
+    "events": [
+      {
+        "host": "netease-local",
+        "path": "/search",
+        "httpStatus": 200,
+        "providerCode": 200
+      },
+      {
+        "host": "netease-local",
+        "path": "/song/url/v1",
+        "httpStatus": 200,
+        "providerCode": 200
+      },
+      {
+        "host": "netease-local",
+        "path": "/song/detail",
+        "httpStatus": 200,
+        "providerCode": 200
+      }
+    ]
+  },
+  {
+    "keyword": "Never Gonna Give You Up Rick Astley",
+    "catalog": {
+      "source": "api-enhanced",
+      "id": "18520488",
+      "title": "Never Gonna Give You Up",
+      "artists": [
+        "Rick Astley"
+      ],
+      "album": "Whenever You Need Somebody",
+      "durationMs": 0
+    },
+    "httpStatus": 200,
+    "wallMs": 1198,
+    "catalogPreserved": true,
+    "audioIntegrity": {
+      "status": "unavailable",
+      "reason": "automatic_bilibili_manual_candidates",
+      "catalogDurationMs": 0,
+      "resourceDurationMs": 0,
+      "evidence": []
+    },
+    "playback": {
+      "status": "exhausted",
+      "reason": "bilibili_manual_candidates",
+      "totalBudgetMs": 10000,
+      "stageBudgetMs": 7000,
+      "elapsedMs": 1196,
+      "remainingBudgetMs": 8804,
+      "attempts": [
+        {
+          "mediaRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJhcGktZW5oYW5jZWQiLCJzb3VyY2VJZCI6IjE4NTIwNDg4Iiwia2luZCI6InNvbmcifQ",
+          "source": "api-enhanced",
+          "status": "preview",
+          "matchReason": "selected_resource",
+          "reason": "explicit_trial",
+          "audioIntegrity": {
+            "status": "preview",
+            "reason": "explicit_trial",
+            "catalogDurationMs": 214018,
+            "resourceDurationMs": 20035,
+            "evidence": [
+              "catalog_duration",
+              "provider_resource_duration",
+              "provider_trial"
+            ]
+          }
+        }
+      ],
+      "continuation": {
+        "stage": "bilibili",
+        "enabled": true,
+        "eligible": false,
+        "catalogRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJhcGktZW5oYW5jZWQiLCJzb3VyY2VJZCI6IjE4NTIwNDg4Iiwia2luZCI6InNvbmcifQ",
+        "candidates": [
+          "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJhcGktZW5oYW5jZWQiLCJzb3VyY2VJZCI6IjE4NTIwNDg4Iiwia2luZCI6InNvbmcifQ"
+        ]
+      },
+      "bilibili": {
+        "status": "exhausted",
+        "query": "Never Gonna Give You Up Rick Astley",
+        "candidates": [
+          {
+            "source": "bilibili",
+            "bvid": "BV1qbHGzqEZm",
+            "title": "Rick Astley - Never Gonna Give You Up动态鼓谱",
+            "uploader": "小娟音乐工作室",
+            "status": "manual",
+            "reason": "parts_inspected"
+          },
+          {
+            "source": "bilibili",
+            "bvid": "BV1KR4y1w7A3",
+            "title": "【sky光遇】 Never gonna give you up 完整版sky studio 整活专用 语瞳原创",
+            "uploader": "Sky光遇琴谱_瞳",
+            "status": "manual",
+            "reason": "parts_inspected"
+          },
+          {
+            "source": "bilibili",
+            "bvid": "BV1eb4y1U7kH",
+            "title": "Never gonna give you up慢速略降调＋3D环绕声",
+            "uploader": "丨V丨H丨M丨",
+            "status": "manual",
+            "reason": "parts_inspected"
+          },
+          {
+            "source": "bilibili",
+            "bvid": "BV14g4y1m7dv",
+            "title": "【二胡谱-示范】Never Gonna Give You Up（Rick Astley）",
+            "uploader": "二胡练习室",
+            "status": "manual",
+            "reason": "parts_inspected"
+          },
+          {
+            "source": "bilibili",
+            "bvid": "BV1xt4y1679q",
+            "title": "【8D环绕】《Never Gonna Give You Up》-Rick Astley",
+            "uploader": "ExhYZ",
+            "status": "manual",
+            "reason": "parts_inspected"
+          },
+          {
+            "mediaRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJiaWxpYmlsaSIsInNvdXJjZUlkIjoiQlYxcWJIR3pxRVptOjMyODE1NTgyMTkzIiwia2luZCI6InNvbmcifQ",
+            "source": "bilibili",
+            "sourceId": "BV1qbHGzqEZm:32815582193",
+            "resource": {
+              "bvid": "BV1qbHGzqEZm",
+              "cid": "32815582193",
+              "page": 1,
+              "title": "Rick Astley - Never Gonna Give You Up动态鼓谱",
+              "partTitle": "Rick Astley - Never Gonna Give You Up动态鼓谱",
+              "uploader": {
+                "id": "331285848",
+                "name": "小娟音乐工作室"
+              }
+            },
+            "title": "Rick Astley - Never Gonna Give You Up动态鼓谱",
+            "artists": [],
+            "durationMs": 211000,
+            "status": "manual",
+            "reason": "different_recording_or_extra_segments",
+            "match": {
+              "status": "manual",
+              "reason": "different_recording_or_extra_segments",
+              "evidence": {
+                "policy": "bilibili-credits-v1",
+                "title": "",
+                "artists": [],
+                "album": "",
+                "catalogDurationMs": 214018,
+                "partDurationMs": 211000,
+                "catalogLink": false,
+                "originalAlbumAudio": false
+              }
+            }
+          },
+          {
+            "mediaRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJiaWxpYmlsaSIsInNvdXJjZUlkIjoiQlYxS1I0eTF3N0EzOjcyMzY0MTg4OCIsImtpbmQiOiJzb25nIn0",
+            "source": "bilibili",
+            "sourceId": "BV1KR4y1w7A3:723641888",
+            "resource": {
+              "bvid": "BV1KR4y1w7A3",
+              "cid": "723641888",
+              "page": 1,
+              "title": "【sky光遇】 Never gonna give you up 完整版sky studio 整活专用 语瞳原创",
+              "partTitle": "【sky光遇】 Never gonna give you up 完整版sky studio 整活专用 语瞳原创",
+              "uploader": {
+                "id": "479784248",
+                "name": "Sky光遇琴谱_瞳"
+              }
+            },
+            "title": "【sky光遇】 Never gonna give you up 完整版sky studio 整活专用 语瞳原创",
+            "artists": [],
+            "durationMs": 251000,
+            "status": "manual",
+            "reason": "recording_provenance_missing",
+            "match": {
+              "status": "manual",
+              "reason": "recording_provenance_missing",
+              "evidence": {
+                "policy": "bilibili-credits-v1",
+                "title": "",
+                "artists": [],
+                "album": "",
+                "catalogDurationMs": 214018,
+                "partDurationMs": 251000,
+                "catalogLink": false,
+                "originalAlbumAudio": false
+              }
+            }
+          },
+          {
+            "mediaRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJiaWxpYmlsaSIsInNvdXJjZUlkIjoiQlYxZWI0eTFVN2tIOjM5MDEyMzcyMSIsImtpbmQiOiJzb25nIn0",
+            "source": "bilibili",
+            "sourceId": "BV1eb4y1U7kH:390123721",
+            "resource": {
+              "bvid": "BV1eb4y1U7kH",
+              "cid": "390123721",
+              "page": 1,
+              "title": "Never gonna give you up慢速略降调＋3D环绕声",
+              "partTitle": "Never gonna give you up慢速略降调＋3D环绕声",
+              "uploader": {
+                "id": "496037773",
+                "name": "丨V丨H丨M丨"
+              }
+            },
+            "title": "Never gonna give you up慢速略降调＋3D环绕声",
+            "artists": [],
+            "durationMs": 269000,
+            "status": "manual",
+            "reason": "different_recording_or_extra_segments",
+            "match": {
+              "status": "manual",
+              "reason": "different_recording_or_extra_segments",
+              "evidence": {
+                "policy": "bilibili-credits-v1",
+                "title": "",
+                "artists": [],
+                "album": "",
+                "catalogDurationMs": 214018,
+                "partDurationMs": 269000,
+                "catalogLink": false,
+                "originalAlbumAudio": false
+              }
+            }
+          },
+          {
+            "mediaRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJiaWxpYmlsaSIsInNvdXJjZUlkIjoiQlYxNGc0eTFtN2R2OjE0MDczMDk1MjMiLCJraW5kIjoic29uZyJ9",
+            "source": "bilibili",
+            "sourceId": "BV14g4y1m7dv:1407309523",
+            "resource": {
+              "bvid": "BV14g4y1m7dv",
+              "cid": "1407309523",
+              "page": 1,
+              "title": "【二胡谱-示范】Never Gonna Give You Up（Rick Astley）",
+              "partTitle": "【二胡谱-示范】Never Gonna Give You Up（Rick Astley）",
+              "uploader": {
+                "id": "75800654",
+                "name": "二胡练习室"
+              }
+            },
+            "title": "【二胡谱-示范】Never Gonna Give You Up（Rick Astley）",
+            "artists": [],
+            "durationMs": 223000,
+            "status": "manual",
+            "reason": "different_recording_or_extra_segments",
+            "match": {
+              "status": "manual",
+              "reason": "different_recording_or_extra_segments",
+              "evidence": {
+                "policy": "bilibili-credits-v1",
+                "title": "",
+                "artists": [],
+                "album": "",
+                "catalogDurationMs": 214018,
+                "partDurationMs": 223000,
+                "catalogLink": false,
+                "originalAlbumAudio": false
+              }
+            }
+          },
+          {
+            "mediaRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJiaWxpYmlsaSIsInNvdXJjZUlkIjoiQlYxeHQ0eTE2NzlxOjI4NTc3NzgxNiIsImtpbmQiOiJzb25nIn0",
+            "source": "bilibili",
+            "sourceId": "BV1xt4y1679q:285777816",
+            "resource": {
+              "bvid": "BV1xt4y1679q",
+              "cid": "285777816",
+              "page": 1,
+              "title": "【8D环绕】《Never Gonna Give You Up》-Rick Astley",
+              "partTitle": "8D Never Gonna Give You Up",
+              "uploader": {
+                "id": "442187426",
+                "name": "ExhYZ"
+              }
+            },
+            "title": "8D Never Gonna Give You Up",
+            "artists": [],
+            "durationMs": 203000,
+            "status": "manual",
+            "reason": "different_recording_or_extra_segments",
+            "match": {
+              "status": "manual",
+              "reason": "different_recording_or_extra_segments",
+              "evidence": {
+                "policy": "bilibili-credits-v1",
+                "title": "",
+                "artists": [],
+                "album": "",
+                "catalogDurationMs": 214018,
+                "partDurationMs": 203000,
+                "catalogLink": false,
+                "originalAlbumAudio": false
+              }
+            }
+          }
+        ],
+        "reason": "bilibili_manual_candidates"
+      }
+    },
+    "events": [
+      {
+        "host": "netease-local",
+        "path": "/search",
+        "httpStatus": 200,
+        "providerCode": 200
+      },
+      {
+        "host": "netease-local",
+        "path": "/song/url/v1",
+        "httpStatus": 200,
+        "providerCode": 200
+      },
+      {
+        "host": "netease-local",
+        "path": "/song/detail",
+        "httpStatus": 200,
+        "providerCode": 200
+      },
+      {
+        "host": "api.bilibili.com",
+        "path": "/x/web-interface/nav",
+        "httpStatus": 200,
+        "providerCode": -101
+      },
+      {
+        "host": "api.bilibili.com",
+        "path": "/x/web-interface/wbi/search/type",
+        "httpStatus": 200,
+        "providerCode": 0,
+        "dataKeys": [
+          "seid",
+          "page",
+          "pagesize",
+          "numResults",
+          "numPages",
+          "suggest_keyword",
+          "rqt_type",
+          "exp_list",
+          "is_hit_web_inf",
+          "egg_hit",
+          "result",
+          "show_column",
+          "in_black_key",
+          "in_white_key",
+          "next"
+        ],
+        "resultCount": 10
+      },
+      {
+        "host": "api.bilibili.com",
+        "path": "/x/web-interface/view",
+        "httpStatus": 200,
+        "providerCode": 0
+      },
+      {
+        "host": "api.bilibili.com",
+        "path": "/x/web-interface/view",
+        "httpStatus": 200,
+        "providerCode": 0
+      },
+      {
+        "host": "api.bilibili.com",
+        "path": "/x/web-interface/view",
+        "httpStatus": 200,
+        "providerCode": 0
+      },
+      {
+        "host": "api.bilibili.com",
+        "path": "/x/web-interface/view",
+        "httpStatus": 200,
+        "providerCode": 0
+      },
+      {
+        "host": "api.bilibili.com",
+        "path": "/x/web-interface/view",
+        "httpStatus": 200,
+        "providerCode": 0
+      }
+    ]
+  }
+]

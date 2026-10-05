@@ -51,6 +51,7 @@ export class PlayerViewModel {
     if (source === 'meting-tencent') { return '腾讯 / QQ'; }
     if (source === 'meting-kugou') { return '酷狗'; }
     if (source === 'meting-kuwo') { return '酷我'; }
+    if (source === 'bilibili') { return 'Bilibili'; }
     return source !== undefined ? source : '';
   }
 

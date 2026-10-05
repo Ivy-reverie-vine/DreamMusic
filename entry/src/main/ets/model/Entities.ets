@@ -20,6 +20,60 @@ export interface PlaybackAttempt {
   audioIntegrity?: AudioIntegrity;
 }
 
+export interface BilibiliPartResource {
+  bvid: string;
+  cid: string;
+  page: number;
+  title: string;
+  partTitle: string;
+  uploader: BilibiliUploader;
+}
+
+export interface BilibiliUploader {
+  id: string;
+  name: string;
+}
+
+export interface BilibiliMatchEvidence {
+  policy: string;
+  title: string;
+  artists: string[];
+  album: string;
+  catalogDurationMs: number;
+  partDurationMs: number;
+  catalogLink: boolean;
+  originalAlbumAudio: boolean;
+}
+
+export interface BilibiliRecordingMatch {
+  status: string;
+  reason: string;
+  evidence: BilibiliMatchEvidence;
+}
+
+/** 搜索提示可能尚未取得 CID；只有具体分 P 才有 mediaRef。 */
+export interface BilibiliFallbackCandidate {
+  source: string;
+  bvid?: string;
+  mediaRef?: string;
+  sourceId?: string;
+  title: string;
+  artists?: string[];
+  durationMs?: number;
+  resource?: BilibiliPartResource;
+  status: string;
+  reason: string;
+  match?: BilibiliRecordingMatch;
+  audioIntegrity?: AudioIntegrity;
+}
+
+export interface BilibiliFallbackOutcome {
+  status: string;
+  reason: string;
+  query: string;
+  candidates: BilibiliFallbackCandidate[];
+}
+
 export interface AutomaticPlaybackOutcome {
   status: string;
   reason: string;
@@ -28,6 +82,7 @@ export interface AutomaticPlaybackOutcome {
   elapsedMs: number;
   remainingBudgetMs: number;
   attempts: PlaybackAttempt[];
+  bilibili?: BilibiliFallbackOutcome;
 }
 
 export interface Track {

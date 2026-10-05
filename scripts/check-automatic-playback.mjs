@@ -30,7 +30,7 @@ async function until(predicate) {
   const deadline = Date.now() + 5000;
   while (!predicate()) { assert.ok(Date.now() < deadline, 'client did not settle'); await delay(10); }
 }
-const gateway = await startIdentityGateway();
+const gateway = await startIdentityGateway({ mediaProxy: true });
 try {
   const requests = [], sessions = [], downloads = [];
   const hilog = { error() {}, debug() {} };
@@ -171,11 +171,55 @@ try {
   assert.equal(player.state, PlayerState.PLAYING);
   assert.equal(queue.currentId, 77);
   assert.ok(queueId < 0);
+  // T08: the same actual ArkTS row click consumes Bilibili outcomes and retains
+  // candidates on failure; only provider replies and Kit playback are controlled.
+  gateway.orchestrator.setSourceEnabled('bilibili', true);
+  configure({});
+  const ordinaryResponse = gateway.controls.thirdPartyResponse;
+  let biliFull = false;
+  gateway.controls.thirdPartyResponse = url => {
+    if (url.pathname === '/x/web-interface/nav') return json({ code: -101, data: { wbi_img: {
+      img_url: 'https://i.test/' + 'a'.repeat(32) + '.png', sub_url: 'https://i.test/' + 'b'.repeat(32) + '.png' } } });
+    if (url.pathname.endsWith('/search/type')) return json({ code: 0, data: { result: [{ bvid: 'BV1GJ411x7h7', title: '目录歌曲', author: '上传者' }] } });
+    if (url.pathname === '/x/web-interface/view') return json({ code: 0, data: { bvid: 'BV1GJ411x7h7', title: '目录歌曲',
+      desc: '歌名：目录歌曲\n歌手：原歌手\n专辑：目录专辑\n音频：原专辑音轨\nhttps://music.163.com/song?id=123',
+      owner: { mid: 9, name: '上传者' }, pages: [{ cid: 222, page: 2, part: '目录歌曲', duration: 90 }] } });
+    if (url.pathname === '/x/player/playurl') return json({ code: 0, data: { cid: 222, timelength: 90000,
+      ...(biliFull ? { isPreview: false } : {}), dash: { duration: 90,
+        audio: [{ baseUrl: 'https://audio.test/bili.m4a', mimeType: 'audio/mp4', codecs: 'mp4a.40.2' }] } } });
+    return ordinaryResponse(url);
+  };
+  await click();
+  assert.equal(player.errorCode, 'PLAYBACK_EXHAUSTED');
+  const candidate = player.currentTrack.playbackOutcome.bilibili.candidates.find(candidate => candidate.resource?.cid === '222');
+  assert.equal(candidate.reason, 'audio_unknown');
+  assert.equal(candidate.status, 'manual');
+  assert.equal(candidate.resource.uploader.name, '上传者');
+  biliFull = true; await click();
+  assert.equal(player.state, PlayerState.PLAYING);
+  assert.equal(player.currentTrack.playbackSource, 'bilibili');
+  assert.equal(player.playbackSourceText, 'Bilibili');
+  assert.equal(player.currentTrack.title, song.name);
+  assert.equal(player.currentTrack.artist, song.artist);
+  assert.equal(player.currentTrack.catalogRef, song.catalogRef);
+  assert.equal(player.currentTrack.lyricsRef, song.lyricsRef);
+  assert.equal(identity.canDownloadNetEase(player.currentTrack), false);
+  assert.equal(downloads.length, 0);
+  gateway.controls.beforeResponse = (url, signal) => url.pathname === '/x/player/playurl'
+    ? new Promise((resolve, reject) => signal.addEventListener('abort', () => reject(new Error('cancelled')), { once: true })) : Promise.resolve();
+  gateway.controls.calls.length = 0;
+  const oldBili = online.playSong(context, song, true);
+  await until(() => gateway.controls.calls.some(url => url.pathname === '/x/player/playurl'));
+  await queue.playFromList([local], 0, context); await oldBili; await delay(80);
+  assert.equal(player.currentTrack.id, 77);
+  assert.equal(player.state, PlayerState.PLAYING);
+  assert.equal(downloads.length, 0);
+  gateway.orchestrator.setSourceEnabled('bilibili', false);
   configure({ netease: 'full' });
   await click(); await until(() => downloads.length === 1);
   assert.equal(player.currentTrack.playbackSource, 'api-enhanced');
   assert.equal(identity.canDownloadNetEase(player.currentTrack), true);
   gateway.orchestrator.searchSessions.clear(); await click();
   assert.equal(player.errorCode, 'INVALID_SEARCH_SESSION');
-  console.log('PASS actual HTTP → actual ArkTS merged-row click, automatic fallback, full-only/first-full gate, all failure, stage budget, switch cancellation, stale rejection, catalog/cover/lyrics/download isolation and original NetEase regression. Kit playback is controlled, not device decoding.');
+  console.log('PASS actual HTTP → actual ArkTS merged-row click, music/Bilibili full-only automatic fallback, retained manual candidates, source label, total/stage budget, switch cancellation including Bilibili, stale rejection, catalog/cover/lyrics/download isolation and original NetEase regression. Kit playback is controlled, not device decoding.');
 } finally { await gateway.close(); }
