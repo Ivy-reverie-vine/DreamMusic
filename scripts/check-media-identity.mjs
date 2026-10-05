@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { stripTypeScriptTypes } from 'node:module';
 import { runInNewContext } from 'node:vm';
 import { startIdentityGateway } from '../../NightDream/server/test-support/identityGateway.js';
+import { createMediaRef } from '../../NightDream/server/mediaContract.js';
 
 const root = new URL('../entry/src/main/ets/', import.meta.url);
 function load(path, names, deps = {}) {
@@ -20,6 +21,7 @@ async function until(predicate) {
   while (!predicate()) { assert.ok(Date.now() < deadline, 'public state did not settle'); await new Promise(r => setTimeout(r, 10)); }
 }
 const gateway = await startIdentityGateway();
+let activeGateway = gateway;
 try {
   const requests = [];
   const hilog = { error() {}, debug() {} };
@@ -36,9 +38,9 @@ try {
   });
   const { NetEaseApi } = load('service/network/NetEaseApi.ets', ['NetEaseApi'], {
     ApiClient, ApiError, DreamMusicAuth: {
-      base: async () => gateway.base + '/dreammusic/api/v1',
-      baseV2: async () => gateway.base + '/dreammusic/api/v2', username: () => 'identity-user',
-      withApiKey: (_ctx, call) => call({ 'X-API-Key': gateway.apiKey }),
+      base: async () => activeGateway.base + '/dreammusic/api/v1',
+      baseV2: async () => activeGateway.base + '/dreammusic/api/v2', username: () => 'identity-user',
+      withApiKey: (_ctx, call) => call({ 'X-API-Key': activeGateway.apiKey }),
     }, playbackDiagnostics: { record() {} }, classifyPlaybackError: () => 'failure',
     DIAGNOSTIC_CATEGORY_EMPTY_PLAYBACK_URL: 'empty', DIAGNOSTIC_CATEGORY_SOURCE_TIMEOUT: 'timeout',
   });
@@ -163,5 +165,53 @@ try {
   assert.equal(player.state, PlayerState.PLAYING);
   assert.equal(lyrics.lyricsRef, '');
   assert.deepEqual(downloads, [123]);
-  console.log('PASS: real HTTP search/detail/audio/lyrics → real ArkTS API/queue/player/lyrics public state; concrete references, stable catalog display, source label, legacy download isolation, local playback and stale response rejection. Kit audio/storage are controlled, not device evidence.');
+  // T07: the production API consumes BV/CID through the same resource contract.
+  // Explicit unknown samples are only played by the isolated browser harness.
+  gateway.controls.beforeResponse = async () => {};
+  gateway.orchestrator.setSourceEnabled('bilibili', true);
+  const biliRef = createMediaRef({ source: 'bilibili', sourceId: 'BV1GJ411x7h7:222' });
+  gateway.controls.thirdPartyResponse = url => {
+    if (url.pathname === '/x/web-interface/view') return new Response(JSON.stringify({ code: 0, data: {
+      bvid: 'BV1GJ411x7h7', title: '合集', owner: { mid: 9, name: '上传者' }, pages: [
+        { cid: 111, page: 1, part: '第一曲', duration: 120 }, { cid: 222, page: 2, part: '目标曲', duration: 90 }
+      ]
+    } }));
+    if (url.pathname === '/x/player/playurl') return new Response(JSON.stringify({ code: 0, data: {
+      timelength: 90000, dash: { duration: 90, audio: [{ id: 30280, mimeType: 'audio/mp4',
+        codecs: 'mp4a.40.2', baseUrl: 'https://audio.test/part222.m4a' }] }
+    } }));
+    return null;
+  };
+  // No proxy means an explicit failure, never exposing required provider headers to ArkTS.
+  await assert.rejects(() => NetEaseApi.resolvePlayback(context, 0, biliRef));
+  const biliResult = await gateway.request('/dreammusic/api/v2/song/url/v1?' + new URLSearchParams({ mediaRef: biliRef }), {
+    headers: { 'X-API-Key': gateway.apiKey }
+  });
+  assert.equal(biliResult.body.errorCode, 'MEDIA_PROXY_REQUIRED');
+  assert.deepEqual(downloads, [123]);
+  const biliGateway = await startIdentityGateway({ bilibili: true, mediaProxy: true });
+  try {
+    activeGateway = biliGateway;
+    biliGateway.controls.thirdPartyResponse = gateway.controls.thirdPartyResponse;
+    const resolution = await NetEaseApi.resolvePlayback(context, 0, biliRef);
+    assert.equal(resolution.catalogRef, biliRef);
+    assert.equal(resolution.playbackRef, biliRef);
+    assert.equal(resolution.playbackSource, 'bilibili');
+    assert.equal(resolution.audioIntegrity.status, 'unknown');
+    assert.ok(resolution.url.startsWith(biliGateway.base + '/dreammusic/media/stream/'));
+    const playCount = sessions.filter(session => session.url !== undefined).length;
+    const lookupCount = localLookups.length;
+    const biliSong = { id: 0, name: '目标曲', artist: '', album: '合集', coverUrl: '', durationMs: 90000,
+      source: 'bilibili', sourceId: 'BV1GJ411x7h7:222', mediaRef: biliRef,
+      catalogRef: biliRef, playbackRef: biliRef, lyricsRef: biliRef };
+    await assert.rejects(() => online.playSong(context, biliSong), error => error.code === 'AUDIO_UNKNOWN');
+    assert.equal(sessions.filter(session => session.url !== undefined).length, playCount,
+      'unknown Bilibili audio must not be handed to Kit for playback');
+    assert.deepEqual(downloads, [123]);
+    assert.equal(localLookups.length, lookupCount, 'Bilibili must not enter the NetEase local cache');
+    await queue.playFromList([local], 0, context);
+    assert.equal(player.state, PlayerState.PLAYING);
+    assert.equal(player.currentTrack, local);
+  } finally { activeGateway = gateway; await biliGateway.close(); }
+  console.log('PASS: real HTTP search/detail/audio/lyrics → real ArkTS API/queue/player/lyrics public state; concrete references, stable catalog display, source label, legacy download isolation, local playback and stale response rejection. Bilibili uses the same mediaRef API/proxy; unknown does not enter the production player or download chain. Kit audio/storage are controlled, not device evidence.');
 } finally { await gateway.close(); }
