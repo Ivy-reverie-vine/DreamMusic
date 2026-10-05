@@ -1,0 +1,101 @@
+{
+  "boundary": "Controlled 410/provider response; real native browser decoder, production PlayerProvider/API, live local HTTP.",
+  "capturedAt": "2026-10-05T16:28:35.563Z",
+  "state": {
+    "name": "目录歌曲",
+    "artist": "原歌手",
+    "catalogRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJhcGktZW5oYW5jZWQiLCJzb3VyY2VJZCI6IjEyMyIsImtpbmQiOiJzb25nIn0",
+    "playbackRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJtZXRpbmctdGVuY2VudCIsInNvdXJjZUlkIjoic2VsZWN0ZWQiLCJraW5kIjoic29uZyJ9",
+    "lyricsRef": "eyJ2ZXJzaW9uIjoxLCJzb3VyY2UiOiJhcGktZW5oYW5jZWQiLCJzb3VyY2VJZCI6IjEyMyIsImtpbmQiOiJzb25nIn0",
+    "playbackSource": "meting-tencent",
+    "revision": 1,
+    "isPlaying": true,
+    "time": 33.937
+  },
+  "events": [
+    {
+      "event": "error",
+      "time": 0,
+      "paused": true,
+      "readyState": 0
+    },
+    {
+      "event": "pause",
+      "time": 0,
+      "paused": true,
+      "readyState": 0
+    },
+    {
+      "event": "loadedmetadata",
+      "time": 0,
+      "paused": false,
+      "readyState": 1
+    },
+    {
+      "event": "playing",
+      "time": 0.002,
+      "paused": false,
+      "readyState": 4
+    },
+    {
+      "event": "playing",
+      "time": 0.005,
+      "paused": false,
+      "readyState": 4
+    },
+    {
+      "event": "timeupdate",
+      "time": 31.812,
+      "paused": false,
+      "readyState": 4
+    },
+    {
+      "event": "timeupdate",
+      "time": 32.077,
+      "paused": false,
+      "readyState": 4
+    },
+    {
+      "event": "timeupdate",
+      "time": 32.342,
+      "paused": false,
+      "readyState": 4
+    },
+    {
+      "event": "timeupdate",
+      "time": 32.608,
+      "paused": false,
+      "readyState": 4
+    },
+    {
+      "event": "timeupdate",
+      "time": 32.874,
+      "paused": false,
+      "readyState": 4
+    },
+    {
+      "event": "timeupdate",
+      "time": 33.14,
+      "paused": false,
+      "readyState": 4
+    },
+    {
+      "event": "timeupdate",
+      "time": 33.405,
+      "paused": false,
+      "readyState": 4
+    },
+    {
+      "event": "timeupdate",
+      "time": 33.671,
+      "paused": false,
+      "readyState": 4
+    },
+    {
+      "event": "timeupdate",
+      "time": 33.937,
+      "paused": false,
+      "readyState": 4
+    }
+  ]
+}
