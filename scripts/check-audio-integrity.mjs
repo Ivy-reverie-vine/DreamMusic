@@ -159,10 +159,13 @@ try {
   // Metadata passes but actual media HTTP fails: unavailable, zero downloads, retry same reference.
   resource = { ...cases[0][2], url: mediaBase + '/fail' };
   const downloadCount = downloads.length;
+  const recoveriesBefore = requests.filter(url => url.searchParams.get('recover') === 'true').length;
   await assert.rejects(online.playSong(context, selected));
-  assert.equal(player.errorCode, 'MEDIA_READ_FAILED');
+  // T13 now retries a remembered full selection twice before the failure terminal.
+  assert.equal(player.errorCode, 'PLAYBACK_RECOVERY_FAILED');
+  assert.equal(requests.filter(url => url.searchParams.get('recover') === 'true').length, recoveriesBefore + 2);
   assert.equal(player.currentTrack.audioIntegrity.status, 'unavailable');
-  assert.equal(player.currentTrack.audioIntegrity.reason, 'media_read_failed');
+  assert.equal(player.currentTrack.audioIntegrity.reason, 'playback_recovery_failed');
   assert.equal(downloads.length, downloadCount);
   const failedId = player.currentTrack.id;
   resource = cases[0][2];

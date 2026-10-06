@@ -1,8 +1,44 @@
 # Issue #34：真实来源与浏览器验收进展
 
-日期：2026-10-06，Asia/Shanghai。**本票未完成，必须保持 OPEN。** 前置 #29、#31、#32 已读回 CLOSED；未修改父 #19 或其他目标。
+日期：2026-10-06，Asia/Shanghai。**T15 的关键真实场景已完成。** 前置 #29、#31、#32 已读回 CLOSED；仅关闭本票，不修改父 #19 或 #35 真机验收。
 
-## 本轮逐场景结果
+## 最终验收
+
+| 场景 | 结果 | 真实证据 |
+| --- | --- | --- |
+| 三平台聚合与普通完整版 | PASS | 首轮网易/QQ/酷狗均ok、同录音元数据合并；网易33984241实际播放至89.07068s ended，整文件3565236字节/FFmpeg解码通过 |
+| 明确试听 → B站自动成功 | PASS | 网易18520488真实26827ms试听，随后真实WBI搜索发现BV1GJ411x7h7:137649199；没有指定BV替代搜索。原目录试听与候选约24秒指纹对齐，195个哈希，平均位差3.4923、P95=6，严格标题/版本/时长检查通过；4973ms返回bilibili_full_recording |
+| 自动资源完整性与原生媒体 | PASS | 完整读取1167163字节并解码为212394.75ms实际PCM；浏览器duration212.393833s、playing/readyState4，进度持续推进。目录仍为网易18520488，实际音频引用为上述B站BV/CID，下载入口不转入旧网易链 |
+| 自动拒绝 → 手动独立完整播放 | PASS | 搜索发现的BV1KR4y1w7A3:723641888因录音出处不足保持manual。选择阶段不请求playurl；明确确认后实际读取2108684字节，完整解码250602.833ms，浏览器完整播放至250.6025s ended。目录/播放改为独立B站身份，原曲歌词时间轴不应用 |
+| 原平台同步歌词 | PASS | 首轮网易2652820720，原平台available/trusted、实际playing与高亮；样本是Lucky小爱的晴天(深情版)，不是周杰伦录音 |
+| 真实缺词 → LRCLIB普通文本 | PASS | 网易1465951 / Ian Dury / Profoundly in Love with Pandora，原平台歌词确实为空；真实LRCLIB25549173，plain/uncertain，生产NowPlaying显示来源与静态提示，原生播放进度至69.518s继续推进 |
+| 真实缺词 → LRCLIB同步 | PASS | 网易2673931252 / Sweet Gene Vincent，原平台仅有作词/作曲JSON头，无正文；清理元数据头后真实LRCLIB34577799，synced/trusted。原生playing、进度及整曲221.053333s结束记录；组件使用同步时间轴 |
+| 真实歌词未命中 | PASS | 网易36578812 / I Want to Be Straight，原平台为空；真实LRCLIB get404后search候选校验无匹配。生产界面“暂无歌词”，音频仍playing、进度79.909s、readyState4，无媒体错误。不是合成不存在条目 |
+| 实际公开音频的URL恢复 | PASS | 自动B站音频的本地短签名自然到期后，诊断页用cache-busting重载强制实际HTTP；旧代理返回404，生产PlayerProvider调用recover=true，3321ms重新解析相同BV/CID并完整检查，媒体新请求200、恢复到52.871s后推进至136.871s。恢复凭据保留原目录/实际引用，已验证音频SHA重新一致；不是本地WAV替身 |
+
+最终证据在NightDream `docs/evidence/`：`issue34-complete-media-live.json`（手动整曲）、`issue34-real-lyrics-browser.json`（真实plain）、`issue34-lyrics-complete-live.json`（真实synced/missing）、`issue34-final-live.json`（自动成功及真实音频恢复）。`issue34-final-checkout-live.json`保留后续独立轮次遇到的B站v_voucher风控失败，不删除或改记成功。
+
+对应截图：[自动匹配播放](assets/issue34-bilibili-auto-playing.png)、[手动播放](assets/issue34-bilibili-manual-playing.png)、[手动整曲结束](assets/issue34-bilibili-manual-ended.png)、[真实文本回退](assets/issue34-lrclib-real-plain.png)、[真实同步回退](assets/issue34-lrclib-real-synced.png)、[真实未命中且继续播放](assets/issue34-lrclib-real-missing.png)。自动恢复的HTTP及原生error/playing/位置序列以`issue34-final-live.json`为准。
+
+## 修正与最终检查
+
+- B站无试听字段时增加完整AAC读取、FFprobe音频容器检查及FFmpeg整文件PCM解码；以实际样本数衡量时长，不能用容器声明、时间戳空洞、前段Range或用户同意证明full。显式试听仍先拒绝，截断/不完整/解码失败/超限/缺引擎仍未知；共享原来源/自动预算，临时文件由唯一目录清理。
+- 自动录音判定增加原目录实际试听的Chromaprint音频证据；只取身份核对正确的明确试听，绑定目录引用，至少150个且足够多样的哈希，已声明试听位置附近最多1秒对齐偏差，平均位差≤4、P95≤8；另需标题/署名顺序、版本与目录/分P时长一致。Live、Cover、Remix、变速、对白/额外片段仍拒绝。普通MV标签只有声音证据通过时才可通过，不凭官方UP或关键词判定。回退所用试听不作为完整播放成功。
+- 原目录搜索缺时长等字段时补取该引用详情；网易JSON元数据头没有正文时按missing继续LRCLIB，不把作曲信息作为歌词。同步/静态/空歌词均由生产组件显示。
+- 新证据字段同步Web/ArkTS类型；自动恢复保存已确认文件摘要，再解析同一资源时须重新完整检查且摘要一致，变化则明确拒绝，不静默换源。
+- NightDream全量54文件/335项通过；随后新增截断媒体与错资源试听两个反例，相关4文件/40项通过。首次全量发现T10旧断言把验证所选媒体的GET误当换源，修正为只允许该媒体地址，单项与全量复测通过；未放宽unknown/preview门禁。
+- TypeScript/Vite build、诊断入口严格类型检查、JS语法及两仓库diff检查通过。ArkTS automatic-playback、catalog-lyrics、audio-integrity、URL-recovery主机检查通过；T05旧失败断言更新为T13的“两次恢复后失败”并检查次数、身份和零下载。
+- API23 `assembleHap --no-daemon --stacktrace`的类型检查、打包及当前本机签名通过，62.838秒；没有跳过类型检查，保留既有警告。没有宣称真机AVPlayer/后台/锁屏、#35或父#19完成。Docker daemon未运行，容器构建未执行；Dockerfile已声明FFmpeg依赖，本轮引擎与浏览器在Windows主机验证。
+
+## 时序和边界
+
+自动解析4973ms以及第二轮2931ms均在10000ms总预算内；播放器交接到首个playing300ms，后续缓冲和恢复单独记录。手动解析1556ms，其中完整媒体检查1321ms，交接后424ms起播。诊断页预取歌词用于日志，点击到playing含搜索/歌词/登录，不能全部当作解析时间。
+
+B站部分真实搜索仍返回HTTP200/code0/v_voucher且缺result，后续轮次明确记录exhausted / BILIBILI_SEARCH_INCOMPLETE。少量样本不代表来源稳定率或曲库覆盖率。自然到期的是本地代理签名；人为重载触发了失效，不声称B站上游自然过期成功率。早期受控410/WAV记录仍保留，并与本轮真实公开音频分开。
+
+来源生产默认开关保持不变。复现见NightDream `docs/matching-live-validation.md`与`docs/bilibili-fallback.md`。临时服务、侧车、SQLite、媒体及不用的探针收尾清理；原有build-profile.json5/.scratch不纳入提交。
+
+## 首轮历史结果（当时未完成，缺口现已补齐）
 
 | 场景 | 结果 | 本轮证据与限制 |
 | --- | --- | --- |
@@ -48,4 +84,4 @@ JSON按白名单保存身份、元数据、状态与耗时；账户凭据、恢�
 - 相关自动回退、LRCLIB、播放器恢复回归：3文件 / 34项通过（两个worker）。受控测试的B站full分支不计入上述真实场景PASS。
 - 本轮没有改HarmonyOS应用或网关业务判断，没有把主机测试当真机验收；#35设备验收不在本票范围。
 
-复现见 NightDream `docs/matching-live-validation.md`。继续关闭本票前，必须取得通过现有录音与完整性规则的**真实B站自动成功、手动完整音频播放**，补齐**LRCLIB普通文本及真实缺词回退的浏览器状态**。当前只有部分场景通过，按本票第六项要求不能关闭为全部完成。
+上述为首轮历史边界，不代表最终状态；当时的真实B站与LRCLIB缺口已按本页开头的最终验收补齐。

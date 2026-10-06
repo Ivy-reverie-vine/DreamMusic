@@ -9,6 +9,32 @@ export interface AudioIntegrity {
   catalogDurationMs: number;
   resourceDurationMs: number;
   evidence: string[];
+  inspection?: CompleteMediaInspection;
+}
+
+export interface CompleteMediaInspection {
+  decoded: boolean;
+  reason?: string;
+  policy?: string;
+  durationMs?: number;
+  bytes?: number;
+  sha256?: string;
+  elapsedMs?: number;
+}
+
+export interface CatalogAudioMatch {
+  matched: boolean;
+  reason: string;
+  policy?: string;
+  catalogRef?: string;
+  resourceSha256?: string;
+  referenceSha256?: string;
+  sampleHashes?: number;
+  comparedSeconds?: number;
+  alignmentSeconds?: number;
+  referenceStartSeconds?: number;
+  meanBitErrors?: number;
+  p95BitErrors?: number;
 }
 
 export interface PlaybackAttempt {
@@ -43,6 +69,7 @@ export interface BilibiliMatchEvidence {
   partDurationMs: number;
   catalogLink: boolean;
   originalAlbumAudio: boolean;
+  audioMatch?: CatalogAudioMatch;
 }
 
 export interface BilibiliRecordingMatch {
