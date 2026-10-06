@@ -1,0 +1,42 @@
+音乐库 | Text | [67,231][737,310] |
+搜索 | Text | [826,245][914,296] |
+扫描 | Text | [1043,245][1131,296] |
+歌曲 | Text | [67,383][162,438] |
+专辑 | Text | [230,383][325,438] |
+艺术家 | Text | [392,383][534,438] |
+返回 | Text | [128,555][223,610] |
+KevinScheming Weasel | TextInput | [276,515][1157,650] |
+Scheming Weasel (faster version) | Text | [296,740][997,799] |
+网易云 · Kevin MacLeod · Comedy Scoring | Text | [296,809][997,856] |
+0:00 | Text | [1037,775][1117,822] |
+Scheming Weasel (slower version) | Text | [296,1015][997,1074] |
+网易云 · Kevin MacLeod · Comedy Scoring | Text | [296,1084][997,1131] |
+0:00 | Text | [1037,1050][1117,1097] |
+Scheming Weasel (Peukie Remix) | Text | [296,1291][997,1350] |
+网易云 · Kevin MacLeod · Scheming Weasel (Peukie Remix) | Text | [296,1360][997,1407] |
+0:00 | Text | [1037,1326][1117,1373] |
+Scheming Weasel (Faster) | Text | [296,1566][891,1625] |
+网易云 · Kevin MacLeod · 25 Years (Volume 2) | Text | [296,1635][997,1682] |
+0:00 | Text | [1037,1601][1117,1648] |
+Scheming Weasel (slower version) | Text | [296,1841][997,1900] |
+网易云 · Kevin MacLeod | Text | [296,1910][743,1957] |
+0:00 | Text | [1037,1876][1117,1923] |
+Scheming Weasel | Text | [296,2100][700,2159] |
+QQ音乐 · Kevin MacLeod · Comedy Scoring | Text | [296,2169][997,2216] |
+Scheming Weasel (faster version) | Text | [296,2226][908,2273] |
+1:29 | Text | [1037,2163][1117,2210] |
+Scheming Weasel | Text | [296,2400][700,2424] |
+冻结 | Text | [256,2246][807,2305] |
+林俊杰 | Text | [256,2312][807,2359] |
+ | Button | [820,2221][982,2383] |
+ | Button | [995,2221][1157,2383] |
+已暂停 | Text | [80,2397][1157,2444] |
+音乐库 | Text | [117,2578][229,2622] |
+正在播放 | Text | [392,2578][541,2622] |
+队列 | Text | [721,2578][796,2622] |
+我的 | Text | [1014,2578][1089,2622] |
+15, :, 08 | Flex | [41,50][175,131] |
+15 | Text | [41,61][101,120] |
+: | Text | [101,65][115,116] |
+08 | Text | [115,61][175,120] |
+65 | Text | [1084,71][1129,115] |
