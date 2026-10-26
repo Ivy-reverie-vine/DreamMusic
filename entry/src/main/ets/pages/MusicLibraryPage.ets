@@ -119,7 +119,7 @@ export struct MusicLibraryPage {
             this.showSheet = false;
           })
         }
-      })
+      }, (p: Playlist) => p.id.toString())
       if (playlistsViewModel.playlists.filter((p: Playlist) => !p.systemReserved).length === 0) {
         Text('还没有自建歌单,先去歌单页新建')
           .fontSize(13)
@@ -128,7 +128,7 @@ export struct MusicLibraryPage {
     }
     .width('100%')
     .padding(16)
-    .backgroundColor(this.theme.bg)
+    .backgroundColor(this.theme.transparent)
   }
 
   aboutToAppear(): void {
@@ -329,39 +329,49 @@ export struct MusicLibraryPage {
 
   @Builder
   AlbumList() {
-    List({ space: 10 }) {
+    Grid() {
       ForEach(this.vm.albums, (a: Album) => {
-        ListItem() {
-          Row({ space: 12 }) {
-            Column()
-              .width(44)
-              .height(44)
-              .borderRadius(11)
-              .linearGradient({
-                angle: 135,
-                colors: [
-                  [ThemeService.alpha(this.theme.primary, 0.42), 0.0],
-                  [ThemeService.alpha(this.theme.secondary, 0.28), 1.0]
-                ]
-              })
+        GridItem() {
+          Column({ space: 8 }) {
+            Stack({ alignContent: Alignment.Center }) {
+              Column()
+                .width('100%')
+                .height(110)
+                .borderRadius(14)
+                .linearGradient({
+                  angle: 135,
+                  colors: [
+                    [ThemeService.alpha(this.theme.primary, 0.42), 0.0],
+                    [ThemeService.alpha(this.theme.secondary, 0.28), 1.0]
+                  ]
+                })
+              SymbolGlyph($r('sys.symbol.music_note'))
+                .fontSize(28)
+                .fontColor([ThemeService.alpha(this.theme.ink, 0.35)])
+            }
+            .width('100%')
+            .height(110)
+
             Column({ space: 3 }) {
               Text(a.name !== '' ? a.name : '未知专辑')
                 .fontSize(FONT_BODY)
+                .fontWeight(FontWeight.Medium)
                 .fontColor(this.theme.ink)
                 .maxLines(1)
                 .textOverflow({ overflow: TextOverflow.Ellipsis })
-              Text(`${a.artist} · ${a.trackCount} 首`)
+                .width('100%')
+              Text(`${a.artist !== '' ? a.artist : '未知歌手'} · ${a.trackCount} 首`)
                 .fontSize(FONT_LABEL)
                 .fontColor(this.theme.muted)
+                .maxLines(1)
+                .textOverflow({ overflow: TextOverflow.Ellipsis })
+                .width('100%')
             }
             .alignItems(HorizontalAlign.Start)
-            .layoutWeight(1)
-            SymbolGlyph($r('sys.symbol.chevron_right'))
-              .fontSize(15)
-              .fontColor([this.theme.muted])
+            .width('100%')
           }
           .width('100%')
-          .padding(12)
+          .padding(10)
           .borderRadius(RADIUS_CARD)
           .backgroundColor(this.theme.card)
           .shadow({ radius: SHADOW_CARD_RADIUS, color: this.theme.shadowColor, offsetX: 0, offsetY: SHADOW_CARD_OFFSET_Y })
@@ -372,8 +382,11 @@ export struct MusicLibraryPage {
             this.openAlbum(a);
           })
         }
-      })
+      }, (a: Album) => a.name + '_' + a.artist)
     }
+    .columnsTemplate('repeat(auto-fill, minmax(130vp, 1fr))')
+    .columnsGap(12)
+    .rowsGap(12)
     .width('100%')
     .layoutWeight(1)
     .scrollBar(BarState.Auto)
@@ -381,36 +394,48 @@ export struct MusicLibraryPage {
 
   @Builder
   ArtistList() {
-    List({ space: 10 }) {
+    Grid() {
       ForEach(this.vm.artists, (a: Artist) => {
-        ListItem() {
-          Row({ space: 12 }) {
-            Column()
-              .width(44)
-              .height(44)
-              .borderRadius(22)
-              .linearGradient({
-                angle: 135,
-                colors: [
-                  [ThemeService.alpha(this.theme.secondary, 0.45), 0.0],
-                  [ThemeService.alpha(this.theme.primary, 0.3), 1.0]
-                ]
-              })
+        GridItem() {
+          Column({ space: 8 }) {
+            Stack({ alignContent: Alignment.Center }) {
+              Column()
+                .width(80)
+                .height(80)
+                .borderRadius(40)
+                .linearGradient({
+                  angle: 135,
+                  colors: [
+                    [ThemeService.alpha(this.theme.secondary, 0.45), 0.0],
+                    [ThemeService.alpha(this.theme.primary, 0.3), 1.0]
+                  ]
+                })
+              SymbolGlyph($r('sys.symbol.person'))
+                .fontSize(32)
+                .fontColor([ThemeService.alpha(this.theme.ink, 0.35)])
+            }
+            .width('100%')
+            .height(80)
+
             Column({ space: 3 }) {
               Text(a.name !== '' ? a.name : '未知艺术家')
                 .fontSize(FONT_BODY)
+                .fontWeight(FontWeight.Medium)
                 .fontColor(this.theme.ink)
                 .maxLines(1)
                 .textOverflow({ overflow: TextOverflow.Ellipsis })
+                .textAlign(TextAlign.Center)
+                .width('100%')
               Text(`${a.trackCount} 首`)
                 .fontSize(FONT_LABEL)
                 .fontColor(this.theme.muted)
+                .maxLines(1)
+                .textOverflow({ overflow: TextOverflow.Ellipsis })
+                .textAlign(TextAlign.Center)
+                .width('100%')
             }
-            .alignItems(HorizontalAlign.Start)
-            .layoutWeight(1)
-            SymbolGlyph($r('sys.symbol.chevron_right'))
-              .fontSize(15)
-              .fontColor([this.theme.muted])
+            .alignItems(HorizontalAlign.Center)
+            .width('100%')
           }
           .width('100%')
           .padding(12)
@@ -424,8 +449,11 @@ export struct MusicLibraryPage {
             this.openArtist(a);
           })
         }
-      })
+      }, (a: Artist) => a.name)
     }
+    .columnsTemplate('repeat(auto-fill, minmax(130vp, 1fr))')
+    .columnsGap(12)
+    .rowsGap(12)
     .width('100%')
     .layoutWeight(1)
     .scrollBar(BarState.Auto)
@@ -474,7 +502,7 @@ export struct MusicLibraryPage {
             ListItem() {
               this.TrackRowItem(t, index, this.detailTracks)
             }
-          })
+          }, (t: Track) => t.id.toString())
         }
         .width('100%')
         .layoutWeight(1)
@@ -554,7 +582,7 @@ export struct MusicLibraryPage {
       }
       .width('100%')
       .padding({ top: 8, bottom: 16 })
-      .backgroundColor(this.theme.bg)
+      .backgroundColor(this.theme.transparent)
     } else if (this.sheetMode === 2) {
       this.addPanel()
     } else if (this.sheetMode === 3 && this.sheetTarget !== null) {
@@ -603,7 +631,7 @@ export struct MusicLibraryPage {
       }
       .width('100%')
       .padding({ top: 8, bottom: 16 })
-      .backgroundColor(this.theme.bg)
+      .backgroundColor(this.theme.transparent)
     }
   }
 
@@ -665,7 +693,7 @@ export struct MusicLibraryPage {
             this.tab = index;
             this.closeDetail();
           })
-        })
+        }, (item: string) => item)
         Blank()
       }
       .width('100%')
@@ -758,8 +786,10 @@ export struct MusicLibraryPage {
     .width('100%')
     .height('100%')
     .bindSheet(this.showSheet, this.SheetContent(), {
-      height: this.sheetMode === 3 ? 300 : this.sheetMode === 1 ? 340 : 420,
-      backgroundColor: this.theme.bg,
+      detents: [SheetSize.FIT_CONTENT, SheetSize.LARGE],
+      preferType: SheetType.BOTTOM,
+      blurStyle: BlurStyle.COMPONENT_ULTRA_THICK,
+      backgroundColor: ThemeService.alpha(this.theme.bg, 0.88),
       onDisappear: () => {
         this.showSheet = false;
         this.sheetMode = 0;

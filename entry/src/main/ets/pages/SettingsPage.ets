@@ -401,7 +401,7 @@ export struct SettingsPage {
           .onClick(() => {
             this.setThemeMode(m.mode);
           })
-      })
+      }, (m: ThemeModeOption) => m.mode.toString())
     }
     .width('100%')
     .padding({ left: 12, right: 12, bottom: 10 })
@@ -437,7 +437,7 @@ export struct SettingsPage {
           .onClick(() => {
             this.applyBg(index);
           })
-        })
+        }, (_p: BgPreset, index: number) => index.toString())
 
         // 自定义背景图块(阶段 v2 恢复)
         Stack() {
@@ -547,7 +547,7 @@ export struct SettingsPage {
     }
     .width('100%')
     .padding(16)
-    .backgroundColor(this.theme.bg)
+    .backgroundColor(this.theme.transparent)
   }
 
   @Builder
@@ -569,7 +569,7 @@ export struct SettingsPage {
     }
     .width('100%')
     .padding(20)
-    .backgroundColor(this.theme.bg)
+    .backgroundColor(this.theme.transparent)
   }
 
   @Builder
@@ -601,7 +601,7 @@ export struct SettingsPage {
         .onClick(() => {
           this.chooseSleepTimer(option.durationMs);
         })
-      })
+      }, (option: SleepTimerOption) => option.durationMs.toString())
       Row() {
         Text('关闭定时暂停')
           .fontSize(14)
@@ -621,7 +621,7 @@ export struct SettingsPage {
     }
     .width('100%')
     .padding(20)
-    .backgroundColor(this.theme.bg)
+    .backgroundColor(this.theme.transparent)
   }
 
   @Builder
@@ -838,7 +838,7 @@ export struct SettingsPage {
           .padding(10)
           .borderRadius(12)
           .backgroundColor(this.theme.card)
-        })
+        }, (p: ServerProfile) => p.id.toString())
       }
       .padding({ left: 20, right: 20, top: 4, bottom: 16 })
       .width('100%')
@@ -847,8 +847,10 @@ export struct SettingsPage {
     .height('100%')
     .scrollBar(BarState.Auto)
     .bindSheet(this.showSheet, this.sheetContent(), {
-      height: this.sheetMode === 1 ? 320 : this.sheetMode === 3 ? 300 : 380,
-      backgroundColor: this.theme.bg,
+      detents: [SheetSize.FIT_CONTENT, SheetSize.LARGE],
+      preferType: SheetType.BOTTOM,
+      blurStyle: BlurStyle.COMPONENT_ULTRA_THICK,
+      backgroundColor: ThemeService.alpha(this.theme.bg, 0.88),
       onDisappear: () => {
         this.showSheet = false;
         this.sheetMode = 0;
