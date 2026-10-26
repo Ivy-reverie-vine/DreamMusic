@@ -27,8 +27,10 @@ function fmt(ms: number): string {
 }
 
 /**
- * 正在播放页(issue-05/08 + issue-12 视觉):
+ * 正在播放页(issue-05/08 + issue-12 视觉 + issue-37 宽屏双栏与黑胶动效):
  * 黑胶盘芯造型(盘体/同心纹/轴孔)+ 切歌"翻开"过渡(温和版,减弱动效降级淡入);
+ * 播放状态下黑胶平滑慢速旋转微动效(约30秒一圈,无障碍减弱动效降级);
+ * 宽屏/折叠屏自适应双栏响应式排布(>=600vp左栏黑胶播控/右栏沉浸式歌词流);
  * 背景弥散光影(封面主色径向渐变);控制按钮全部 SymbolGlyph;进度为胶囊灯带。
  */
 @Component
@@ -42,6 +44,10 @@ export struct NowPlayingPage {
   @State lrc: LyricsViewModel = lyricsViewModel;
   /** 黑胶翻开动画相位:false=合上(初始帧),true=展开 */
   @State flip: boolean = false;
+  /** 黑胶旋转角度（播放时平滑微动效，约 30 秒一圈） */
+  @State discAngle: number = 0;
+  /** 黑胶旋转定时器 */
+  private rotateTimer: number = -1;
   /** 歌词滚动控制器 + 自动跟随(用户手动滑动时暂停跟随) */
   private lrcScroller: Scroller = new Scroller();
   private lyricFollow: LyricFollowState = new LyricFollowState();
@@ -62,10 +68,12 @@ export struct NowPlayingPage {
       this.flipCover();
     }
     this.startLyricFollow();
+    this.updateVinylRotation();
   }
 
   aboutToDisappear(): void {
     this.visible = false;
+    this.stopVinylRotate();
     this.stopLyricFollow();
     if (this.flipTimer >= 0) {
       clearTimeout(this.flipTimer);
@@ -87,6 +95,7 @@ export struct NowPlayingPage {
   }
 
   private followActiveLine(): void {
+    this.updateVinylRotation();
     if (this.lrc.lines.length === 0 || !this.lrc.timelineTrusted) {
       return;
     }
@@ -124,10 +133,14 @@ export struct NowPlayingPage {
   }
 
   private discSize(): number {
-    return Math.max(64, Math.min(236, this.contentWidth - 40, this.contentHeight * 0.4));
+    const availableWidth = this.contentWidth >= 600 ? (this.contentWidth * 0.47 - 40) : (this.contentWidth - 40);
+    return Math.max(64, Math.min(236, availableWidth, this.contentHeight * 0.4));
   }
 
   private lyricHeight(): number {
+    if (this.contentWidth >= 600) {
+      return Math.max(300, this.contentHeight - 80);
+    }
     return Math.max(96, Math.min(280, this.contentHeight * 0.36));
   }
 
@@ -150,11 +163,44 @@ export struct NowPlayingPage {
     }
   }
 
+  private startVinylRotate(): void {
+    if (this.reduceMotion()) {
+      this.stopVinylRotate();
+      return;
+    }
+    if (this.rotateTimer >= 0) {
+      return;
+    }
+    this.rotateTimer = setInterval(() => {
+      if (this.reduceMotion()) {
+        this.stopVinylRotate();
+        return;
+      }
+      this.discAngle = (this.discAngle + 0.6) % 360;
+    }, 50);
+  }
+
+  private stopVinylRotate(): void {
+    if (this.rotateTimer >= 0) {
+      clearInterval(this.rotateTimer);
+      this.rotateTimer = -1;
+    }
+  }
+
+  private updateVinylRotation(): void {
+    if (this.visible && this.vm.state === PlayerState.PLAYING) {
+      this.startVinylRotate();
+    } else {
+      this.stopVinylRotate();
+    }
+  }
+
   private onPlaybackChanged(): void {
     if (this.visible && this.vm.currentTrack !== this.displayedTrack) {
       this.displayedTrack = this.vm.currentTrack;
       this.flipCover();
     }
+    this.updateVinylRotation();
   }
 
   /** 黑胶翻开:先合上(即时),再 550ms 展开(scale+微倾+淡入);减弱动效 → 即显 */
@@ -187,43 +233,49 @@ export struct NowPlayingPage {
   @Builder
   VinylDisc() {
     Stack() {
-      // 盘体:近黑圆盘 + 同心纹(克制的光泽)
-      Circle()
-        .width(this.discSize())
-        .height(this.discSize())
-        .fill('#14171B')
-      Circle()
-        .width(this.discSize())
-        .height(this.discSize())
-        .fill(this.theme.transparent)
-        .stroke(ThemeService.alpha('#FFFFFF', 0.07))
-        .strokeWidth(1)
-      Circle()
-        .width(this.discSize() * 208 / 236)
-        .height(this.discSize() * 208 / 236)
-        .fill(this.theme.transparent)
-        .stroke(ThemeService.alpha('#FFFFFF', 0.05))
-        .strokeWidth(1)
-      Circle()
-        .width(this.discSize() * 180 / 236)
-        .height(this.discSize() * 180 / 236)
-        .fill(this.theme.transparent)
-        .stroke(ThemeService.alpha('#FFFFFF', 0.04))
-        .strokeWidth(1)
+      // 旋转黑胶唱盘主体（盘体、同心纹光泽、封面、轴孔随播放慢速旋转）
+      Stack() {
+        // 盘体:近黑圆盘 + 同心纹(克制的光泽)
+        Circle()
+          .width(this.discSize())
+          .height(this.discSize())
+          .fill('#14171B')
+        Circle()
+          .width(this.discSize())
+          .height(this.discSize())
+          .fill(this.theme.transparent)
+          .stroke(ThemeService.alpha('#FFFFFF', 0.07))
+          .strokeWidth(1)
+        Circle()
+          .width(this.discSize() * 208 / 236)
+          .height(this.discSize() * 208 / 236)
+          .fill(this.theme.transparent)
+          .stroke(ThemeService.alpha('#FFFFFF', 0.05))
+          .strokeWidth(1)
+        Circle()
+          .width(this.discSize() * 180 / 236)
+          .height(this.discSize() * 180 / 236)
+          .fill(this.theme.transparent)
+          .stroke(ThemeService.alpha('#FFFFFF', 0.04))
+          .strokeWidth(1)
 
-      // 盘芯标签 = 封面(圆);无封面 → 主色渐变 + 音乐符号
-      CoverThumb({ uri: this.coverUri(), identity: CoverArtService.identity(this.vm.currentTrack),
-        thumbSize: this.discSize() * 172 / 236,
-        decodeSize: 512, circular: true, withShadow: false })
-        .geometryTransition('now_playing_cover', { follow: true })
+        // 盘芯标签 = 封面(圆);无封面 → 主色渐变 + 音乐符号
+        CoverThumb({ uri: this.coverUri(), identity: CoverArtService.identity(this.vm.currentTrack),
+          thumbSize: this.discSize() * 172 / 236,
+          decodeSize: 512, circular: true, withShadow: false })
+          .geometryTransition('now_playing_cover', { follow: true })
 
-      // 轴孔
-      Circle()
-        .width(this.discSize() * 12 / 236)
-        .height(this.discSize() * 12 / 236)
-        .fill('#0B0D0E')
-        .stroke(ThemeService.alpha('#FFFFFF', 0.35))
-        .strokeWidth(1)
+        // 轴孔
+        Circle()
+          .width(this.discSize() * 12 / 236)
+          .height(this.discSize() * 12 / 236)
+          .fill('#0B0D0E')
+          .stroke(ThemeService.alpha('#FFFFFF', 0.35))
+          .strokeWidth(1)
+      }
+      .width(this.discSize())
+      .height(this.discSize())
+      .rotate({ x: 0, y: 0, z: 1, angle: this.discAngle })
     }
     .width(this.discSize())
     .height(this.discSize())
@@ -232,6 +284,119 @@ export struct NowPlayingPage {
     .rotate({ x: 0, y: 1, z: 0, angle: this.flip ? 0 : 8 })
     .opacity(this.flip ? 1 : 0.55)
     .shadow({ radius: SHADOW_GLOW_RADIUS, color: ThemeService.alpha(this.theme.primary, 0.4), offsetX: 0, offsetY: 0 })
+  }
+
+  @Builder
+  TrackInfo() {
+    if (this.vm.currentTrack !== null) {
+      Column({ space: 6 }) {
+        Text(this.vm.currentTrack.title !== '' ? this.vm.currentTrack.title : this.vm.currentTrack.path)
+          .fontSize(FONT_DISPLAY)
+          .fontWeight(FontWeight.Bold)
+          .fontColor(this.theme.ink)
+          .width('100%')
+          .wordBreak(WordBreak.BREAK_ALL)
+        Text(`${this.vm.currentTrack.artist}${this.vm.currentTrack.album !== '' ? ' · ' + this.vm.currentTrack.album : ''}`)
+          .fontSize(FONT_BODY)
+          .fontColor(this.theme.muted)
+          .width('100%')
+          .wordBreak(WordBreak.BREAK_ALL)
+        if (this.vm.playbackSourceText !== '') {
+          Text('音频来源：' + this.vm.playbackSourceText)
+            .fontSize(FONT_BODY)
+            .fontColor(this.theme.muted)
+            .width('100%')
+        }
+      }
+      .width('100%')
+      .padding(8)
+      .borderRadius(12)
+      .backgroundColor(ThemeService.alpha(this.theme.bg, 0.95))
+    }
+  }
+
+  @Builder
+  PlaybackControls() {
+    Column({ space: 4 }) {
+      PlaybackStatus({ onGoLibrary: this.onGoLibrary, onGoSettings: this.onGoSettings })
+      Slider({
+        value: this.vm.positionMs,
+        min: 0,
+        max: this.vm.durationMs > 0 ? this.vm.durationMs : 1
+      })
+        .width('100%')
+        .height(40)
+        .trackThickness(5)
+        .selectedColor(this.theme.primary)
+        .trackColor(this.theme.trackColor)
+        .accessibilityText('播放进度')
+        .enabled(this.vm.state === PlayerState.PLAYING || this.vm.state === PlayerState.PAUSED)
+        .onChange((value: number) => {
+          this.vm.seekTo(value);
+        })
+      Row() {
+        Text(fmt(this.vm.positionMs))
+          .fontSize(FONT_CAPTION)
+          .fontColor(this.theme.muted)
+        Text(fmt(this.vm.durationMs))
+          .fontSize(FONT_CAPTION)
+          .fontColor(this.theme.muted)
+      }
+      .width('100%')
+      .justifyContent(FlexAlign.SpaceBetween)
+      .backgroundColor(ThemeService.alpha(this.theme.bg, 0.95))
+
+      Row({ space: Math.max(8, Math.min(40, ((this.contentWidth >= 600 ? this.contentWidth * 0.47 : this.contentWidth) - 168) / 2)) }) {
+        Button({ type: ButtonType.Circle }) {
+          SymbolGlyph($r('sys.symbol.backward_end_fill'))
+            .fontSize('30vp')
+            .fontColor([this.theme.muted])
+        }
+        .width(CONTROL_HIT_SIZE)
+        .height(CONTROL_HIT_SIZE)
+        .backgroundColor(this.theme.transparent)
+        .enabled(!this.controls.busy)
+        .accessibilityText('上一首')
+        .onClick(() => {
+          this.controls.run(() => {
+            queueViewModel.playPrev();
+            this.updateVinylRotation();
+          });
+        })
+        BubblePauseButton({
+          isPlaying: this.vm.state === PlayerState.PLAYING,
+          loading: this.vm.state === PlayerState.PREPARING,
+          onToggle: (): void => {
+            this.controls.run(() => {
+              this.vm.togglePause();
+              this.updateVinylRotation();
+            });
+          }
+        })
+          .enabled(!this.controls.busy && this.vm.state !== PlayerState.PREPARING && this.vm.state !== PlayerState.ERROR)
+          .accessibilityText(this.vm.state === PlayerState.PREPARING ? '正在加载音乐' :
+            (this.vm.state === PlayerState.PLAYING ? '暂停' : '播放'))
+        Button({ type: ButtonType.Circle }) {
+          SymbolGlyph($r('sys.symbol.forward_end_fill'))
+            .fontSize('30vp')
+            .fontColor([this.theme.muted])
+        }
+        .width(CONTROL_HIT_SIZE)
+        .height(CONTROL_HIT_SIZE)
+        .backgroundColor(this.theme.transparent)
+        .enabled(!this.controls.busy)
+        .accessibilityText('下一首')
+        .onClick(() => {
+          this.controls.run(() => {
+            queueViewModel.playNext();
+            this.updateVinylRotation();
+          });
+        })
+      }
+      .justifyContent(FlexAlign.Center)
+      .width('100%')
+    }
+    .width('100%')
   }
 
   @Builder
@@ -362,35 +527,46 @@ export struct NowPlayingPage {
           .width('100%')
           .layoutWeight(1)
           .justifyContent(FlexAlign.Center)
+        } else if (this.contentWidth >= 600) {
+          // 宽屏/折叠屏展开态/平板：双栏响应式排布
+          Row({ space: 24 }) {
+            // 左栏（宽度占比约 45%~48%）：Scroll 垂直居中展示黑胶、信息、源选择与播控
+            Scroll() {
+              Column({ space: 16 }) {
+                this.VinylDisc()
+                this.TrackInfo()
+                SourceSelection()
+                this.PlaybackControls()
+              }
+              .padding({ top: 12, bottom: 12 })
+              .width('100%')
+              .constraintSize({ minHeight: Math.max(0, this.contentHeight - 16) })
+              .justifyContent(FlexAlign.Center)
+            }
+            .layoutWeight(47)
+            .height('100%')
+            .scrollBar(BarState.Off)
+
+            // 右栏（宽度占比约 52%~55%）：沉浸式大视窗展示歌词流
+            Column() {
+              this.LyricWindow()
+            }
+            .layoutWeight(53)
+            .height('100%')
+            .padding(12)
+            .borderRadius(16)
+            .backgroundColor(ThemeService.alpha(this.theme.bg, 0.95))
+            .justifyContent(FlexAlign.Center)
+          }
+          .width('100%')
+          .layoutWeight(1)
         } else {
-          // 元数据自然换行；大字体/长文本超出时只滚动内容，播控始终可达。
+          // 常规手机竖屏：垂直流单列排布
           Scroll() {
             Column({ space: 16 }) {
               this.VinylDisc()
 
-              Column({ space: 6 }) {
-                Text(this.vm.currentTrack.title !== '' ? this.vm.currentTrack.title : this.vm.currentTrack.path)
-                  .fontSize(FONT_DISPLAY)
-                  .fontWeight(FontWeight.Bold)
-                  .fontColor(this.theme.ink)
-                  .width('100%')
-                  .wordBreak(WordBreak.BREAK_ALL)
-                Text(`${this.vm.currentTrack.artist}${this.vm.currentTrack.album !== '' ? ' · ' + this.vm.currentTrack.album : ''}`)
-                  .fontSize(FONT_BODY)
-                  .fontColor(this.theme.muted)
-                  .width('100%')
-                  .wordBreak(WordBreak.BREAK_ALL)
-                if (this.vm.playbackSourceText !== '') {
-                  Text('音频来源：' + this.vm.playbackSourceText)
-                    .fontSize(FONT_BODY)
-                    .fontColor(this.theme.muted)
-                    .width('100%')
-                }
-              }
-              .width('100%')
-              .padding(8)
-              .borderRadius(12)
-              .backgroundColor(ThemeService.alpha(this.theme.bg, 0.95))
+              this.TrackInfo()
 
               // 局部承托隔离封面阴影，避免其在文字背后突破全局背景范围。
               SourceSelection()
@@ -402,8 +578,6 @@ export struct NowPlayingPage {
               .padding(8)
               .borderRadius(12)
               .backgroundColor(ThemeService.alpha(this.theme.bg, 0.95))
-
-
             }
             .padding({ top: 12, bottom: 12 })
             .width('100%')
@@ -413,83 +587,8 @@ export struct NowPlayingPage {
           .width('100%')
           .layoutWeight(1)
           .scrollBar(BarState.Off)
-          .onAreaChange((_oldArea: Area, area: Area) => {
-            this.contentWidth = Number(area.width);
-            this.contentHeight = Number(area.height);
-          })
 
-          // 时间码放在进度条下方，字体放大不会挤掉可拖动的进度条。
-          Column({ space: 4 }) {
-            PlaybackStatus({ onGoLibrary: this.onGoLibrary, onGoSettings: this.onGoSettings })
-            Slider({
-              value: this.vm.positionMs,
-              min: 0,
-              max: this.vm.durationMs > 0 ? this.vm.durationMs : 1
-            })
-              .width('100%')
-              .height(40)
-              .trackThickness(5)
-              .selectedColor(this.theme.primary)
-              .trackColor(this.theme.trackColor)
-              .accessibilityText('播放进度')
-              .enabled(this.vm.state === PlayerState.PLAYING || this.vm.state === PlayerState.PAUSED)
-              .onChange((value: number) => {
-                this.vm.seekTo(value);
-              })
-            Row() {
-              Text(fmt(this.vm.positionMs))
-                .fontSize(FONT_CAPTION)
-                .fontColor(this.theme.muted)
-              Text(fmt(this.vm.durationMs))
-                .fontSize(FONT_CAPTION)
-                .fontColor(this.theme.muted)
-            }
-            .width('100%')
-            .justifyContent(FlexAlign.SpaceBetween)
-            .backgroundColor(ThemeService.alpha(this.theme.bg, 0.95))
-
-            Row({ space: Math.max(8, Math.min(40, (this.contentWidth - 168) / 2)) }) {
-              Button({ type: ButtonType.Circle }) {
-                SymbolGlyph($r('sys.symbol.backward_end_fill'))
-                  .fontSize('30vp')
-                  .fontColor([this.theme.muted])
-              }
-              .width(CONTROL_HIT_SIZE)
-              .height(CONTROL_HIT_SIZE)
-              .backgroundColor(this.theme.transparent)
-              .enabled(!this.controls.busy)
-              .accessibilityText('上一首')
-              .onClick(() => {
-                this.controls.run(() => queueViewModel.playPrev());
-              })
-              BubblePauseButton({
-                isPlaying: this.vm.state === PlayerState.PLAYING,
-                loading: this.vm.state === PlayerState.PREPARING,
-                onToggle: (): void => {
-                  this.controls.run(() => this.vm.togglePause());
-                }
-              })
-                .enabled(!this.controls.busy && this.vm.state !== PlayerState.PREPARING && this.vm.state !== PlayerState.ERROR)
-                .accessibilityText(this.vm.state === PlayerState.PREPARING ? '正在加载音乐' :
-                  (this.vm.state === PlayerState.PLAYING ? '暂停' : '播放'))
-              Button({ type: ButtonType.Circle }) {
-                SymbolGlyph($r('sys.symbol.forward_end_fill'))
-                  .fontSize('30vp')
-                  .fontColor([this.theme.muted])
-              }
-              .width(CONTROL_HIT_SIZE)
-              .height(CONTROL_HIT_SIZE)
-              .backgroundColor(this.theme.transparent)
-              .enabled(!this.controls.busy)
-              .accessibilityText('下一首')
-              .onClick(() => {
-                this.controls.run(() => queueViewModel.playNext());
-              })
-            }
-            .justifyContent(FlexAlign.Center)
-            .width('100%')
-          }
-          .width('100%')
+          this.PlaybackControls()
         }
       }
       .padding({ left: 20, right: 20, top: 8, bottom: 8 })
@@ -499,6 +598,10 @@ export struct NowPlayingPage {
     }
     .width('100%')
     .height('100%')
+    .onAreaChange((_oldArea: Area, area: Area) => {
+      this.contentWidth = Number(area.width);
+      this.contentHeight = Number(area.height);
+    })
     .parallelGesture(
       PanGesture({ direction: PanDirection.Vertical, distance: 25 })
         .onActionEnd((event: GestureEvent) => {
