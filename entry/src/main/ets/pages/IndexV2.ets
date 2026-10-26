@@ -10,6 +10,8 @@ import { MusicLibraryPage } from './MusicLibraryPage';
 import { NowPlayingPage } from './NowPlayingPage';
 import { QueuePage } from './QueuePage';
 import { MyPageV2 } from './MyPageV2';
+import { SettingsPage } from './SettingsPage';
+import { PlaylistsPage } from './PlaylistsPage';
 import { LoginView } from '../components/LoginView';
 import { QrBindView } from '../components/QrBindView';
 import { BackgroundLayer } from '../components/BackgroundLayer';
@@ -19,7 +21,7 @@ import { OnlineMusicService } from '../service/network/OnlineMusicService';
 import { MiniPlayerBar } from '../components/MiniPlayerBar';
 import { PlayerState } from '../model/Playback';
 import { accountViewModel } from '../viewmodel/AccountViewModel';
-import { MOTION_THEME_FADE_MS } from '../common/DesignTokens';
+import { FONT_LABEL, FONT_TITLE, MOTION_THEME_FADE_MS } from '../common/DesignTokens';
 import { playbackStatsViewModel } from '../viewmodel/PlaybackStatsViewModel';
 import { playbackLaunch, ExternalDestination, PLAYLIST_DESTINATION } from '../model/PlaybackLaunch';
 import {
@@ -37,6 +39,7 @@ interface NavTab {
 @Entry
 @Component
 struct IndexV2 {
+  @Provide('pageStack') pageStack: NavPathStack = new NavPathStack();
   @StorageProp('topAvoidHeight') topAvoidHeight: number = 0;
   @StorageProp('bottomAvoidHeight') bottomAvoidHeight: number = 0;
   @State theme: ThemeService = ThemeService.getInstance();
@@ -88,6 +91,40 @@ struct IndexV2 {
       return true;
     }
     if (this.childBack.handle()) { return true; }
+    if (this.pageStack && this.pageStack.size() > 0) {
+      this.pageStack.pop();
+      if (this.pageStack.size() === 0) {
+        if (action === BackAction.MY_HOME) {
+          this.myPage = MySubpage.HOME;
+          this.sourceRoot = RootTab.MY;
+        } else if (action === BackAction.SOURCE_ROOT) {
+          this.current = this.sourceRoot;
+          this.myPage = MySubpage.HOME;
+          this.sourceRoot = this.current;
+        } else {
+          this.myPage = MySubpage.HOME;
+        }
+      } else {
+        const remaining = this.pageStack.getAllPathName();
+        if (remaining.length > 0) {
+          const top = remaining[remaining.length - 1];
+          if (top === 'SettingsPage' || top === MySubpage.SETTINGS) {
+            this.myPage = MySubpage.SETTINGS;
+          } else if (top === 'PlaylistsPage' || top === MySubpage.PLAYLISTS) {
+            this.myPage = MySubpage.PLAYLISTS;
+          } else if (top === 'HistoryPage' || top === MySubpage.HISTORY) {
+            this.myPage = MySubpage.HISTORY;
+          } else if (top === 'StatsPage' || top === MySubpage.STATS) {
+            this.myPage = MySubpage.STATS;
+          } else if (top === 'AccountPage' || top === MySubpage.ACCOUNT) {
+            this.myPage = MySubpage.ACCOUNT;
+          } else if (top === 'AnnouncementsPage' || top === MySubpage.ANNOUNCEMENTS) {
+            this.myPage = MySubpage.ANNOUNCEMENTS;
+          }
+        }
+      }
+      return true;
+    }
     if (action === BackAction.MY_HOME) {
       this.myPage = MySubpage.HOME;
       this.sourceRoot = RootTab.MY;
@@ -224,6 +261,36 @@ struct IndexV2 {
     this.current = next.root;
     this.myPage = next.myPage;
     this.sourceRoot = next.sourceRoot;
+    if (this.pageStack) {
+      if (page === MySubpage.HOME) {
+        this.pageStack.clear();
+      } else {
+        let route = '';
+        if (page === MySubpage.SETTINGS) {
+          route = 'SettingsPage';
+        } else if (page === MySubpage.PLAYLISTS) {
+          route = 'PlaylistsPage';
+        } else if (page === MySubpage.HISTORY) {
+          route = 'HistoryPage';
+        } else if (page === MySubpage.STATS) {
+          route = 'StatsPage';
+        } else if (page === MySubpage.ACCOUNT) {
+          route = 'AccountPage';
+        } else if (page === MySubpage.ANNOUNCEMENTS) {
+          route = 'AnnouncementsPage';
+        }
+        if (route !== '') {
+          const count = this.pageStack.size();
+          if (count > 0) {
+            const names = this.pageStack.getAllPathName();
+            if (names.length > 0 && names[names.length - 1] === route) {
+              return;
+            }
+          }
+          this.pageStack.pushPathByName(route, null);
+        }
+      }
+    }
   }
 
   private selectTab(index: number): void {
@@ -232,6 +299,9 @@ struct IndexV2 {
     this.current = next.root;
     this.myPage = next.myPage;
     this.sourceRoot = next.sourceRoot;
+    if (this.pageStack) {
+      this.pageStack.clear();
+    }
   }
 
   private openPlaybackEntry(): void {
@@ -251,6 +321,10 @@ struct IndexV2 {
       this.current = RootTab.MY;
       this.myPage = MySubpage.PLAYLISTS;
       this.sourceRoot = RootTab.MY;
+      if (this.pageStack) {
+        this.pageStack.clear();
+        this.pageStack.pushPathByName('PlaylistsPage', null);
+      }
     }
   }
 
@@ -271,7 +345,7 @@ struct IndexV2 {
       QueuePage()
     } else {
       MyPageV2({
-        page: this.myPage,
+        page: this.pageStack.size() > 0 ? MySubpage.HOME : this.myPage,
         playlistRequest: this.playlistRequest,
         onPlaylistRequestConsumed: () => { this.playlistRequest = ''; },
         backDispatcher: this.childBack,
@@ -310,6 +384,158 @@ struct IndexV2 {
     playbackStatsViewModel.load(this.ctx());
   }
 
+  @Builder
+  PageMap(name: string, param: object) {
+    if (name === 'SettingsPage' || name === MySubpage.SETTINGS) {
+      NavDestination() {
+        Column() {
+          Row({ space: 12 }) {
+            Text('返回')
+              .fontSize(FONT_LABEL)
+              .fontColor(this.theme.primaryText)
+              .constraintSize({ minWidth: 48, minHeight: 48 })
+              .onClick(() => { this.onBackPress(); })
+            Text('设置')
+              .fontSize(FONT_TITLE)
+              .fontWeight(FontWeight.Medium)
+              .fontColor(this.theme.ink)
+              .layoutWeight(1)
+          }
+          .width('100%')
+          .padding({ left: 20, right: 20, top: 12, bottom: 8 })
+
+          Column() {
+            SettingsPage({
+              backDispatcher: this.childBack,
+              onAccountChanged: () => {
+                accountViewModel.refresh(this.ctx());
+                accountViewModel.loadAnnouncements(this.ctx());
+                playbackStatsViewModel.load(this.ctx());
+              }
+            })
+          }
+          .width('100%')
+          .layoutWeight(1)
+        }
+        .width('100%')
+        .height('100%')
+        .padding({ top: this.topAvoidHeight, bottom: this.bottomAvoidHeight })
+        .backgroundColor(this.theme.bg)
+      }
+      .hideTitleBar(true)
+      .onBackPressed(() => {
+        return this.onBackPress();
+      })
+    } else if (name === 'PlaylistsPage' || name === MySubpage.PLAYLISTS) {
+      NavDestination() {
+        Column() {
+          PlaylistsPage({
+            backDispatcher: this.childBack,
+            onBack: () => { this.onBackPress(); },
+            playlistRequest: this.playlistRequest,
+            onPlaylistRequestConsumed: () => { this.playlistRequest = ''; }
+          })
+        }
+        .width('100%')
+        .height('100%')
+        .padding({ top: this.topAvoidHeight, bottom: this.bottomAvoidHeight })
+        .backgroundColor(this.theme.bg)
+      }
+      .hideTitleBar(true)
+      .onBackPressed(() => {
+        return this.onBackPress();
+      })
+    } else if (name === 'HistoryPage' || name === MySubpage.HISTORY) {
+      NavDestination() {
+        Column() {
+          MyPageV2({
+            page: MySubpage.HISTORY,
+            playlistRequest: this.playlistRequest,
+            onPlaylistRequestConsumed: () => { this.playlistRequest = ''; },
+            backDispatcher: this.childBack,
+            onBack: () => { this.onBackPress(); },
+            onNavigate: (page: MySubpage) => { this.openMyPage(page, RootTab.MY); },
+            onLogin: () => { this.showLoginOverlay = true; }
+          })
+        }
+        .width('100%')
+        .height('100%')
+        .padding({ top: this.topAvoidHeight, bottom: this.bottomAvoidHeight })
+        .backgroundColor(this.theme.bg)
+      }
+      .hideTitleBar(true)
+      .onBackPressed(() => {
+        return this.onBackPress();
+      })
+    } else if (name === 'StatsPage' || name === MySubpage.STATS) {
+      NavDestination() {
+        Column() {
+          MyPageV2({
+            page: MySubpage.STATS,
+            playlistRequest: this.playlistRequest,
+            onPlaylistRequestConsumed: () => { this.playlistRequest = ''; },
+            backDispatcher: this.childBack,
+            onBack: () => { this.onBackPress(); },
+            onNavigate: (page: MySubpage) => { this.openMyPage(page, RootTab.MY); },
+            onLogin: () => { this.showLoginOverlay = true; }
+          })
+        }
+        .width('100%')
+        .height('100%')
+        .padding({ top: this.topAvoidHeight, bottom: this.bottomAvoidHeight })
+        .backgroundColor(this.theme.bg)
+      }
+      .hideTitleBar(true)
+      .onBackPressed(() => {
+        return this.onBackPress();
+      })
+    } else if (name === 'AccountPage' || name === MySubpage.ACCOUNT) {
+      NavDestination() {
+        Column() {
+          MyPageV2({
+            page: MySubpage.ACCOUNT,
+            playlistRequest: this.playlistRequest,
+            onPlaylistRequestConsumed: () => { this.playlistRequest = ''; },
+            backDispatcher: this.childBack,
+            onBack: () => { this.onBackPress(); },
+            onNavigate: (page: MySubpage) => { this.openMyPage(page, RootTab.MY); },
+            onLogin: () => { this.showLoginOverlay = true; }
+          })
+        }
+        .width('100%')
+        .height('100%')
+        .padding({ top: this.topAvoidHeight, bottom: this.bottomAvoidHeight })
+        .backgroundColor(this.theme.bg)
+      }
+      .hideTitleBar(true)
+      .onBackPressed(() => {
+        return this.onBackPress();
+      })
+    } else if (name === 'AnnouncementsPage' || name === MySubpage.ANNOUNCEMENTS) {
+      NavDestination() {
+        Column() {
+          MyPageV2({
+            page: MySubpage.ANNOUNCEMENTS,
+            playlistRequest: this.playlistRequest,
+            onPlaylistRequestConsumed: () => { this.playlistRequest = ''; },
+            backDispatcher: this.childBack,
+            onBack: () => { this.onBackPress(); },
+            onNavigate: (page: MySubpage) => { this.openMyPage(page, RootTab.MY); },
+            onLogin: () => { this.showLoginOverlay = true; }
+          })
+        }
+        .width('100%')
+        .height('100%')
+        .padding({ top: this.topAvoidHeight, bottom: this.bottomAvoidHeight })
+        .backgroundColor(this.theme.bg)
+      }
+      .hideTitleBar(true)
+      .onBackPressed(() => {
+        return this.onBackPress();
+      })
+    }
+  }
+
   build() {
     if (this.booting) {
       Stack() {
@@ -319,7 +545,8 @@ struct IndexV2 {
     } else if (!this.loggedIn && this.loginPromptVisible) {
       LoginView({ onLoggedIn: () => { this.login(); }, onSkip: () => { this.loginPromptVisible = false; } })
     } else {
-      Stack() {
+      Navigation(this.pageStack) {
+        Stack() {
         BackgroundLayer({ nowPlaying: this.current === RootTab.NOW_PLAYING })
         Column() {
           Column() { this.PageContent() }
@@ -374,6 +601,12 @@ struct IndexV2 {
           LoginView({ onLoggedIn: () => { this.login(); }, onSkip: () => { this.showLoginOverlay = false; } })
         }
       }.width('100%').height('100%')
+      }
+      .navDestination(this.PageMap)
+      .mode(NavigationMode.Auto)
+      .hideTitleBar(true)
+      .width('100%')
+      .height('100%')
     }
   }
 }
