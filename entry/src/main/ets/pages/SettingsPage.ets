@@ -840,7 +840,7 @@ export struct SettingsPage {
           .backgroundColor(this.theme.card)
         })
       }
-      .padding(20)
+      .padding({ left: 20, right: 20, top: 4, bottom: 16 })
       .width('100%')
     }
     .width('100%')

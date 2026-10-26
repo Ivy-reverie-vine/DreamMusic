@@ -250,7 +250,7 @@ export struct MyPageV2 {
             .fontSize(FONT_LABEL).fontColor(this.theme.muted).layoutWeight(2)
         }.width('100%').padding(14).borderRadius(RADIUS_CARD).backgroundColor(this.theme.card)
           .onClick(() => { this.open(MySubpage.SETTINGS); })
-      }.width('100%').padding(20)
+      }.width('100%').padding({ left: 20, right: 20, top: 12, bottom: 16 })
     }.width('100%').height('100%').scrollBar(BarState.Auto)
   }
 
@@ -278,7 +278,7 @@ export struct MyPageV2 {
         }
         Text('清空历史').fontSize(FONT_LABEL).fontColor(this.theme.primaryText)
           .onClick(() => { this.playlists.clearHistory(); })
-      }.width('100%').padding(20)
+      }.width('100%').padding({ left: 20, right: 20, top: 12, bottom: 16 })
     }.width('100%').height('100%')
   }
 
@@ -324,7 +324,7 @@ export struct MyPageV2 {
           Text('收藏 ' + this.stats.local.favoriteCount + ' 首 · 来源：本机')
             .fontSize(FONT_LABEL).fontColor(this.theme.muted)
         }.width('100%').padding(14).borderRadius(RADIUS_CARD).backgroundColor(this.theme.card)
-      }.width('100%').padding(20)
+      }.width('100%').padding({ left: 20, right: 20, top: 12, bottom: 16 })
     }.width('100%').height('100%')
   }
 
@@ -366,7 +366,7 @@ export struct MyPageV2 {
             }, (log: DreamPointLog) => String(log.id))
           }
         }
-      }.width('100%').padding(20)
+      }.width('100%').padding({ left: 20, right: 20, top: 12, bottom: 16 })
     }.width('100%').height('100%')
   }
 
@@ -422,7 +422,7 @@ export struct MyPageV2 {
         if (this.account.statusText !== '') {
           Text(this.account.statusText).fontSize(FONT_LABEL).fontColor(this.theme.primaryText)
         }
-      }.width('100%').padding(20)
+      }.width('100%').padding({ left: 20, right: 20, top: 12, bottom: 16 })
     }.width('100%').height('100%')
   }
 
@@ -442,7 +442,7 @@ export struct MyPageV2 {
       this.Announcements()
     } else {
       Column() {
-        this.Header('设置')
+        this.Header('设置').padding({ left: 20, right: 20, top: 12, bottom: 8 })
         Column() { SettingsPage({
           backDispatcher: this.backDispatcher,
           onAccountChanged: () => {

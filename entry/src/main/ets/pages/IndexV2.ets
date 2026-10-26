@@ -37,6 +37,8 @@ interface NavTab {
 @Entry
 @Component
 struct IndexV2 {
+  @StorageProp('topAvoidHeight') topAvoidHeight: number = 0;
+  @StorageProp('bottomAvoidHeight') bottomAvoidHeight: number = 0;
   @State theme: ThemeService = ThemeService.getInstance();
   @State current: RootTab = RootTab.LIBRARY;
   @State myPage: MySubpage = MySubpage.HOME;
@@ -320,7 +322,10 @@ struct IndexV2 {
       Stack() {
         BackgroundLayer({ nowPlaying: this.current === RootTab.NOW_PLAYING })
         Column() {
-          Column() { this.PageContent() }.width('100%').layoutWeight(1)
+          Column() { this.PageContent() }
+            .width('100%')
+            .layoutWeight(1)
+            .padding({ top: this.topAvoidHeight })
           this.ResidentPlayerBar()
           Row() {
             ForEach(this.tabs, (item: NavTab, index: number) => {
@@ -336,14 +341,19 @@ struct IndexV2 {
               .backgroundColor(index === this.current
                 ? ThemeService.alpha(this.theme.primary, 0.14) : this.theme.transparent)
               .onClick(() => { this.selectTab(index); })
-            })
+            }, (item: NavTab) => item.label)
           }
-          .width('100%').padding({ left: 8, right: 8, bottom: 8 })
-          .backgroundColor(this.theme.barBg).backgroundBlurStyle(BlurStyle.Thin)
+          .width('100%')
+          .padding({ left: 8, right: 8, bottom: Math.max(8, this.bottomAvoidHeight) })
+          .backgroundColor(this.theme.barBg)
+          .backgroundBlurStyle(BlurStyle.Thin)
           .borderRadius({ topLeft: 22, topRight: 22 })
+          .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM])
           .onTouch((e: TouchEvent) => { this.handleNavTouch(e); })
         }
-        .width('100%').height('100%')
+        .width('100%')
+        .height('100%')
+        .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
         .bindSheet(this.showBindAtStart, this.StartBindSheet(), {
           height: 420, backgroundColor: this.theme.bg,
           onDisappear: () => { this.showBindAtStart = false; }

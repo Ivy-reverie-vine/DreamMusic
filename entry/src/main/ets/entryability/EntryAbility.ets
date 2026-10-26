@@ -128,6 +128,24 @@ export default class EntryAbility extends UIAbility {
       }).catch((err: Error) => {
         hilog.error(DOMAIN, 'testTag', 'Failed to set window layout full screen: %{public}s', err.message);
       });
+
+      const sysAvoidArea = mainWindow.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM);
+      const navAvoidArea = mainWindow.getWindowAvoidArea(window.AvoidAreaType.TYPE_NAVIGATION_INDICATOR);
+      const initialTop = px2vp(sysAvoidArea.topRect.height);
+      const initialBottom = px2vp(navAvoidArea.bottomRect.height > 0 ? navAvoidArea.bottomRect.height : sysAvoidArea.bottomRect.height);
+      AppStorage.setOrCreate('topAvoidHeight', initialTop);
+      AppStorage.setOrCreate('bottomAvoidHeight', initialBottom);
+
+      mainWindow.on('avoidAreaChange', (data: window.AvoidAreaOptions) => {
+        if (data.type === window.AvoidAreaType.TYPE_SYSTEM) {
+          AppStorage.setOrCreate('topAvoidHeight', px2vp(data.area.topRect.height));
+          if (data.area.bottomRect.height > 0) {
+            AppStorage.setOrCreate('bottomAvoidHeight', px2vp(data.area.bottomRect.height));
+          }
+        } else if (data.type === window.AvoidAreaType.TYPE_NAVIGATION_INDICATOR) {
+          AppStorage.setOrCreate('bottomAvoidHeight', px2vp(data.area.bottomRect.height));
+        }
+      });
     } catch (err) {
       hilog.error(DOMAIN, 'testTag', 'Failed to get main window: %{public}s', JSON.stringify(err));
     }

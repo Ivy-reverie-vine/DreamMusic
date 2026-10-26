@@ -754,7 +754,7 @@ export struct MusicLibraryPage {
         }
       }
     }
-    .padding(20)
+    .padding({ left: 20, right: 20, top: 12, bottom: 12 })
     .width('100%')
     .height('100%')
     .bindSheet(this.showSheet, this.SheetContent(), {
