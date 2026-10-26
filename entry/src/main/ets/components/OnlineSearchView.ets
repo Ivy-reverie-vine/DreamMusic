@@ -64,6 +64,13 @@ export struct OnlineSearchView {
     this.search.changeKeyword(this.ctx(), v);
   }
 
+  private onSubmitSearch(v: string): void {
+    this.errorText = '';
+    this.errorCode = '';
+    this.search.keyword = v;
+    this.search.search(this.ctx());
+  }
+
   private async streamAndPlay(song: OnlineSong, automatic: boolean = false,
     sourceOptions: OnlineSong[] = []): Promise<void> {
     if (this.busyId !== -1 || this.busyRef !== '') { return; }
@@ -262,16 +269,21 @@ export struct OnlineSearchView {
           this.search.cancel();
           this.onBack();
         })
-        TextInput({ placeholder: '搜索网易 / QQ / 酷狗', text: this.search.keyword })
-          .fontSize(14)
-          .fontColor(this.theme.ink)
+        Search({ value: this.search.keyword, placeholder: '搜索网易 / QQ / 酷狗' })
+          .searchButton('搜索', { fontSize: '14fp', fontColor: this.theme.primaryText })
+          .searchIcon({ size: '16vp', color: this.theme.muted })
+          .cancelButton({ style: CancelButtonStyle.INPUT, icon: { size: '16vp', color: this.theme.muted } })
           .placeholderColor(this.theme.muted)
+          .fontColor(this.theme.ink)
           .backgroundColor(this.theme.card)
           .borderRadius(12)
           .height(40)
           .layoutWeight(1)
           .onChange((v: string) => {
             this.onKeyword(v);
+          })
+          .onSubmit((v: string) => {
+            this.onSubmitSearch(v);
           })
       }
       .width('100%')

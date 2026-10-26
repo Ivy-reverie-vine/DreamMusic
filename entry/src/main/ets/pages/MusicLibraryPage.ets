@@ -16,6 +16,11 @@ import {
   SHADOW_CARD_RADIUS, SHADOW_CARD_OFFSET_Y
 } from '../common/DesignTokens';
 
+const INDEX_LETTERS: string[] = [
+  '#', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
+  'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'
+];
+
 /**
  * 音乐库页(issue-03/04 + issue-12/13):
  * 歌曲/专辑/艺术家三视图;专辑/艺术家可点开详情子视图(issue-13 闭环 PRD story 14/15);
@@ -90,6 +95,8 @@ export struct MusicLibraryPage {
   @State detailAlbum: Album | null = null;
   @State detailArtist: Artist | null = null;
   @State detailTracks: Track[] = [];
+  @State alphabetIndex: number = 0;
+  private trackScroller: Scroller = new Scroller();
   private tracksDataSource: TrackDataSource = new TrackDataSource();
 
   @Builder
@@ -207,6 +214,20 @@ export struct MusicLibraryPage {
     this.detailAlbum = null;
     this.detailArtist = null;
     this.detailTracks = [];
+  }
+
+  private jumpToLetter(letter: string): void {
+    const targetIndex = this.vm.tracks.findIndex((t: Track): boolean => {
+      const name = (t.title && t.title.trim() !== '') ? t.title.trim() : (t.path ? t.path.trim() : '');
+      const first = name.length > 0 ? name.charAt(0).toUpperCase() : '';
+      if (letter === '#') {
+        return !(first >= 'A' && first <= 'Z');
+      }
+      return first === letter;
+    });
+    if (targetIndex >= 0) {
+      this.trackScroller.scrollToIndex(targetIndex, true, ScrollAlign.START);
+    }
   }
 
   async importFiles(): Promise<void> {
@@ -392,18 +413,34 @@ export struct MusicLibraryPage {
 
   @Builder
   TrackList() {
-    List({ space: 10 }) {
-      LazyForEach(this.tracksDataSource, (t: Track, index: number) => {
-        ListItem() {
-          this.TrackRowItem(t, index, this.vm.tracks)
-        }
-        .swipeAction({ end: { builder: () => { this.ItemSwipeActions(t); } } })
-      }, (t: Track) => t.id.toString())
+    Stack({ alignContent: Alignment.End }) {
+      List({ space: 10, scroller: this.trackScroller }) {
+        LazyForEach(this.tracksDataSource, (t: Track, index: number) => {
+          ListItem() {
+            this.TrackRowItem(t, index, this.vm.tracks)
+          }
+          .swipeAction({ end: { builder: () => { this.ItemSwipeActions(t); } } })
+        }, (t: Track) => t.id.toString())
+      }
+      .cachedCount(5)
+      .width('100%')
+      .height('100%')
+      .padding({ right: 26 })
+      .scrollBar(BarState.Off)
+
+      AlphabetIndexer({ arrayValue: INDEX_LETTERS, selected: this.alphabetIndex })
+        .usingPopup(true)
+        .selectedColor(this.theme.primaryText)
+        .popupColor(this.theme.primaryText)
+        .selectedBackgroundColor(ThemeService.alpha(this.theme.primary, 0.15))
+        .popupBackground(ThemeService.alpha(this.theme.card, 0.95))
+        .onSelect((index: number) => {
+          this.alphabetIndex = index;
+          this.jumpToLetter(INDEX_LETTERS[index]);
+        })
     }
-    .cachedCount(5)
     .width('100%')
     .layoutWeight(1)
-    .scrollBar(BarState.Auto)
   }
 
   @Builder
