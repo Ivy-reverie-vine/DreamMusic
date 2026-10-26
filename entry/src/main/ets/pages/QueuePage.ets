@@ -9,6 +9,7 @@ import {
   RADIUS_CARD, RADIUS_CAPSULE, FONT_BODY, FONT_LABEL, FONT_TITLE, CONTROL_HIT_SIZE
 } from '../common/DesignTokens';
 import { PlayMode } from '../service/playback/QueueEngine';
+import { HapticService } from '../service/haptic/HapticService';
 
 function modeLabel(mode: PlayMode): string {
   switch (mode) {
@@ -78,6 +79,7 @@ export struct QueuePage {
     }
     this.vm.reorder(from, to);
     this.statusText = '已调整顺序';
+    HapticService.triggerDragSnap();
   }
 
   private removeTrack(id: number): void {
@@ -113,6 +115,7 @@ export struct QueuePage {
         })
         .onClick(() => {
           this.vm.cycleMode();
+          HapticService.triggerSelection();
         })
       }
       .width('100%')

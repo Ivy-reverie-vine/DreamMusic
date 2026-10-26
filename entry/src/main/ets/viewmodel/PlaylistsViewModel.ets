@@ -1,4 +1,5 @@
 import { LibraryStore } from '../service/library/LibraryStore';
+import { HapticService } from '../service/haptic/HapticService';
 import { Track, Playlist, PlayHistoryEntry } from '../model/Entities';
 import { common } from '@kit.AbilityKit';
 
@@ -147,6 +148,7 @@ export class PlaylistsViewModel {
 
   async toggleFavorite(trackId: number): Promise<boolean> {
     const nowFav = await this.store().toggleFavorite(trackId);
+    HapticService.triggerFavorite();
     // 若正查看"我喜欢的音乐",同步刷新
     if (this.selected !== null && this.selected.systemReserved) {
       await this.openPlaylist(this.selected);

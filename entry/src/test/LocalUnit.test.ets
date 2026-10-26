@@ -9,6 +9,7 @@ import handwrittenLayoutTest from './HandwrittenLayout.test';
 import dateUtilTest from './DateUtil.test';
 import navigationTest from './Navigation.test';
 import playbackDiagnosticsTest from './PlaybackDiagnostics.test';
+import hapticServiceTest from './HapticService.test';
 
 export default function localUnitTest() {
   describe('localUnitTest', () => {
@@ -51,5 +52,6 @@ export default function localUnitTest() {
     dateUtilTest();
     navigationTest();
     playbackDiagnosticsTest();
+    hapticServiceTest();
   });
 }

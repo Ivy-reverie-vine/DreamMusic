@@ -11,6 +11,7 @@ import { SymbolGlyphModifier } from '@kit.ArkUI';
 import { CoverThumb } from '../components/CoverThumb';
 import { EmptyState } from '../components/EmptyState';
 import { OnlineSearchView } from '../components/OnlineSearchView';
+import { HapticService } from '../service/haptic/HapticService';
 import {
   FONT_TITLE, FONT_BODY, FONT_LABEL, RADIUS_CARD, RADIUS_CAPSULE, RADIUS_CONTROL,
   SHADOW_CARD_RADIUS, SHADOW_CARD_OFFSET_Y
@@ -290,6 +291,7 @@ export struct MusicLibraryPage {
       .accessibilityText(this.vm.favoriteIds.has(t.id) ? '取消收藏' : '收藏')
       .onClick(() => {
         this.vm.toggleFavorite(t.id);
+        HapticService.triggerFavorite();
       })
 
       Button({ type: ButtonType.Circle }) {
@@ -388,6 +390,7 @@ export struct MusicLibraryPage {
         .padding(4)
         .onClick(() => {
           this.vm.toggleFavorite(t.id);
+          HapticService.triggerFavorite();
         })
 
     }

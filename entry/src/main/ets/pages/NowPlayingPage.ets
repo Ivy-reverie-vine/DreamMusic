@@ -15,6 +15,7 @@ import { LyricFollowState } from '../service/lyrics/LyricFollowState';
 import { common } from '@kit.AbilityKit';
 import { accessibility } from '@kit.AccessibilityKit';
 import { LengthMetrics } from '@kit.ArkUI';
+import { HapticService } from '../service/haptic/HapticService';
 import {
   FONT_DISPLAY, FONT_LABEL, FONT_BODY, FONT_CAPTION, MOTION_VINYL_MS, SHADOW_GLOW_RADIUS,
   CONTROL_HIT_SIZE
@@ -346,8 +347,11 @@ export struct NowPlayingPage {
         .trackColor(this.theme.trackColor)
         .accessibilityText('播放进度')
         .enabled(this.vm.state === PlayerState.PLAYING || this.vm.state === PlayerState.PAUSED)
-        .onChange((value: number) => {
+        .onChange((value: number, mode: SliderChangeMode) => {
           this.vm.seekTo(value);
+          if (mode === SliderChangeMode.End || mode === SliderChangeMode.Click) {
+            HapticService.triggerSelection();
+          }
         })
       Row() {
         Text(fmt(this.vm.positionMs))
@@ -373,6 +377,7 @@ export struct NowPlayingPage {
         .enabled(!this.controls.busy)
         .accessibilityText('上一首')
         .onClick(() => {
+          HapticService.triggerSelection();
           this.controls.run(async () => {
             await queueViewModel.playPrev();
             this.updateVinylRotation();
@@ -402,6 +407,7 @@ export struct NowPlayingPage {
         .enabled(!this.controls.busy)
         .accessibilityText('下一首')
         .onClick(() => {
+          HapticService.triggerSelection();
           this.controls.run(async () => {
             await queueViewModel.playNext();
             this.updateVinylRotation();
