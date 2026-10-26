@@ -52,6 +52,8 @@ export class BackgroundPlayback {
   onNextCommand: (() => Promise<void>) | null = null;
   onPrevCommand: (() => Promise<void>) | null = null;
   onSeekCommand: ((ms: number) => void) | null = null;
+  onFavoriteCommand: ((assetId: string) => Promise<void>) | null = null;
+  onLoopModeCommand: ((mode: avSession.LoopMode) => Promise<void>) | null = null;
 
   static getInstance(): BackgroundPlayback {
     if (BackgroundPlayback.instance === null) {
@@ -62,14 +64,16 @@ export class BackgroundPlayback {
 
   async init(context: common.Context): Promise<void> {
     if (this.releasing || this.session !== null) { return; }
-    if (this.initializing !== null) { return this.initializing; }
-    this.initializing = this.createSession(context);
-    try { await this.initializing; } finally { this.initializing = null; }
+    const currentInit = this.initializing;
+    if (currentInit !== null) { return currentInit; }
+    const initTask = this.createSession(context);
+    this.initializing = initTask;
+    try { await initTask; } finally { this.initializing = null; }
   }
 
-  private enqueueCommand(session: avSession.AVSession, command: (() => Promise<void>) | null): void {
+  private enqueueCommand(session: avSession.AVSession, command: () => Promise<void>): void {
     this.commandChain = this.commandChain.then(async () => {
-      if (this.releasing || this.session !== session || command === null) { return; }
+      if (this.releasing || this.session !== session) { return; }
       await command();
     }).catch(() => { hilog.warn(DOMAIN, TAG, 'system command failed'); });
   }
@@ -81,20 +85,69 @@ export class BackgroundPlayback {
       session = await avSession.createAVSession(context, 'ivy_playback', 'audio');
       const created = session;
       session.on('play', () => {
-        this.enqueueCommand(created, this.onPlayCommand);
+        this.enqueueCommand(created, async () => {
+          if (this.onPlayCommand !== null) {
+            const cmd = this.onPlayCommand;
+            await cmd();
+          }
+        });
       });
       session.on('pause', () => {
-        this.enqueueCommand(created, this.onPauseCommand);
+        this.enqueueCommand(created, async () => {
+          if (this.onPauseCommand !== null) {
+            const cmd = this.onPauseCommand;
+            await cmd();
+          }
+        });
       });
       session.on('stop', () => {
-        this.enqueueCommand(created, this.onPauseCommand);
+        this.enqueueCommand(created, async () => {
+          if (this.onPauseCommand !== null) {
+            const cmd = this.onPauseCommand;
+            await cmd();
+          }
+        });
       });
       session.on('playNext', () => {
-        this.enqueueCommand(created, this.onNextCommand);
+        this.enqueueCommand(created, async () => {
+          if (this.onNextCommand !== null) {
+            const cmd = this.onNextCommand;
+            await cmd();
+          }
+        });
       });
       session.on('playPrevious', () => {
-        this.enqueueCommand(created, this.onPrevCommand);
+        this.enqueueCommand(created, async () => {
+          if (this.onPrevCommand !== null) {
+            const cmd = this.onPrevCommand;
+            await cmd();
+          }
+        });
       });
+      try {
+        session.on('toggleFavorite', (assetId: string) => {
+          this.enqueueCommand(created, async () => {
+            if (this.onFavoriteCommand !== null) {
+              const cmd = this.onFavoriteCommand;
+              await cmd(assetId);
+            }
+          });
+        });
+      } catch (err) {
+        hilog.warn(DOMAIN, TAG, 'register toggleFavorite failed');
+      }
+      try {
+        session.on('setLoopMode', (mode: avSession.LoopMode) => {
+          this.enqueueCommand(created, async () => {
+            if (this.onLoopModeCommand !== null) {
+              const cmd = this.onLoopModeCommand;
+              await cmd(mode);
+            }
+          });
+        });
+      } catch (err) {
+        hilog.warn(DOMAIN, TAG, 'register setLoopMode failed');
+      }
       session.on('seek', (time: number) => {
         this.enqueueCommand(created, async () => {
           if (this.onSeekCommand !== null) { this.onSeekCommand(time); }
@@ -185,15 +238,35 @@ export class BackgroundPlayback {
     }
   }
 
+  static mapFromLoopMode(mode: avSession.LoopMode): PlayMode {
+    switch (mode) {
+      case avSession.LoopMode.LOOP_MODE_SINGLE:
+        return PlayMode.REPEAT_ONE;
+      case avSession.LoopMode.LOOP_MODE_LIST:
+        return PlayMode.REPEAT_ALL;
+      case avSession.LoopMode.LOOP_MODE_SHUFFLE:
+        return PlayMode.SHUFFLE;
+      case avSession.LoopMode.LOOP_MODE_SEQUENCE:
+      default:
+        return PlayMode.SEQUENTIAL;
+    }
+  }
+
   /** 歌词快照与来源身份绑定，不能把上一首歌词带到新音轨。 */
   setLyrics(track: Track | null, lyric: string): void {
     this.lyricIdentity = CoverArtService.identity(track);
     this.lyric = track !== null ? lyric : '';
   }
 
+  /** 支持通过 update 或 sync 同步播控与实况窗爱心状态 */
+  async update(track: Track | null, state: PlayerState, positionMs: number,
+    durationMs: number, mode: PlayMode, force: boolean = false, isFavorite: boolean = false): Promise<void> {
+    return this.sync(track, state, positionMs, durationMs, mode, force, isFavorite);
+  }
+
   /** 同步媒体信息与播放状态到系统会话;positionSync 节流 1s */
   async sync(track: Track | null, state: PlayerState, positionMs: number,
-    durationMs: number, mode: PlayMode, force: boolean = false): Promise<void> {
+    durationMs: number, mode: PlayMode, force: boolean = false, isFavorite: boolean = false): Promise<void> {
     const s = this.session;
     if (s === null || this.releasing) {
       return;
@@ -243,7 +316,7 @@ export class BackgroundPlayback {
         }
       });
     }
-    const stateSignature = JSON.stringify([track?.id, track?.mediaRef, state, mode]);
+    const stateSignature = JSON.stringify([track?.id, track?.mediaRef, state, mode, isFavorite]);
     if (!force && stateSignature === this.stateSignature && now - this.lastPositionSync < 1000) {
       return;
     }
@@ -256,7 +329,8 @@ export class BackgroundPlayback {
         state: BackgroundPlayback.mapState(state),
         speed: 1,
         position: { elapsedTime: positionMs, updateTime: now },
-        loopMode: BackgroundPlayback.mapLoop(mode)
+        loopMode: BackgroundPlayback.mapLoop(mode),
+        isFavorite: isFavorite
       };
       await s.setAVPlaybackState(pbState);
     }).catch(() => {
@@ -315,7 +389,11 @@ export class BackgroundPlayback {
   async release(): Promise<void> {
     this.releasing = true;
     this.longTaskWanted = false;
-    if (this.initializing !== null) { await this.initializing; }
+    const pendingInit = this.initializing;
+    if (pendingInit !== null) {
+      const initTask: Promise<void> = pendingInit;
+      await initTask;
+    }
     this.metadataRevision++;
     this.stateRevision++;
     this.stateSignature = '';

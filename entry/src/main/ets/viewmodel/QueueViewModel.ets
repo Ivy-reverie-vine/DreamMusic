@@ -1,4 +1,5 @@
 import { common } from '@kit.AbilityKit';
+import { avSession } from '@kit.AVSessionKit';
 import { QueueEngine, PlayMode, QueueSnapshot } from '../service/playback/QueueEngine';
 import { BackgroundPlayback } from '../service/playback/BackgroundPlayback';
 import { LibraryStore } from '../service/library/LibraryStore';
@@ -87,6 +88,26 @@ export class QueueViewModel {
     };
     bp.onSeekCommand = (ms: number): void => {
       playerViewModel.seekTo(ms);
+    };
+    bp.onFavoriteCommand = async (assetId: string): Promise<void> => {
+      let trackId = playerViewModel.currentTrack?.id;
+      if (assetId !== '') {
+        const parsed = Number(assetId);
+        if (!isNaN(parsed) && parsed > 0) {
+          trackId = parsed;
+        }
+      }
+      if (trackId !== undefined) {
+        await playerViewModel.toggleFavorite(trackId);
+      }
+    };
+    bp.onLoopModeCommand = async (mode: avSession.LoopMode): Promise<void> => {
+      if (mode !== undefined && mode !== null) {
+        const targetMode = BackgroundPlayback.mapFromLoopMode(mode);
+        this.setMode(targetMode);
+      } else {
+        this.cycleMode();
+      }
     };
   }
 
@@ -199,15 +220,19 @@ export class QueueViewModel {
     }
   }
 
-  cycleMode(): void {
-    const order: PlayMode[] = [PlayMode.SEQUENTIAL, PlayMode.REPEAT_ALL, PlayMode.REPEAT_ONE, PlayMode.SHUFFLE];
-    const idx = order.indexOf(this.mode);
-    this.mode = order[(idx + 1) % order.length];
+  setMode(mode: PlayMode): void {
+    this.mode = mode;
     this.engine.setMode(this.mode);
     playerViewModel.playMode = this.mode;
     BackgroundPlayback.getInstance().sync(playerViewModel.currentTrack, playerViewModel.state,
-      playerViewModel.positionMs, playerViewModel.durationMs, this.mode, true);
+      playerViewModel.positionMs, playerViewModel.durationMs, this.mode, true, playerViewModel.isFavorite);
     this.persist(playerViewModel.positionMs);
+  }
+
+  cycleMode(): void {
+    const order: PlayMode[] = [PlayMode.SEQUENTIAL, PlayMode.REPEAT_ALL, PlayMode.REPEAT_ONE, PlayMode.SHUFFLE];
+    const idx = order.indexOf(this.mode);
+    this.setMode(order[(idx + 1) % order.length]);
   }
 
   move(from: number, to: number): void {

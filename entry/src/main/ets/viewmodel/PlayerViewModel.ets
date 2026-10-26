@@ -23,6 +23,7 @@ export class PlayerViewModel {
   playbackChangedHandler: (() => void) | null = null;
   currentTrack: Track | null = null;
   state: PlayerState = PlayerState.IDLE;
+  isFavorite: boolean = false;
   positionMs: number = 0;
   durationMs: number = 0;
   volume: number = 0.8;
@@ -36,6 +37,20 @@ export class PlayerViewModel {
   private recoveryRunning: boolean = false;
   private recoveryAttempts: number = 0;
   private recoveryTimer: number = -1;
+
+  constructor() {
+    try {
+      const store = LibraryStore.getInstance();
+      if (typeof store.registerFavoriteListener === 'function') {
+        store.registerFavoriteListener((trackId: number, isFav: boolean) => {
+          if (this.currentTrack !== null && this.currentTrack.id === trackId) {
+            this.isFavorite = isFav;
+            this.refreshBackground();
+          }
+        });
+      }
+    } catch (err) {}
+  }
 
   get statusText(): string {
     switch (this.state) {
@@ -132,6 +147,12 @@ export class PlayerViewModel {
     previous.release().catch(() => {});
     this.lastContext = context;
     this.currentTrack = track;
+    this.isFavorite = false;
+    this.checkFavorite(track.id).then(() => {
+      if (this.currentTrack?.id === track.id) {
+        this.syncBackground(true);
+      }
+    }).catch(() => {});
     this.playbackReadyHandler = onReady;
     this.errorText = '';
     this.errorCode = '';
@@ -400,6 +421,50 @@ export class PlayerViewModel {
     }, remaining);
   }
 
+  async checkFavorite(trackId?: number): Promise<boolean> {
+    const id = trackId ?? this.currentTrack?.id;
+    if (id === undefined || id === null) {
+      this.isFavorite = false;
+      return false;
+    }
+    try {
+      const store = LibraryStore.getInstance();
+      if (typeof store.isFavorite === 'function') {
+        const fav = await store.isFavorite(id);
+        if (this.currentTrack !== null && this.currentTrack.id === id) {
+          this.isFavorite = fav;
+        }
+        return fav;
+      }
+    } catch (err) {
+      hilog.warn(DOMAIN, TAG, 'checkFavorite failed');
+    }
+    return false;
+  }
+
+  async toggleFavorite(targetTrackId?: number): Promise<boolean> {
+    const track = this.currentTrack;
+    const id = targetTrackId ?? track?.id;
+    if (id === undefined || id === null) {
+      return false;
+    }
+    try {
+      const store = LibraryStore.getInstance();
+      let fav = false;
+      if (typeof store.toggleFavorite === 'function') {
+        fav = await store.toggleFavorite(id);
+      }
+      if (this.currentTrack !== null && this.currentTrack.id === id) {
+        this.isFavorite = fav;
+        this.refreshBackground();
+      }
+      return fav;
+    } catch (err) {
+      hilog.warn(DOMAIN, TAG, 'toggleFavorite failed');
+      return false;
+    }
+  }
+
   /** 会话就绪和前台恢复时使用同一快照重同步系统状态与长时任务。 */
   refreshBackground(): void {
     this.checkSleepTimer();
@@ -409,7 +474,7 @@ export class PlayerViewModel {
   private syncBackground(force: boolean): void {
     try { this.playbackChangedHandler?.(); } catch (err) {}
     const bp = BackgroundPlayback.getInstance();
-    bp.sync(this.currentTrack, this.state, this.positionMs, this.durationMs, this.playMode, force);
+    bp.sync(this.currentTrack, this.state, this.positionMs, this.durationMs, this.playMode, force, this.isFavorite);
     if (this.state === PlayerState.PLAYING) {
       bp.startLongTask();
     } else if (this.state === PlayerState.PAUSED || this.state === PlayerState.COMPLETED ||
@@ -645,6 +710,12 @@ export class PlayerViewModel {
     this.recoveryAction = '';
     this.lastContext = context;
     this.currentTrack = track;
+    this.isFavorite = false;
+    this.checkFavorite(track.id).then(() => {
+      if (this.currentTrack?.id === track.id) {
+        this.syncBackground(true);
+      }
+    }).catch(() => {});
     this.positionMs = positionMs;
     this.durationMs = track.durationMs > 0 ? track.durationMs : 0;
     this.errorText = '';
@@ -725,6 +796,7 @@ export class PlayerViewModel {
     this.playbackReadyHandler = null;
     this.lastContext = null;
     this.currentTrack = null;
+    this.isFavorite = false;
     this.state = PlayerState.IDLE;
     this.positionMs = 0;
     this.durationMs = 0;

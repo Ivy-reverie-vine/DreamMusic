@@ -1,4 +1,5 @@
 import { AbilityConstant, Configuration, ConfigurationConstant, UIAbility, Want } from '@kit.AbilityKit';
+import { avSession } from '@kit.AVSessionKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
 import { LibraryStore } from '../service/library/LibraryStore';
@@ -65,7 +66,29 @@ export default class EntryAbility extends UIAbility {
       }
     });
     // 后台播控会话初始化(issue-07,真机验证)
-    BackgroundPlayback.getInstance().init(this.context).then(() => {
+    const bp = BackgroundPlayback.getInstance();
+    if (bp.onFavoriteCommand === null) {
+      bp.onFavoriteCommand = async (assetId: string): Promise<void> => {
+        let trackId = playerViewModel.currentTrack?.id;
+        if (assetId !== '') {
+          const parsed = Number(assetId);
+          if (!isNaN(parsed) && parsed > 0) { trackId = parsed; }
+        }
+        if (trackId !== undefined) {
+          await playerViewModel.toggleFavorite(trackId);
+        }
+      };
+    }
+    if (bp.onLoopModeCommand === null) {
+      bp.onLoopModeCommand = async (mode: avSession.LoopMode): Promise<void> => {
+        if (mode !== undefined && mode !== null) {
+          queueViewModel.setMode(BackgroundPlayback.mapFromLoopMode(mode));
+        } else {
+          queueViewModel.cycleMode();
+        }
+      };
+    }
+    bp.init(this.context).then(() => {
       playerViewModel.refreshBackground();
     });
     // 音乐库存储初始化 + 启动增量扫描(issue-02/04,真机验证)

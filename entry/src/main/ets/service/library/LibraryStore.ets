@@ -38,6 +38,19 @@ export class LibraryStore {
   private store: relationalStore.RdbStore | null = null;
   private initPromise: Promise<void> | null = null;
   onPlaylistContentChanged: (() => void) | null = null;
+  private favoriteListeners: ((trackId: number, isFav: boolean) => void)[] = [];
+
+  registerFavoriteListener(listener: (trackId: number, isFav: boolean) => void): void {
+    this.favoriteListeners.push(listener);
+  }
+
+  private notifyFavoriteChanged(trackId: number, isFav: boolean): void {
+    for (const listener of this.favoriteListeners) {
+      try {
+        listener(trackId, isFav);
+      } catch (err) {}
+    }
+  }
 
   private playlistContentChanged(): void {
     // 展示刷新失败不能让已成功的本地写入失败。
@@ -581,6 +594,7 @@ export class LibraryStore {
     if (exists) {
       await this.db().delete(pred);
       this.playlistContentChanged();
+      this.notifyFavoriteChanged(trackId, false);
       return false;
     }
     const values: relationalStore.ValuesBucket = {
@@ -589,6 +603,7 @@ export class LibraryStore {
     };
     await this.db().insert('favorites', values);
     this.playlistContentChanged();
+    this.notifyFavoriteChanged(trackId, true);
     return true;
   }
 

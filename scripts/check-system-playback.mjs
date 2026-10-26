@@ -68,7 +68,12 @@ let createGate = null, startGate = null, stopGate = null, stateGate = null, fail
 let taskRunning = false, activeStateWrites = 0, maxStateWrites = 0, wantInfo;
 const avSession = {
   PlaybackState: Object.fromEntries(['PLAY', 'PAUSE', 'PREPARE', 'COMPLETED', 'INITIAL', 'ERROR'].map(v => [`PLAYBACK_STATE_${v}`, v])),
-  LoopMode: {},
+  LoopMode: {
+    LOOP_MODE_SEQUENCE: 0,
+    LOOP_MODE_SINGLE: 1,
+    LOOP_MODE_LIST: 2,
+    LOOP_MODE_SHUFFLE: 3
+  },
   async createAVSession() {
     if (createGate) await createGate.promise;
     const session = { handlers: {}, destroyed: false,
@@ -145,7 +150,16 @@ class PlayerSession {
     this.isPlaying = !this.isPlaying; this.cb.onStateChange(this.isPlaying ? PlayerState.PLAYING : PlayerState.PAUSED); }
 }
 const saved = [];
-const store = { async insertHistory() {}, async savePlayerState(snapshot, pos) { saved.push(pos); } };
+let favorites = new Set();
+const store = {
+  async insertHistory() {},
+  async savePlayerState(snapshot, pos) { saved.push(pos); },
+  async isFavorite(id) { return favorites.has(id); },
+  async toggleFavorite(id) {
+    if (favorites.has(id)) { favorites.delete(id); return false; }
+    favorites.add(id); return true;
+  }
+};
 const { playerViewModel: player } = load('viewmodel/PlayerViewModel.ets', ['playerViewModel'], {
   PlayerSession, SleepTimer, PlayerState, PlayMode, BackgroundPlayback,
   fileIo: { accessSync: () => true }, LibraryStore: { getInstance: () => store }, hilog: { error() {} }
@@ -175,6 +189,21 @@ session.handlers.seek(-10); await flush(); assert.equal(player.positionMs, 0); a
 player.restorePaused(a, 2000, ctx);
 session.handlers.seek(3200); session.handlers.play(); await bp.commandChain;
 assert.equal(audio.at(-1).position, 3200, 'restored playback starts from system seek position');
+// 实况窗/状态栏胶囊: 爱心收藏与循环模式
+session.handlers.toggleFavorite('1'); await bp.commandChain; await flush();
+assert.equal(player.isFavorite, true);
+assert.equal(states.at(-1).isFavorite, true);
+session.handlers.toggleFavorite('1'); await bp.commandChain; await flush();
+assert.equal(player.isFavorite, false);
+assert.equal(states.at(-1).isFavorite, false);
+session.handlers.setLoopMode(avSession.LoopMode.LOOP_MODE_SINGLE); await bp.commandChain; await flush();
+assert.equal(queue.mode, PlayMode.REPEAT_ONE);
+assert.equal(states.at(-1).loopMode, avSession.LoopMode.LOOP_MODE_SINGLE);
+session.handlers.setLoopMode(avSession.LoopMode.LOOP_MODE_SHUFFLE); await bp.commandChain; await flush();
+assert.equal(queue.mode, PlayMode.SHUFFLE);
+assert.equal(states.at(-1).loopMode, avSession.LoopMode.LOOP_MODE_SHUFFLE);
+session.handlers.setLoopMode(); await bp.commandChain; await flush();
+assert.equal(queue.mode, PlayMode.SEQUENTIAL);
 const { EntryAbility: LifecycleAbility } = load('entryability/EntryAbility.ets', ['EntryAbility'], {
   UIAbility: class {}, ...launch, BackgroundPlayback, playerViewModel: player, queueViewModel: queue,
   hilog: { info() {} }
