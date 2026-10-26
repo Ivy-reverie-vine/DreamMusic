@@ -16,6 +16,7 @@ import { common } from '@kit.AbilityKit';
 import { accessibility } from '@kit.AccessibilityKit';
 import { LengthMetrics } from '@kit.ArkUI';
 import { HapticService } from '../service/haptic/HapticService';
+import { AVCastPicker } from '@kit.AVSessionKit';
 import {
   FONT_DISPLAY, FONT_LABEL, FONT_BODY, FONT_CAPTION, MOTION_VINYL_MS, SHADOW_GLOW_RADIUS,
   CONTROL_HIT_SIZE
@@ -498,6 +499,43 @@ export struct NowPlayingPage {
     }
   }
 
+  @Builder
+  TopBar() {
+    Row() {
+      if (this.onCollapse) {
+        Button({ type: ButtonType.Circle }) {
+          SymbolGlyph($r('sys.symbol.chevron_down'))
+            .fontSize(22)
+            .fontColor([this.theme.primaryText])
+        }
+        .width(40)
+        .height(40)
+        .backgroundColor(this.theme.transparent)
+        .accessibilityText('收起正在播放')
+        .onClick(() => {
+          if (this.onCollapse) {
+            this.onCollapse();
+          }
+        })
+      } else {
+        Blank().width(40)
+      }
+
+      Blank()
+
+      AVCastPicker({
+        normalColor: this.theme.muted,
+        activeColor: this.theme.primaryText
+      })
+        .width(40)
+        .height(40)
+        .accessibilityText('音频投播与设备流转')
+    }
+    .width('100%')
+    .height(40)
+    .alignItems(VerticalAlign.Center)
+  }
+
   build() {
     Stack() {
       // 弥散光影:封面主色径向渐变(蒙层之上,展品灯光感;scrimNowPlaying 由主壳按页切换)
@@ -511,6 +549,8 @@ export struct NowPlayingPage {
         })
 
       Column({ space: 8 }) {
+        this.TopBar()
+
         if (this.vm.currentTrack === null) {
           Column({ space: 8 }) {
             Text('还没有在播放')
