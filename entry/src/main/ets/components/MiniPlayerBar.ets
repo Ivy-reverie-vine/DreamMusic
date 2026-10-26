@@ -67,6 +67,7 @@ export struct MiniPlayerBar {
             SymbolGlyph(this.playing ? $r('sys.symbol.pause_fill') : $r('sys.symbol.play_fill'))
               .fontSize('20vp')
               .fontColor([this.theme.primaryText])
+              .symbolEffect(new ReplaceSymbolEffect(EffectScope.LAYER), this.playing)
           }
         }
         .width(CONTROL_HIT_SIZE)

@@ -27,6 +27,7 @@ export struct BubblePauseButton {
           .fontSize(28)
           .fontColor([this.theme.ink])
           .offset({ x: this.isPlaying ? 0 : 2, y: 0 })
+          .symbolEffect(new ReplaceSymbolEffect(EffectScope.LAYER), this.isPlaying)
       }
     }
     .width(72)

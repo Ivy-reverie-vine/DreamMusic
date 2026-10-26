@@ -14,6 +14,7 @@ import { LyricLine, findActiveLine } from '../service/lyrics/LrcParser';
 import { LyricFollowState } from '../service/lyrics/LyricFollowState';
 import { common } from '@kit.AbilityKit';
 import { accessibility } from '@kit.AccessibilityKit';
+import { LengthMetrics } from '@kit.ArkUI';
 import {
   FONT_DISPLAY, FONT_LABEL, FONT_BODY, FONT_CAPTION, MOTION_VINYL_MS, SHADOW_GLOW_RADIUS,
   CONTROL_HIT_SIZE
@@ -46,8 +47,7 @@ export struct NowPlayingPage {
   @State flip: boolean = false;
   /** 黑胶旋转角度（播放时平滑微动效，约 30 秒一圈） */
   @State discAngle: number = 0;
-  /** 黑胶旋转定时器 */
-  private rotateTimer: number = -1;
+  private flipRotateTimer: number = -1;
   /** 歌词滚动控制器 + 自动跟随(用户手动滑动时暂停跟随) */
   private lrcScroller: Scroller = new Scroller();
   private lyricFollow: LyricFollowState = new LyricFollowState();
@@ -68,7 +68,6 @@ export struct NowPlayingPage {
       this.flipCover();
     }
     this.startLyricFollow();
-    this.updateVinylRotation();
   }
 
   aboutToDisappear(): void {
@@ -78,6 +77,10 @@ export struct NowPlayingPage {
     if (this.flipTimer >= 0) {
       clearTimeout(this.flipTimer);
       this.flipTimer = -1;
+    }
+    if (this.flipRotateTimer >= 0) {
+      clearTimeout(this.flipRotateTimer);
+      this.flipRotateTimer = -1;
     }
   }
 
@@ -95,7 +98,6 @@ export struct NowPlayingPage {
   }
 
   private followActiveLine(): void {
-    this.updateVinylRotation();
     if (this.lrc.lines.length === 0 || !this.lrc.timelineTrusted) {
       return;
     }
@@ -168,27 +170,23 @@ export struct NowPlayingPage {
       this.stopVinylRotate();
       return;
     }
-    if (this.rotateTimer >= 0) {
+    if (this.discAngle === 360) {
       return;
     }
-    this.rotateTimer = setInterval(() => {
-      if (this.reduceMotion()) {
-        this.stopVinylRotate();
-        return;
-      }
-      this.discAngle = (this.discAngle + 0.6) % 360;
-    }, 50);
+    this.discAngle = 360;
   }
 
   private stopVinylRotate(): void {
-    if (this.rotateTimer >= 0) {
-      clearInterval(this.rotateTimer);
-      this.rotateTimer = -1;
+    if (this.discAngle === 0) {
+      return;
     }
+    animateTo({ duration: 0 }, () => {
+      this.discAngle = 0;
+    });
   }
 
   private updateVinylRotation(): void {
-    if (this.visible && this.vm.state === PlayerState.PLAYING) {
+    if (this.visible && this.vm.state === PlayerState.PLAYING && !this.reduceMotion()) {
       this.startVinylRotate();
     } else {
       this.stopVinylRotate();
@@ -198,7 +196,9 @@ export struct NowPlayingPage {
   private onPlaybackChanged(): void {
     if (this.visible && this.vm.currentTrack !== this.displayedTrack) {
       this.displayedTrack = this.vm.currentTrack;
+      this.stopVinylRotate();
       this.flipCover();
+      return;
     }
     this.updateVinylRotation();
   }
@@ -209,8 +209,13 @@ export struct NowPlayingPage {
       clearTimeout(this.flipTimer);
       this.flipTimer = -1;
     }
+    if (this.flipRotateTimer >= 0) {
+      clearTimeout(this.flipRotateTimer);
+      this.flipRotateTimer = -1;
+    }
     if (this.reduceMotion()) {
       this.flip = true;
+      this.updateVinylRotation();
       return;
     }
     this.flip = false;
@@ -219,6 +224,12 @@ export struct NowPlayingPage {
       animateTo({ duration: MOTION_VINYL_MS, curve: Curve.EaseOut }, () => {
         this.flip = true;
       });
+      this.flipRotateTimer = setTimeout(() => {
+        this.flipRotateTimer = -1;
+        if (this.visible) {
+          this.updateVinylRotation();
+        }
+      }, MOTION_VINYL_MS);
     }, 40);
   }
 
@@ -273,9 +284,13 @@ export struct NowPlayingPage {
           .stroke(ThemeService.alpha('#FFFFFF', 0.35))
           .strokeWidth(1)
       }
+      .rotate({ x: 0, y: 0, z: 1, angle: this.discAngle })
+      .animation({ duration: 30000, iterations: -1, curve: Curve.Linear })
       .width(this.discSize())
       .height(this.discSize())
-      .rotate({ x: 0, y: 0, z: 1, angle: this.discAngle })
+      .onAppear(() => {
+        this.updateVinylRotation();
+      })
     }
     .width(this.discSize())
     .height(this.discSize())
@@ -358,8 +373,8 @@ export struct NowPlayingPage {
         .enabled(!this.controls.busy)
         .accessibilityText('上一首')
         .onClick(() => {
-          this.controls.run(() => {
-            queueViewModel.playPrev();
+          this.controls.run(async () => {
+            await queueViewModel.playPrev();
             this.updateVinylRotation();
           });
         })
@@ -367,8 +382,8 @@ export struct NowPlayingPage {
           isPlaying: this.vm.state === PlayerState.PLAYING,
           loading: this.vm.state === PlayerState.PREPARING,
           onToggle: (): void => {
-            this.controls.run(() => {
-              this.vm.togglePause();
+            this.controls.run(async () => {
+              await this.vm.togglePause();
               this.updateVinylRotation();
             });
           }
@@ -387,8 +402,8 @@ export struct NowPlayingPage {
         .enabled(!this.controls.busy)
         .accessibilityText('下一首')
         .onClick(() => {
-          this.controls.run(() => {
-            queueViewModel.playNext();
+          this.controls.run(async () => {
+            await queueViewModel.playNext();
             this.updateVinylRotation();
           });
         })
@@ -442,6 +457,7 @@ export struct NowPlayingPage {
         .scrollBar(BarState.Off)
         .nestedScroll({ scrollForward: NestedScrollMode.SELF_FIRST, scrollBackward: NestedScrollMode.SELF_FIRST })
         .edgeEffect(EdgeEffect.Spring)
+        .fadingEdge(true, { fadingEdgeLength: LengthMetrics.vp(28) })
         .onAppear(() => {
           this.lyricFollow.reset(this.lrc.revision);
         })
@@ -461,33 +477,7 @@ export struct NowPlayingPage {
           this.scheduleLyricFollow();
         })
 
-        // 歌词视窗顶部柔和淡化遮罩
-        Column()
-          .width('100%')
-          .height(28)
-          .position({ x: 0, y: 0 })
-          .hitTestBehavior(HitTestMode.None)
-          .linearGradient({
-            angle: 180,
-            colors: [
-              [this.theme.bg, 0.0],
-              [ThemeService.alpha(this.theme.bg, 0.0), 1.0]
-            ]
-          })
 
-        // 歌词视窗底部柔和淡化遮罩
-        Column()
-          .width('100%')
-          .height(28)
-          .position({ x: 0, y: this.lyricHeight() - 28 })
-          .hitTestBehavior(HitTestMode.None)
-          .linearGradient({
-            angle: 0,
-            colors: [
-              [this.theme.bg, 0.0],
-              [ThemeService.alpha(this.theme.bg, 0.0), 1.0]
-            ]
-          })
       }
       .width('100%')
       .height(this.lyricHeight())
