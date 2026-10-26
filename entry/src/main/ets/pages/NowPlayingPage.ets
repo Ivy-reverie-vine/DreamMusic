@@ -35,6 +35,7 @@ function fmt(ms: number): string {
 export struct NowPlayingPage {
   onGoLibrary: () => void = () => {};
   onGoSettings: () => void = () => {};
+  onCollapse?: () => void;
   @State theme: ThemeService = ThemeService.getInstance();
   @State @Watch('onPlaybackChanged') vm: PlayerViewModel = playerViewModel;
   @State controls: PlaybackControlGate = playbackControlGate;
@@ -498,5 +499,15 @@ export struct NowPlayingPage {
     }
     .width('100%')
     .height('100%')
+    .parallelGesture(
+      PanGesture({ direction: PanDirection.Vertical, distance: 25 })
+        .onActionEnd((event: GestureEvent) => {
+          if (event.offsetY > 60) {
+            if (this.onCollapse) {
+              this.onCollapse();
+            }
+          }
+        })
+    )
   }
 }

@@ -22,6 +22,8 @@ export struct MiniPlayerBar {
   };
   onToggle: () => Promise<void> = async () => {
   };
+  onPrev: () => Promise<void> = async () => {
+  };
   onNext: () => Promise<void> = async () => {
   };
 
@@ -94,5 +96,24 @@ export struct MiniPlayerBar {
     .backgroundColor(this.theme.card)
     .shadow({ radius: 18, color: this.theme.isDark ? ThemeService.alpha('#000000', 0.32) : this.theme.shadowColor,
       offsetX: 0, offsetY: 6 })
+    .parallelGesture(
+      GestureGroup(
+        GestureMode.Parallel,
+        PanGesture({ direction: PanDirection.Horizontal, distance: 15 })
+          .onActionEnd((event: GestureEvent) => {
+            if (event.offsetX < -35) {
+              this.controls.run(this.onNext);
+            } else if (event.offsetX > 35) {
+              this.controls.run(this.onPrev);
+            }
+          }),
+        PanGesture({ direction: PanDirection.Vertical, distance: 15 })
+          .onActionEnd((event: GestureEvent) => {
+            if (event.offsetY < -35) {
+              this.onOpen();
+            }
+          })
+      )
+    )
   }
 }

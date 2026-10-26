@@ -339,7 +339,13 @@ struct IndexV2 {
     } else if (this.current === RootTab.NOW_PLAYING) {
       NowPlayingPage({
         onGoLibrary: () => { this.selectTab(RootTab.LIBRARY); },
-        onGoSettings: () => { this.openMyPage(MySubpage.SETTINGS, RootTab.NOW_PLAYING); }
+        onGoSettings: () => { this.openMyPage(MySubpage.SETTINGS, RootTab.NOW_PLAYING); },
+        onCollapse: () => {
+          const target = this.sourceRoot === RootTab.NOW_PLAYING ? RootTab.LIBRARY : (this.sourceRoot ?? RootTab.LIBRARY);
+          animateTo({ duration: 300, curve: Curve.FastOutSlowIn }, () => {
+            this.selectTab(target);
+          });
+        }
       })
     } else if (this.current === RootTab.QUEUE) {
       QueuePage()
@@ -365,8 +371,15 @@ struct IndexV2 {
           onGoLibrary: () => { this.selectTab(RootTab.LIBRARY); },
           onGoSettings: () => { this.openMyPage(MySubpage.SETTINGS, this.current); },
           playing: this.player.state === PlayerState.PLAYING,
-          onOpen: (): void => { this.selectTab(RootTab.NOW_PLAYING); },
+          onOpen: (): void => {
+            const from = this.current;
+            animateTo({ duration: 320, curve: Curve.FastOutSlowIn }, () => {
+              this.selectTab(RootTab.NOW_PLAYING);
+              this.sourceRoot = from;
+            });
+          },
           onToggle: (): Promise<void> => { return this.player.togglePause(); },
+          onPrev: (): Promise<void> => { return queueViewModel.playPrev(); },
           onNext: (): Promise<void> => { return queueViewModel.playNext(); }
         })
       }
