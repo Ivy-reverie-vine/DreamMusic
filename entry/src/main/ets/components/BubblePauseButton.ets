@@ -32,6 +32,18 @@ export struct BubblePauseButton {
     .width(72)
     .height(72)
     .shadow({ radius: 24, color: ThemeService.alpha(this.theme.controlGray, 0.45), offsetX: 0, offsetY: 0 })
+    .stateStyles({
+      normal: {
+        .scale({ x: 1.0, y: 1.0 })
+      },
+      pressed: {
+        .scale({ x: 0.92, y: 0.92 })
+      }
+    })
+    .animation({
+      curve: Curve.EaseOut,
+      duration: 150
+    })
     .onClick(() => {
       this.onToggle();
     })

@@ -21,6 +21,45 @@ import {
  * 顶部无实色块(tab 用圆点指示,按钮用浅色 tint);文件夹导入移除(手机不支持);
  * 点歌/播放失败有状态反馈。
  */
+/**
+ * 音乐库长列表虚拟化数据源(Milestone 1)
+ */
+export class TrackDataSource implements IDataSource {
+  private listeners: DataChangeListener[] = [];
+  private tracks: Track[] = [];
+
+  totalCount(): number {
+    return this.tracks.length;
+  }
+
+  getData(index: number): Track {
+    return this.tracks[index];
+  }
+
+  registerDataChangeListener(listener: DataChangeListener): void {
+    if (this.listeners.indexOf(listener) < 0) {
+      this.listeners.push(listener);
+    }
+  }
+
+  unregisterDataChangeListener(listener: DataChangeListener): void {
+    const pos = this.listeners.indexOf(listener);
+    if (pos >= 0) {
+      this.listeners.splice(pos, 1);
+    }
+  }
+
+  setData(tracks: Track[]): void {
+    this.tracks = tracks;
+    this.notifyDataReload();
+  }
+
+  notifyDataReload(): void {
+    this.listeners.forEach((listener: DataChangeListener) => {
+      listener.onDataReloaded();
+    });
+  }
+}
 @Component
 export struct MusicLibraryPage {
   backDispatcher: BackDispatcher = new BackDispatcher();
@@ -50,6 +89,7 @@ export struct MusicLibraryPage {
   @State detailAlbum: Album | null = null;
   @State detailArtist: Artist | null = null;
   @State detailTracks: Track[] = [];
+  private tracksDataSource: TrackDataSource = new TrackDataSource();
 
   @Builder
   addPanel() {
@@ -93,7 +133,14 @@ export struct MusicLibraryPage {
 
   aboutToAppear(): void {
     this.backDispatcher.register('library', 20, () => this.handleBack());
-    this.vm.load();
+    this.loadTracks();
+  }
+
+  private async loadTracks(): Promise<void> {
+    await this.vm.load();
+    if (this.tracksDataSource) {
+      this.tracksDataSource.setData(this.vm.tracks);
+    }
   }
 
   aboutToDisappear(): void {
@@ -113,6 +160,9 @@ export struct MusicLibraryPage {
     if (this.showSearch) {
       this.showSearch = false;
       this.vm.load();
+      if (this.tracksDataSource) {
+        this.tracksDataSource.setData(this.vm.tracks);
+      }
       return true;
     }
     return false;
@@ -179,6 +229,9 @@ export struct MusicLibraryPage {
     this.importStatus = `完成:导入 ${result.imported},跳过 ${result.skipped},重复 ${result.duplicates}` +
       (result.failed > 0 ? `,失败 ${result.failed}:${result.lastError}` : '');
     await this.vm.load();
+    if (this.tracksDataSource) {
+      this.tracksDataSource.setData(this.vm.tracks);
+    }
   }
 
   confirmRemove(track: Track): void {
@@ -189,13 +242,13 @@ export struct MusicLibraryPage {
       primaryButton: {
         value: '仅出库',
         action: () => {
-          this.vm.removeTrack(context, track, false);
+          this.vm.removeTrack(context, track, false).then(() => { if (this.tracksDataSource) { this.tracksDataSource.setData(this.vm.tracks); } });
         }
       },
       secondaryButton: {
         value: '连文件删除',
         action: () => {
-          this.vm.removeTrack(context, track, true);
+          this.vm.removeTrack(context, track, true).then(() => { if (this.tracksDataSource) { this.tracksDataSource.setData(this.vm.tracks); } });
         }
       }
     });
@@ -262,12 +315,13 @@ export struct MusicLibraryPage {
   @Builder
   TrackList() {
     List({ space: 10 }) {
-      ForEach(this.vm.tracks, (t: Track, index: number) => {
+      LazyForEach(this.tracksDataSource, (t: Track, index: number) => {
         ListItem() {
           this.TrackRowItem(t, index, this.vm.tracks)
         }
-      })
+      }, (t: Track) => t.id.toString())
     }
+    .cachedCount(5)
     .width('100%')
     .layoutWeight(1)
     .scrollBar(BarState.Auto)
@@ -541,7 +595,7 @@ export struct MusicLibraryPage {
           .onClick(() => {
             if (this.sheetTarget !== null) {
               const t: Track = this.sheetTarget;
-              this.vm.editTrackMeta(t, this.editTitle, this.editArtist);
+              this.vm.editTrackMeta(t, this.editTitle, this.editArtist).then(() => { if (this.tracksDataSource) { this.tracksDataSource.setData(this.vm.tracks); } });
             }
             this.sheetMode = 0;
             this.showSheet = false;
@@ -587,7 +641,7 @@ export struct MusicLibraryPage {
           .padding(8)
           .borderRadius(RADIUS_CAPSULE)
           .onClick(() => {
-            this.vm.rescan(this.ctx());
+            this.vm.rescan(this.ctx()).then(() => { if (this.tracksDataSource) { this.tracksDataSource.setData(this.vm.tracks); } });
           })
         }
       }
@@ -666,7 +720,7 @@ export struct MusicLibraryPage {
           Text('正在读取本机音乐库…').fontSize(FONT_LABEL).fontColor(this.theme.muted)
         } else if (this.vm.loadError !== '') {
           Text(this.vm.loadError + ' · 点击重试').fontSize(FONT_LABEL).fontColor(this.theme.errorColor)
-            .onClick(() => { this.vm.load(); })
+            .onClick(() => { this.loadTracks(); })
         } else if (this.tab === 0) {
           if (this.vm.tracks.length === 0) {
             EmptyState({

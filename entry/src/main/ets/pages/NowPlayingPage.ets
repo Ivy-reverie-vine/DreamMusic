@@ -214,6 +214,7 @@ export struct NowPlayingPage {
       CoverThumb({ uri: this.coverUri(), identity: CoverArtService.identity(this.vm.currentTrack),
         thumbSize: this.discSize() * 172 / 236,
         decodeSize: 512, circular: true, withShadow: false })
+        .geometryTransition('now_playing_cover', { follow: true })
 
       // 轴孔
       Circle()
@@ -256,41 +257,74 @@ export struct NowPlayingPage {
           .fontSize(FONT_LABEL)
           .fontColor(this.theme.muted)
       }
-      List({ space: 4, scroller: this.lrcScroller }) {
-        ForEach(this.lrc.lines, (line: LyricLine, index: number) => {
-          ListItem() {
-            Text(line.text)
-              .fontSize(index === this.activeLineIndex() ? 17 : 14)
-              .fontWeight(index === this.activeLineIndex() ? FontWeight.Medium : FontWeight.Normal)
-              .fontColor(index === this.activeLineIndex() ? this.theme.primaryText : this.theme.muted)
-              .width('100%')
-              .textAlign(TextAlign.Center)
-              .padding({ top: 5, bottom: 5 })
+      Stack() {
+        List({ space: 4, scroller: this.lrcScroller }) {
+          ForEach(this.lrc.lines, (line: LyricLine, index: number) => {
+            ListItem() {
+              Text(line.text)
+                .fontSize(index === this.activeLineIndex() ? 17 : 14)
+                .fontWeight(index === this.activeLineIndex() ? FontWeight.Medium : FontWeight.Normal)
+                .fontColor(index === this.activeLineIndex() ? this.theme.primaryText : this.theme.muted)
+                .width('100%')
+                .textAlign(TextAlign.Center)
+                .padding({ top: 5, bottom: 5 })
+            }
+          }, (line: LyricLine) => String(line.timeMs) + '_' + line.text)
+        }
+        .width('100%')
+        .height(this.lyricHeight())
+        .scrollBar(BarState.Off)
+        .nestedScroll({ scrollForward: NestedScrollMode.SELF_FIRST, scrollBackward: NestedScrollMode.SELF_FIRST })
+        .edgeEffect(EdgeEffect.Spring)
+        .onAppear(() => {
+          this.lyricFollow.reset(this.lrc.revision);
+        })
+        .onTouch((e: TouchEvent) => {
+          if (e.type === TouchType.Down || e.type === TouchType.Move) {
+            this.pauseLyricFollow();
+          } else if (e.type === TouchType.Up || e.type === TouchType.Cancel) {
+            this.scheduleLyricFollow();
           }
-        }, (line: LyricLine) => String(line.timeMs) + '_' + line.text)
+        })
+        .onDidScroll(() => {
+          if (this.lyricFollow.paused) {
+            this.pauseLyricFollow();
+          }
+        })
+        .onScrollStop(() => {
+          this.scheduleLyricFollow();
+        })
+
+        // 歌词视窗顶部柔和淡化遮罩
+        Column()
+          .width('100%')
+          .height(28)
+          .position({ x: 0, y: 0 })
+          .hitTestBehavior(HitTestMode.None)
+          .linearGradient({
+            angle: 180,
+            colors: [
+              [this.theme.bg, 0.0],
+              [ThemeService.alpha(this.theme.bg, 0.0), 1.0]
+            ]
+          })
+
+        // 歌词视窗底部柔和淡化遮罩
+        Column()
+          .width('100%')
+          .height(28)
+          .position({ x: 0, y: this.lyricHeight() - 28 })
+          .hitTestBehavior(HitTestMode.None)
+          .linearGradient({
+            angle: 0,
+            colors: [
+              [this.theme.bg, 0.0],
+              [ThemeService.alpha(this.theme.bg, 0.0), 1.0]
+            ]
+          })
       }
       .width('100%')
       .height(this.lyricHeight())
-      .scrollBar(BarState.Off)
-      .nestedScroll({ scrollForward: NestedScrollMode.SELF_FIRST, scrollBackward: NestedScrollMode.SELF_FIRST })
-      .onAppear(() => {
-        this.lyricFollow.reset(this.lrc.revision);
-      })
-      .onTouch((e: TouchEvent) => {
-        if (e.type === TouchType.Down || e.type === TouchType.Move) {
-          this.pauseLyricFollow();
-        } else if (e.type === TouchType.Up || e.type === TouchType.Cancel) {
-          this.scheduleLyricFollow();
-        }
-      })
-      .onDidScroll(() => {
-        if (this.lyricFollow.paused) {
-          this.pauseLyricFollow();
-        }
-      })
-      .onScrollStop(() => {
-        this.scheduleLyricFollow();
-      })
     }
     if (this.lrc.retryable) {
       Button('重试歌词')

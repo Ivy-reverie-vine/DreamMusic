@@ -4,8 +4,8 @@
 
 ## 1. 鸿蒙版本锁定
 
-- 目标设备系统: HarmonyOS 6.1
-- API Version: **API 23**
+- 目标设备系统: HarmonyOS 7.0
+- API Version: **API 26**
 - API Kit: 遇到功能需求时,**必须**从对应 Kit 导入;Kit 名称与导入名以官方 API 参考为准,禁止凭记忆或 Android 经验编造
 - 权限声明: 网络请求(`ohos.permission.INTERNET`), 后台长时任务(audioPlayback), 媒体权限, 通知(实际所需权限以各 Kit 官方文档为准;通过系统选择器导入文件**无需**存储读写权限)
 - 开发语言: ArkTS
@@ -20,23 +20,25 @@
 
 | 组件           | 版本               | 路径                                           |
 | :------------- | :----------------- | :--------------------------------------------- |
-| DevEco Studio  | 6.1.0.830          | `D:\DevEco`                                    |
-| HarmonyOS SDK  | 6.1.0.105 (API 23) | `D:\DevEco\sdk\default`                        |
-| Node.js        | v18.20.1           | `D:\DevEco\tools\node`                         |
-| ohpm           | 6.1.1.830          | `D:\DevEco\tools\ohpm\bin`                     |
-| hvigor         | 6.23.7             | `D:\DevEco\tools\hvigor\bin`                   |
-| hdc            | 3.2.0c             | `D:\DevEco\sdk\default\openharmony\toolchains` |
-| JBR (内置 JDK) | OpenJDK 21.0.8     | `D:\DevEco\jbr`  优先使用 DevEco 内置 JBR      |
+| DevEco Studio  | 26.0.0.851         | `D:\DevEco\DevEco Studio`                      |
+| HarmonyOS SDK  | 26.0.0 (API 26)    | `D:\DevEco\DevEco Studio\sdk\default`          |
+| Node.js        | v18.20.1           | `D:\DevEco\DevEco Studio\tools\node`           |
+| ohpm           | 6.26.8             | `D:\DevEco\DevEco Studio\tools\ohpm\bin`       |
+| hvigor         | 6.26.8             | `D:\DevEco\DevEco Studio\tools\hvigor\bin`     |
+| hdc            | 3.2.0c 或更高       | `D:\DevEco\sdk\26.0.0\toolchains`              |
+| JBR (内置 JDK) | OpenJDK 21.0.8     | `D:\DevEco\DevEco Studio\jbr`                  |
 | JAVA_HOME      | JDK 22             | `D:\tool\Java\jdk-22`                          |
 
 ### 构建阻塞排查与固定做法
 
-- 当前 DevEco SDK 的真实安装目录仍是 `D:\DevEco\sdk\default`,但 Hvigor 6.23.7 的 HarmonyOS SDK 扫描器无法直接识别该 SDK Manager 布局。不要复制、移动或修改真实 SDK；使用已验证的本地兼容根 `D:\DreamMusic\.devEco-sdk-compat`。
-- 构建 HAP 前必须在当前 PowerShell 进程设置 SDK 路径：
+- 当前 DevEco SDK 的安装目录使用本地兼容根 `D:\DreamMusic\.devEco-sdk-compat`。
+- 构建 HAP 前在 PowerShell 设置环境：
 
   ```powershell
   $env:DEVECO_SDK_HOME='D:\DreamMusic\.devEco-sdk-compat'
-  & 'D:\DevEco\tools\hvigor\bin\hvigorw.bat' assembleHap --no-daemon --no-type-check --stacktrace
+  $env:NODE_PATH='D:\DreamMusic\DreamMusic\.hvigor\shim\node_modules'
+  $env:PATH="D:\DevEco\DevEco Studio\tools\node;$env:PATH"
+  & "D:\DevEco\DevEco Studio\tools\node\node.exe" "D:\DevEco\DevEco Studio\tools\hvigor\hvigor\bin\hvigor.js" assembleHap --no-daemon
   ```
 
 - `entry/local.properties` 是 DevEco 自动生成文件；HarmonyOS 模式下不会作为 `DEVECO_SDK_HOME` 的替代配置，禁止把兼容路径写入其中。若当前 PowerShell 看不到用户级环境变量，不要误判为 SDK 缺失，先使用上面的进程级设置并记录环境问题。

@@ -36,6 +36,7 @@ export struct MiniPlayerBar {
         // 歌曲入口与两个按钮为兄弟节点，外层不绑定打开页面的点击事件。
         Row({ space: 10 }) {
           CoverThumb({ uri: this.coverUri(), identity: CoverArtService.identity(this.track), thumbSize: 42 })
+            .geometryTransition('now_playing_cover', { follow: true })
           Column({ space: 2 }) {
             Text(this.track.title !== '' ? this.track.title : this.track.path)
               .fontSize(FONT_BODY)

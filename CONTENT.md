@@ -7,7 +7,7 @@
 
 DreamMusic 是面向 HarmonyOS 手机的私人音乐播放器：本地音乐以离线播放为核心，同时通过 NightDream 中间层提供统一、可扩展的在线音乐获取入口。当前实际来源是 `api-enhanced`，后续可由 NightDream 调度 YouTube 等其他来源；客户端不直接感知或拼接各来源服务。
 
-当前目标环境由配置和项目约束共同确定：HarmonyOS 6.1、API 23、phone、ArkTS。构建配置中的 `targetSdkVersion` 和 `compatibleSdkVersion` 均为 `6.1.0(23)`。
+当前目标环境由配置和项目约束共同确定：HarmonyOS 26.0.0 (API 26 / 7.0+)、phone、ArkTS。构建配置中的 `targetSdkVersion` 和 `compatibleSdkVersion` 均为 `26.0.0`。
 
 项目禁止使用 Android API、Android 存储/导航/生命周期假设，以及未经官方 Kit 文档核实的 HarmonyOS API。
 

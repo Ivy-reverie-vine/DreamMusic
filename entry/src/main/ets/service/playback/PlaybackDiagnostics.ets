@@ -38,6 +38,9 @@ function safeField(value: string, fallback: string): string {
 /** 将系统/网络错误归一化为可检索类别，不保存原始错误文本或媒体 URL。 */
 export function classifyPlaybackError(stage: string, message: string): string {
   const text = message.toLowerCase();
+  if (stage === 'avplayer_initialization') {
+    return DIAGNOSTIC_CATEGORY_AVPLAYER_INITIALIZATION_FAILURE;
+  }
   if (text.indexOf('timeout') >= 0 || text.indexOf('timed out') >= 0 || text.indexOf('超时') >= 0) {
     return DIAGNOSTIC_CATEGORY_SOURCE_TIMEOUT;
   }
@@ -49,9 +52,6 @@ export function classifyPlaybackError(stage: string, message: string): string {
       return DIAGNOSTIC_CATEGORY_EMPTY_PLAYBACK_URL;
     }
     return DIAGNOSTIC_CATEGORY_URL_EXPIRED_OR_UNREACHABLE;
-  }
-  if (stage === 'avplayer_initialization') {
-    return DIAGNOSTIC_CATEGORY_AVPLAYER_INITIALIZATION_FAILURE;
   }
   return DIAGNOSTIC_CATEGORY_PLAYBACK_FAILURE;
 }

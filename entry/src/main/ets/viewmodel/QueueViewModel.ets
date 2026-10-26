@@ -240,8 +240,22 @@ export class QueueViewModel {
     this.persist(playerViewModel.positionMs);
   }
 
-  /** 按拖拽后的 id 顺序重建引擎并落盘(8/16 修复:拖拽在页面本地数组上进行,松手统一提交) */
-  reorder(ids: number[]): boolean {
+  /** 按拖拽索引或 id 顺序重排队列并落盘 */
+  reorder(from: number, to: number): boolean;
+  reorder(ids: number[]): boolean;
+  reorder(arg1: number[] | number, arg2?: number): boolean {
+    if (typeof arg1 === 'number' && typeof arg2 === 'number') {
+      const from = arg1;
+      const to = arg2;
+      const n = this.queueTracks.length;
+      if (from < 0 || to < 0 || from >= n || to >= n || from === to) {
+        return false;
+      }
+      this.moveLive(from, to);
+      this.commitReorder();
+      return true;
+    }
+    const ids = arg1 as number[];
     if (!this.engine.reorder(ids)) {
       return false;
     }

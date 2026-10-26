@@ -5,13 +5,13 @@
         "name": "default",
         "type": "HarmonyOS",
         "material": {
-          "certpath": "C:\\Users\\77354\\.ohos\\config\\default_IvyReverieMusic_RVa17KrW41GyIYwrCQa1qUCrAJuZfLoc1aydDVpiBqc=.cer",
+          "certpath": "C:\\Users\\77354\\.ohos\\config\\default_DreamMusic_l4bw4UsEjdNXaMWk1k9Xv38RhaJfYN4bscbRurpeoL8=.cer",
           "keyAlias": "debugKey",
-          "keyPassword": "0000001AF8D1407DBF4B1FE71A821B88CDEAF3EDCE7523C2B75B776AB394C57042E8DF037822D5E33835",
-          "profile": "C:\\Users\\77354\\.ohos\\config\\default_IvyReverieMusic_RVa17KrW41GyIYwrCQa1qUCrAJuZfLoc1aydDVpiBqc=.p7b",
+          "keyPassword": "0000001B1CA8C42B8D0C840F259379B62714D08DD443DDB545B2400EE31D0D0A2B0CF7C2CA1D8FA8B23854",
+          "profile": "C:\\Users\\77354\\.ohos\\config\\default_DreamMusic_l4bw4UsEjdNXaMWk1k9Xv38RhaJfYN4bscbRurpeoL8=.p7b",
           "signAlg": "SHA256withECDSA",
-          "storeFile": "C:\\Users\\77354\\.ohos\\config\\default_IvyReverieMusic_RVa17KrW41GyIYwrCQa1qUCrAJuZfLoc1aydDVpiBqc=.p12",
-          "storePassword": "0000001A017EE3D2EB39F4C7C8D9B2A0854AFD3B1572C04D93A3DDED03351C65F065028ABD1775CAE4D5"
+          "storeFile": "C:\\Users\\77354\\.ohos\\config\\default_DreamMusic_l4bw4UsEjdNXaMWk1k9Xv38RhaJfYN4bscbRurpeoL8=.p12",
+          "storePassword": "0000001BF8B0E069CD0078BC227E4D39EB75AD4B1F60AC1F64013956EBDCA7C6B7C09CE8952D9BC60EBB79"
         }
       }
     ],
@@ -19,8 +19,8 @@
       {
         "name": "default",
         "signingConfig": "default",
-        "targetSdkVersion": "6.1.0(23)",
-        "compatibleSdkVersion": "6.1.0(23)",
+        "targetSdkVersion": "26.0.0",
+        "compatibleSdkVersion": "26.0.0",
         "runtimeOS": "HarmonyOS",
         "buildOption": {
           "strictMode": {

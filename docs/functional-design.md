@@ -184,7 +184,7 @@ SettingsPage
 HarmonyOS 特色能力必须满足：
 
 - 与音乐播放或本地音乐库直接相关；
-- 通过 API 23 官方 Kit 文档核实后再实现；
+- 通过 API 26 官方 Kit 文档核实后再实现；
 - 不破坏离线播放；
 - 不绕过当前 MVVM 和播放模块；
 - 不把平台能力直接写进页面，优先放入独立模块或适配器；
@@ -234,7 +234,7 @@ entry/src/main/ets/service/playback/BackgroundPlayback.ets
 
 每项 HarmonyOS 能力在实施前需要记录：
 
-- 对应官方 Kit 和 API 23 支持情况；
+- 对应官方 Kit 和 API 26 支持情况；
 - 权限和配置要求；
 - Ability/后台生命周期影响；
 - 离线时的降级行为；

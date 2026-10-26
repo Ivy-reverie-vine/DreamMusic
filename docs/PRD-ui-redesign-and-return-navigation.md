@@ -2,7 +2,7 @@
 
 状态：已实现，待真机验收
 日期：2026-08-23
-目标平台：HarmonyOS 6.1 / API 23 / ArkTS / phone
+目标平台：HarmonyOS 7.0 / API 26 / ArkTS / phone
 
 ## Problem Statement
 
