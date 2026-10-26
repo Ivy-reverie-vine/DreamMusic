@@ -60,6 +60,7 @@ export struct NowPlayingPage {
   private displayedTrack: Track | null = null;
   @State contentWidth: number = 320;
   @State contentHeight: number = 400;
+  @State isHoverMode: boolean = false;
 
   aboutToAppear(): void {
     this.visible = true;
@@ -536,6 +537,136 @@ export struct NowPlayingPage {
     .alignItems(VerticalAlign.Center)
   }
 
+  @Builder
+  HoverUpperView() {
+    Column({ space: 6 }) {
+      this.TopBar()
+
+      Row({ space: 16 }) {
+        Column() {
+          this.VinylDisc()
+        }
+        .layoutWeight(1)
+        .justifyContent(FlexAlign.Center)
+
+        Column() {
+          this.LyricWindow()
+        }
+        .layoutWeight(1)
+        .height('100%')
+        .padding(8)
+        .borderRadius(12)
+        .backgroundColor(ThemeService.alpha(this.theme.bg, 0.95))
+        .justifyContent(FlexAlign.Center)
+      }
+      .width('100%')
+      .layoutWeight(1)
+    }
+    .width('100%')
+    .height('100%')
+    .padding({ left: 16, right: 16, top: 4, bottom: 4 })
+  }
+
+  @Builder
+  HoverLowerView() {
+    Column({ space: 10 }) {
+      this.TrackInfo()
+      SourceSelection()
+      this.PlaybackControls()
+    }
+    .width('100%')
+    .height('100%')
+    .padding({ left: 24, right: 24, top: 12, bottom: 12 })
+    .justifyContent(FlexAlign.Center)
+  }
+
+  @Builder
+  NormalContentView() {
+    Column({ space: 8 }) {
+      this.TopBar()
+
+      if (this.vm.currentTrack === null) {
+        Column({ space: 8 }) {
+          Text('还没有在播放')
+            .fontSize(18)
+            .fontColor(this.theme.ink)
+          Text('去音乐库点一首歌')
+            .fontSize(14)
+            .fontColor(this.theme.muted)
+        }
+        .width('100%')
+        .layoutWeight(1)
+        .justifyContent(FlexAlign.Center)
+      } else if (this.contentWidth >= 600) {
+        // 宽屏/折叠屏展开态/平板：双栏响应式排布
+        Row({ space: 24 }) {
+          // 左栏（宽度占比约 45%~48%）：Scroll 垂直居中展示黑胶、信息、源选择与播控
+          Scroll() {
+            Column({ space: 16 }) {
+              this.VinylDisc()
+              this.TrackInfo()
+              SourceSelection()
+              this.PlaybackControls()
+            }
+            .padding({ top: 12, bottom: 12 })
+            .width('100%')
+            .constraintSize({ minHeight: Math.max(0, this.contentHeight - 16) })
+            .justifyContent(FlexAlign.Center)
+          }
+          .layoutWeight(47)
+          .height('100%')
+          .scrollBar(BarState.Off)
+
+          // 右栏（宽度占比约 52%~55%）：沉浸式大视窗展示歌词流
+          Column() {
+            this.LyricWindow()
+          }
+          .layoutWeight(53)
+          .height('100%')
+          .padding(12)
+          .borderRadius(16)
+          .backgroundColor(ThemeService.alpha(this.theme.bg, 0.95))
+          .justifyContent(FlexAlign.Center)
+        }
+        .width('100%')
+        .layoutWeight(1)
+      } else {
+        // 常规手机竖屏：垂直流单列排布
+        Scroll() {
+          Column({ space: 16 }) {
+            this.VinylDisc()
+
+            this.TrackInfo()
+
+            // 局部承托隔离封面阴影，避免其在文字背后突破全局背景范围。
+            SourceSelection()
+
+            Column() {
+              this.LyricWindow()
+            }
+            .width('100%')
+            .padding(8)
+            .borderRadius(12)
+            .backgroundColor(ThemeService.alpha(this.theme.bg, 0.95))
+          }
+          .padding({ top: 12, bottom: 12 })
+          .width('100%')
+          .constraintSize({ minHeight: this.contentHeight })
+          .justifyContent(FlexAlign.Center)
+        }
+        .width('100%')
+        .layoutWeight(1)
+        .scrollBar(BarState.Off)
+
+        this.PlaybackControls()
+      }
+    }
+    .padding({ left: 20, right: 20, top: 8, bottom: 8 })
+    .width('100%')
+    .height('100%')
+    .justifyContent(FlexAlign.Center)
+  }
+
   build() {
     Stack() {
       // 弥散光影:封面主色径向渐变(蒙层之上,展品灯光感;scrimNowPlaying 由主壳按页切换)
@@ -548,89 +679,34 @@ export struct NowPlayingPage {
           colors: [[ThemeService.alpha(this.theme.primary, this.theme.coverGlowAlpha), 0.0], ['#00000000', 1.0]]
         })
 
-      Column({ space: 8 }) {
-        this.TopBar()
-
-        if (this.vm.currentTrack === null) {
-          Column({ space: 8 }) {
-            Text('还没有在播放')
-              .fontSize(18)
-              .fontColor(this.theme.ink)
-            Text('去音乐库点一首歌')
-              .fontSize(14)
-              .fontColor(this.theme.muted)
+      FolderStack({ upperItems: ['now_playing_upper_area'] }) {
+        Column() {
+          if (this.isHoverMode) {
+            this.HoverUpperView()
           }
-          .width('100%')
-          .layoutWeight(1)
-          .justifyContent(FlexAlign.Center)
-        } else if (this.contentWidth >= 600) {
-          // 宽屏/折叠屏展开态/平板：双栏响应式排布
-          Row({ space: 24 }) {
-            // 左栏（宽度占比约 45%~48%）：Scroll 垂直居中展示黑胶、信息、源选择与播控
-            Scroll() {
-              Column({ space: 16 }) {
-                this.VinylDisc()
-                this.TrackInfo()
-                SourceSelection()
-                this.PlaybackControls()
-              }
-              .padding({ top: 12, bottom: 12 })
-              .width('100%')
-              .constraintSize({ minHeight: Math.max(0, this.contentHeight - 16) })
-              .justifyContent(FlexAlign.Center)
-            }
-            .layoutWeight(47)
-            .height('100%')
-            .scrollBar(BarState.Off)
-
-            // 右栏（宽度占比约 52%~55%）：沉浸式大视窗展示歌词流
-            Column() {
-              this.LyricWindow()
-            }
-            .layoutWeight(53)
-            .height('100%')
-            .padding(12)
-            .borderRadius(16)
-            .backgroundColor(ThemeService.alpha(this.theme.bg, 0.95))
-            .justifyContent(FlexAlign.Center)
-          }
-          .width('100%')
-          .layoutWeight(1)
-        } else {
-          // 常规手机竖屏：垂直流单列排布
-          Scroll() {
-            Column({ space: 16 }) {
-              this.VinylDisc()
-
-              this.TrackInfo()
-
-              // 局部承托隔离封面阴影，避免其在文字背后突破全局背景范围。
-              SourceSelection()
-
-              Column() {
-                this.LyricWindow()
-              }
-              .width('100%')
-              .padding(8)
-              .borderRadius(12)
-              .backgroundColor(ThemeService.alpha(this.theme.bg, 0.95))
-            }
-            .padding({ top: 12, bottom: 12 })
-            .width('100%')
-            .constraintSize({ minHeight: this.contentHeight })
-            .justifyContent(FlexAlign.Center)
-          }
-          .width('100%')
-          .layoutWeight(1)
-          .scrollBar(BarState.Off)
-
-          this.PlaybackControls()
         }
+        .id('now_playing_upper_area')
+        .width('100%')
+        .height(this.isHoverMode ? '100%' : 0)
+        .hitTestBehavior(this.isHoverMode ? HitTestMode.Default : HitTestMode.None)
+
+        Column() {
+          if (this.isHoverMode) {
+            this.HoverLowerView()
+          } else {
+            this.NormalContentView()
+          }
+        }
+        .width('100%')
+        .height('100%')
       }
-      .padding({ left: 20, right: 20, top: 8, bottom: 8 })
+      .enableAnimation(true)
+      .autoHalfFold(true)
+      .onHoverStatusChange((msg: HoverEventParam) => {
+        this.isHoverMode = msg.isHoverMode;
+      })
       .width('100%')
       .height('100%')
-      .justifyContent(FlexAlign.Center)
     }
     .width('100%')
     .height('100%')
