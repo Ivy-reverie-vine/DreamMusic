@@ -144,6 +144,16 @@ export class QueueViewModel {
     this.mode = this.engine.currentMode;
   }
 
+  /** 下一首播放:加入缓存、插入队列当前曲之后、同步显示并落盘 */
+  insertNext(track: Track): void {
+    if (this.trackCache.every((t: Track) => t.id !== track.id)) {
+      this.trackCache.push(track);
+    }
+    this.engine.insertNext(track.id);
+    this.syncDisplay();
+    this.persist(playerViewModel.positionMs);
+  }
+
   /** 点歌:来源列表成为队列,从 startIndex 开始播 */
   async playFromList(tracks: Track[], startIndex: number, context: common.Context,
     expectedRequest: number = -1, prepared: PlaybackResolution | null = null): Promise<void> {

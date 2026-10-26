@@ -11,7 +11,7 @@ import { OnlineMusicViewModel, onlineMusicViewModel } from '../viewmodel/OnlineM
 import { OnlinePlaylistSummary } from '../service/network/OnlineMusicService';
 import { DreamMusicAuth } from '../service/network/DreamMusicAuth';
 import { BackDispatcher } from '../model/Navigation';
-import { AddFormMenuItem } from '@kit.ArkUI';
+import { AddFormMenuItem, SymbolGlyphModifier } from '@kit.ArkUI';
 import { PlaylistFormStore } from '../service/form/PlaylistFormStore';
 import { playlistCardSnapshot, PLAYLIST_FORM_NAME, PLAYLIST_FORM_ABILITY } from '../model/PlaylistCard';
 import { CARD_BG, CARD_INK, CARD_MUTED } from '../model/MusicCard';
@@ -176,6 +176,61 @@ export struct PlaylistsPage {
   }
 
   @Builder
+  PlaylistTrackSwipeActions(t: Track) {
+    Row({ space: 8 }) {
+      Button({ type: ButtonType.Circle }) {
+        SymbolGlyph($r('sys.symbol.forward_end_fill'))
+          .fontSize(20)
+          .fontColor([this.theme.primaryText])
+      }
+      .width(42)
+      .height(42)
+      .backgroundColor(ThemeService.alpha(this.theme.primary, 0.15))
+      .accessibilityText('下一首播放')
+      .onClick(() => {
+        queueViewModel.insertNext(t);
+      })
+
+      Button({ type: ButtonType.Circle }) {
+        SymbolGlyph($r('sys.symbol.minus'))
+          .fontSize(20)
+          .fontColor([this.theme.secondaryText])
+      }
+      .width(42)
+      .height(42)
+      .backgroundColor(ThemeService.alpha(this.theme.secondaryText, 0.15))
+      .accessibilityText('从歌单移除')
+      .onClick(() => {
+        this.vm.removeTrackFromSelected(t.id);
+      })
+    }
+    .height('100%')
+    .padding({ left: 10, right: 12 })
+    .alignItems(VerticalAlign.Center)
+    .justifyContent(FlexAlign.Center)
+  }
+
+  @Builder
+  TrackContextMenu(t: Track) {
+    Menu() {
+      MenuItem({
+        content: '下一首播放',
+        symbolStartIcon: new SymbolGlyphModifier($r('sys.symbol.forward_end_fill'))
+      })
+        .onClick(() => {
+          queueViewModel.insertNext(t);
+        })
+      MenuItem({
+        content: '从歌单移除',
+        symbolStartIcon: new SymbolGlyphModifier($r('sys.symbol.minus'))
+      })
+        .onClick(() => {
+          this.vm.removeTrackFromSelected(t.id);
+        })
+    }
+  }
+
+  @Builder
   TrackRow(t: Track, index: number) {
     Row({ space: 12 }) {
       CoverThumb({ uri: this.coverUri(t), thumbSize: 40 })
@@ -213,6 +268,7 @@ export struct PlaylistsPage {
         queueViewModel.playFromList(this.vm.selectedTracks, index, this.ctx());
       }
     })
+    .bindContextMenu(this.TrackContextMenu(t), ResponseType.LongPress)
   }
 
   @Builder
@@ -598,7 +654,8 @@ export struct PlaylistsPage {
           ListItem() {
             this.TrackRow(t, index)
           }
-        })
+          .swipeAction({ end: { builder: () => { this.PlaylistTrackSwipeActions(t); } } })
+        }, (t: Track) => t.id.toString())
       }
       .width('100%')
       .layoutWeight(1)

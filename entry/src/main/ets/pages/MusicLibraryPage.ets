@@ -7,6 +7,7 @@ import { PlayerViewModel, playerViewModel } from '../viewmodel/PlayerViewModel';
 import { playlistsViewModel } from '../viewmodel/PlaylistsViewModel';
 import { Track, Album, Artist, Playlist } from '../model/Entities';
 import { common } from '@kit.AbilityKit';
+import { SymbolGlyphModifier } from '@kit.ArkUI';
 import { CoverThumb } from '../components/CoverThumb';
 import { EmptyState } from '../components/EmptyState';
 import { OnlineSearchView } from '../components/OnlineSearchView';
@@ -255,6 +256,92 @@ export struct MusicLibraryPage {
   }
 
   @Builder
+  ItemSwipeActions(t: Track) {
+    Row({ space: 8 }) {
+      Button({ type: ButtonType.Circle }) {
+        SymbolGlyph(this.vm.favoriteIds.has(t.id) ? $r('sys.symbol.heart_fill') : $r('sys.symbol.heart'))
+          .fontSize(20)
+          .fontColor([this.vm.favoriteIds.has(t.id) ? '#FF453A' : this.theme.primaryText])
+      }
+      .width(42)
+      .height(42)
+      .backgroundColor(ThemeService.alpha(this.theme.primary, 0.15))
+      .accessibilityText(this.vm.favoriteIds.has(t.id) ? '取消收藏' : '收藏')
+      .onClick(() => {
+        this.vm.toggleFavorite(t.id);
+      })
+
+      Button({ type: ButtonType.Circle }) {
+        SymbolGlyph($r('sys.symbol.forward_end_fill'))
+          .fontSize(20)
+          .fontColor([this.theme.primaryText])
+      }
+      .width(42)
+      .height(42)
+      .backgroundColor(ThemeService.alpha(this.theme.primary, 0.15))
+      .accessibilityText('下一首播放')
+      .onClick(() => {
+        this.qvm.insertNext(t);
+      })
+    }
+    .height('100%')
+    .padding({ left: 10, right: 12 })
+    .alignItems(VerticalAlign.Center)
+    .justifyContent(FlexAlign.Center)
+  }
+
+  @Builder
+  TrackContextMenu(t: Track) {
+    Menu() {
+      MenuItem({
+        content: '下一首播放',
+        symbolStartIcon: new SymbolGlyphModifier($r('sys.symbol.forward_end_fill'))
+      })
+        .onClick(() => {
+          this.qvm.insertNext(t);
+        })
+      MenuItem({
+        content: '添加到歌单',
+        symbolStartIcon: new SymbolGlyphModifier($r('sys.symbol.plus'))
+      })
+        .onClick(() => {
+          this.sheetTarget = t;
+          this.sheetMode = 2;
+          this.showSheet = true;
+        })
+      if (t.album !== '') {
+        MenuItem({
+          content: '查看专辑',
+          symbolStartIcon: new SymbolGlyphModifier($r('sys.symbol.music_note_list'))
+        })
+          .onClick(() => {
+            const album = this.vm.albums.find((a: Album) => a.name === t.album) ??
+              { name: t.album, artist: t.artist, count: 1 };
+            this.openAlbum(album);
+          })
+      }
+      if (t.artist !== '') {
+        MenuItem({
+          content: '查看艺术家',
+          symbolStartIcon: new SymbolGlyphModifier($r('sys.symbol.person'))
+        })
+          .onClick(() => {
+            const artist = this.vm.artists.find((a: Artist) => a.name === t.artist) ??
+              { name: t.artist, count: 1 };
+            this.openArtist(artist);
+          })
+      }
+      MenuItem({
+        content: '从音乐库移除',
+        symbolStartIcon: new SymbolGlyphModifier($r('sys.symbol.trash'))
+      })
+        .onClick(() => {
+          this.confirmRemove(t);
+        })
+    }
+  }
+
+  @Builder
   TrackRowItem(t: Track, index: number, source: Track[]) {
     Row({ space: 12 }) {
       CoverThumb({ uri: this.coverUri(t), thumbSize: 44 })
@@ -281,17 +368,7 @@ export struct MusicLibraryPage {
         .onClick(() => {
           this.vm.toggleFavorite(t.id);
         })
-      // 阶段 v2 行操作重设计:爱心高频留行内,加歌单/移除收进"⋯"底部弹层
-      SymbolGlyph($r('sys.symbol.ellipsis_circle'))
-        .fontSize(20)
-        .fontColor([this.theme.muted])
-        .padding(4)
-        .onClick(() => {
-          this.sheetTarget = t;
-          this.sheetMode = 1;
-          this.showSheet = true;
-          this.showSourceInfo = false;
-        })
+
     }
     .width('100%')
     .padding({ left: 12, right: 12, top: 10, bottom: 10 })
@@ -310,6 +387,7 @@ export struct MusicLibraryPage {
         this.playTracks(source, index);
       }
     })
+    .bindContextMenu(this.TrackContextMenu(t), ResponseType.LongPress)
   }
 
   @Builder
@@ -319,6 +397,7 @@ export struct MusicLibraryPage {
         ListItem() {
           this.TrackRowItem(t, index, this.vm.tracks)
         }
+        .swipeAction({ end: { builder: () => { this.ItemSwipeActions(t); } } })
       }, (t: Track) => t.id.toString())
     }
     .cachedCount(5)
@@ -502,6 +581,7 @@ export struct MusicLibraryPage {
             ListItem() {
               this.TrackRowItem(t, index, this.detailTracks)
             }
+            .swipeAction({ end: { builder: () => { this.ItemSwipeActions(t); } } })
           }, (t: Track) => t.id.toString())
         }
         .width('100%')

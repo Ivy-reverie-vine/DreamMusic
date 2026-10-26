@@ -218,6 +218,34 @@ export class QueueEngine {
   }
 
   /**
+   * 下一首播放:将目标音轨插入到当前播放音轨之后。
+   * 若当前无播放则插入首位;若原先已在队列中先移除再插入到下一首,保证不重复。
+   */
+  insertNext(trackId: number): void {
+    if (trackId <= 0) {
+      return;
+    }
+    if (this.current() === trackId) {
+      return;
+    }
+    const existingIndex = this.tracks.indexOf(trackId);
+    if (existingIndex >= 0) {
+      this.tracks.splice(existingIndex, 1);
+      if (existingIndex < this.currentIndex) {
+        this.currentIndex--;
+      }
+    }
+    if (this.currentIndex < 0 || this.tracks.length === 0) {
+      this.tracks.splice(0, 0, trackId);
+      this.currentIndex = 0;
+    } else {
+      const insertIndex = this.currentIndex + 1;
+      this.tracks.splice(insertIndex, 0, trackId);
+    }
+    this.buildShuffle();
+  }
+
+  /**
    * 用已入库音轨 ID 原位替换瞬态在线音轨 ID。
    * 保持当前位置与其余播放顺序不变，下载完成切换本地来源时使用。
    */

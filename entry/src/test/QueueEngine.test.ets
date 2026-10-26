@@ -115,5 +115,38 @@ export default function queueEngineTest() {
       expect(e2.current()).assertEqual(e.current());
       expect(e2.next()).assertEqual(e.next());
     });
+
+    it('insertNext_insertsAfterCurrent', 0, () => {
+      const e = new QueueEngine();
+      e.setQueue([1, 2, 3], 0);
+      e.insertNext(4);
+      expect(e.queueIds.length).assertEqual(4);
+      expect(e.queueIds[0]).assertEqual(1);
+      expect(e.queueIds[1]).assertEqual(4);
+      expect(e.queueIds[2]).assertEqual(2);
+      expect(e.queueIds[3]).assertEqual(3);
+      expect(e.current()).assertEqual(1);
+      expect(e.next()).assertEqual(4);
+    });
+
+    it('insertNext_deduplicatesAndMovesAfterCurrent', 0, () => {
+      const e = new QueueEngine();
+      e.setQueue([1, 2, 3, 4], 0);
+      e.insertNext(3);
+      expect(e.queueIds.length).assertEqual(4);
+      expect(e.queueIds[0]).assertEqual(1);
+      expect(e.queueIds[1]).assertEqual(3);
+      expect(e.queueIds[2]).assertEqual(2);
+      expect(e.queueIds[3]).assertEqual(4);
+      expect(e.current()).assertEqual(1);
+    });
+
+    it('insertNext_whenEmpty_insertsAtHead', 0, () => {
+      const e = new QueueEngine();
+      e.insertNext(10);
+      expect(e.queueIds.length).assertEqual(1);
+      expect(e.queueIds[0]).assertEqual(10);
+      expect(e.current()).assertEqual(10);
+    });
   });
 }
